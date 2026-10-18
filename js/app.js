@@ -9,8 +9,10 @@ const state = {
   checkMode: 'point',   // point | nav
   departHour: -1,       // -1 = 自动推荐
   points: [],           // [{name, lat, lon}]
+  times: [],            // 规划模式：每个点位的到达时刻（分钟，0–1439）
   currentReport: null,
   expandIdx: -1,
+  dxIdx: -1,
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -162,24 +164,61 @@ function initCreate() {
         `<option value="${h}">${String(h).padStart(2, '0')}:00</option>`).join('');
   sel.addEventListener('change', () => { state.departHour = Number(sel.value); });
 
+  // 新建页地图：底图切换 + 全屏
+  const layerBtn = $('#btnCreateLayer');
+  if (layerBtn) {
+    layerBtn.addEventListener('click', () => {
+      const name = MapCtl.toggleLayer();
+      if (!name) return;
+      const idx = TILE_LAYERS.findIndex(t => t.name === name);
+      const next = TILE_LAYERS[(idx + 1) % TILE_LAYERS.length];
+      layerBtn.textContent = next ? next.name : '底图';
+      toast('已切换到「' + name + '」底图');
+      setTimeout(() => MapCtl.refresh('create'), 120);
+    });
+  }
+  const fsBtn = $('#btnCreateFull');
+  if (fsBtn) {
+    fsBtn.addEventListener('click', () => toggleCreateFullscreen());
+  }
+
   applyCheckModeUI();
   renderPointList();
 }
+
+/** 新建页地图全屏（CSS 沉浸式，兼容 iOS；ESC 可退出） */
+function toggleCreateFullscreen(force) {
+  const wrap = $('#createMapWrap');
+  if (!wrap) return;
+  const on = force != null ? force : !wrap.classList.contains('immersive');
+  wrap.classList.toggle('immersive', on);
+  document.body.classList.toggle('map-immersive', on);
+  const btn = $('#btnCreateFull');
+  if (btn) btn.textContent = on ? '✕ 退出' : '⛶ 全屏';
+  setTimeout(() => MapCtl.refresh('create'), 150);
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  toggleCreateFullscreen(false);
+  closeDx();
+});
 
 /** 根据体检模式切换界面文案与可见字段 */
 function applyCheckModeUI() {
   const nav = state.checkMode === 'nav';
   $('#fieldDepart').classList.toggle('hidden', !nav);
   $('#modeDesc').textContent = nav
-    ? '先规划路径，再沿路等距采样，按「预计到达该点的那一刻」的天气逐点评分。'
-    : '按你输入的固定点位评估，所有点位取同一时刻的天气。';
-  $('#btnCheckup').textContent = nav ? '导航并体检' : '开始体检';
+    ? '只给起点和终点：系统规划真实路径、按「到达该点的那一刻」评估，并推荐出发时刻。'
+    : '你自己安排每个点位的到达时间：系统逐点核对，指出不合理的地方并给出调整建议。';
+  $('#btnCheckup').textContent = nav ? '导航并体检' : '开始诊断';
   const lbl = document.querySelector('#pointList')?.closest('.field')?.querySelector('label');
   if (lbl) {
     lbl.innerHTML = nav
       ? '起点与终点 <span class="small">（中间可加途经点，最多 5 个）</span>'
-      : '路线点位 <span class="small">（起点 → 途经点 → 终点，最多 5 个）</span>';
+      : '行程点位与到达时间 <span class="small">（起点 → 途经点 → 终点，最多 5 个）</span>';
   }
+  if (state.points.length) renderPointList();
 }
 
 /** 新建页地图是惰性的：只在视图可见时创建/重建，避免在 display:none 容器上初始化 Leaflet */
@@ -210,31 +249,109 @@ function renderPointList() {
   const el = $('#pointList');
   if (!state.points.length) {
     el.innerHTML = `<div class="empty-inline">还没有点位，点「载入示例路线」或「添加点位」</div>`;
+    const lg0 = $('#planLegs'); if (lg0) lg0.innerHTML = '';
     return;
   }
+  ensureTimes();
+  const plan = state.checkMode === 'point';
+
   el.innerHTML = state.points.map((p, i) => {
     const role = i === 0 ? '起点' : (i === state.points.length - 1 ? '终点' : '途经');
     const roleCls = i === 0 ? 'start' : (i === state.points.length - 1 ? 'end' : 'mid');
+    const tail = plan
+      ? `<input class="pt-time" type="time" step="600" data-i="${i}" value="${minToHM(state.times[i])}" aria-label="到达时间">`
+      : `<span class="pt-coord">${p.lat.toFixed(2)}, ${p.lon.toFixed(2)}</span>`;
     return `
       <div class="pt-row" data-i="${i}">
         <span class="pt-drag" data-i="${i}" role="button" tabindex="0"
               aria-label="拖动调整顺序" title="拖动调整顺序">⋮⋮</span>
         <span class="pt-role ${roleCls}">${role}</span>
         <span class="pt-name">${escapeHtml(p.name)}</span>
-        <span class="pt-coord">${p.lat.toFixed(2)}, ${p.lon.toFixed(2)}</span>
+        ${tail}
         <button class="pt-del" data-i="${i}" aria-label="删除">✕</button>
       </div>`;
   }).join('');
 
   $$('#pointList .pt-del').forEach(b => {
     b.addEventListener('click', () => {
-      state.points.splice(Number(b.dataset.i), 1);
+      const di = Number(b.dataset.i);
+      state.points.splice(di, 1);
+      if (state.times.length > di) state.times.splice(di, 1);
       renderPointList();
     });
   });
 
+  $$('#pointList .pt-time').forEach(inp => {
+    inp.addEventListener('change', () => setPointTime(Number(inp.dataset.i), hmToMin(inp.value)));
+  });
+
+  if (plan) renderLegs();
+  else { const lg = $('#planLegs'); if (lg) lg.innerHTML = ''; }
+
   bindDragReorder(el);
   markCreateMapDirty();
+}
+
+/* ---------------- 规划模式：时间预填与点间核对 ---------------- */
+
+/** 保证 times 与 points 等长（新增点位时按里程自动补时间） */
+function ensureTimes() {
+  const n = state.points.length;
+  if (!n) { state.times = []; return; }
+  if (state.times.length === n) return;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    if (state.times[i] != null) { out.push(state.times[i]); continue; }
+    out.push(i === 0
+      ? 8 * 60
+      : out[i - 1] + Math.round(legInfo(state.points[i - 1], state.points[i]).minutes) + 10);
+  }
+  state.times = out;
+}
+
+/** 两点之间的近似里程与耗时（直线 × 1.25，按出行方式取速度） */
+function legInfo(a, b) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat), dLon = toRad(b.lon - a.lon);
+  const la1 = toRad(a.lat), la2 = toRad(b.lat);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
+  const km = 2 * R * Math.asin(Math.sqrt(h)) * 1.25;
+  const spd = state.mode === 'hike' ? 4 : state.mode === 'bike' ? 15 : 40;
+  return { km, minutes: km / spd * 60 };
+}
+
+/** 用户改某个点的时间：必须晚于上一点，并自动顺延后面的点 */
+function setPointTime(i, min) {
+  if (min == null || !isFinite(min)) { renderPointList(); return; }
+  if (i > 0 && min <= state.times[i - 1]) {
+    min = state.times[i - 1] + 5;
+    toast('时间必须晚于上一点，已自动顺延');
+  }
+  state.times[i] = min;
+  for (let k = i + 1; k < state.points.length; k++) {
+    const need = Math.max(5, Math.round(legInfo(state.points[k - 1], state.points[k]).minutes));
+    const earliest = state.times[k - 1] + need;
+    if (state.times[k] < earliest) state.times[k] = earliest;
+  }
+  renderPointList();
+}
+
+/** 输入区下方的点间时间核对 */
+function renderLegs() {
+  const el = $('#planLegs');
+  if (!el) return;
+  if (state.points.length < 2) { el.innerHTML = ''; return; }
+  let html = '<div class="leg-title">点间时间核对（直线距离 ×1.25 估算，未含停留）</div>';
+  for (let i = 1; i < state.points.length; i++) {
+    const L = legInfo(state.points[i - 1], state.points[i]);
+    const planned = state.times[i] - state.times[i - 1];
+    const bad = planned + 5 < L.minutes;   // 与报告一致：留 5 分钟容差
+    html += `<div class="leg${bad ? ' bad' : ''}">
+      <span class="leg-name">${i} → ${i + 1}　${escapeHtml(state.points[i - 1].name)} → ${escapeHtml(state.points[i].name)}</span>
+      <span class="leg-time">${L.km.toFixed(0)} km · 需 ${Math.round(L.minutes)} 分 · ${bad ? '只留了 ' : '留了 '}${Math.round(planned)} 分 ${bad ? '⚠️' : '✓'}</span>
+    </div>`;
+  }
+  el.innerHTML = html;
 }
 
 /**
@@ -305,6 +422,10 @@ function bindDragReorder(container) {
 
       const [moved] = state.points.splice(from, 1);
       state.points.splice(to, 0, moved);
+      if (state.times.length > from) {
+        const [mt] = state.times.splice(from, 1);
+        state.times.splice(to, 0, mt);
+      }
       renderPointList();
       toast(`已把「${moved.name}」移到第 ${to + 1} 位`);
     };
@@ -492,12 +613,17 @@ async function checkupPoints() {
   btn.disabled = true;
   btn.textContent = '体检中…';
   showView('report');
-  $('#reportBody').innerHTML = skeletonHtml(`正在获取 ${state.points.length} 个点位的逐小时预报…`);
+  ensureTimes();
+  const built = buildPlanSamples(state.points, state.times, state.mode, 20);
+  const pts = built.samples.map(s => ({ name: s.name, lat: s.lat, lon: s.lon }));
+
+  $('#reportBody').innerHTML = skeletonHtml(
+    `正在获取 ${pts.length} 个采样点（${state.points.length} 个点位 + ${pts.length - state.points.length} 个沿途点）的逐小时预报…`);
 
   try {
     const [series, elevations] = await Promise.all([
-      fetchHourly(state.points, state.date),
-      fetchElevations(state.points),
+      fetchHourly(pts, state.date),
+      fetchElevations(pts),
     ]);
 
     if (!series.ok || !series.series.length) {
@@ -510,7 +636,10 @@ async function checkupPoints() {
       return;
     }
 
-    const report = analyze(series.series, elevations, state.date, state.mode);
+    const report = analyzePlanRoute({
+      series: series.series, elevations, samples: built.samples, legs: built.legs,
+      sun: series.sun, dateStr: state.date, mode: state.mode,
+    });
     if (!report) {
       $('#reportBody').innerHTML = `
         <div class="errbox">
@@ -530,9 +659,11 @@ async function checkupPoints() {
     // 存入本机历史
     const trip = {
       id: newTripId(),
+      checkMode: 'point',
       date: state.date,
       mode: state.mode,
       points: state.points.slice(),
+      times: state.times.slice(),
       routeName: state.points.map(p => p.name).join(' → '),
       routeScore: report.routeScore,
       worstName: report.points[report.worstIndex].name,
@@ -736,7 +867,7 @@ function renderNavReport(r, stale) {
 
     <h2 class="sec-title">沿程 ${r.points.length} 个采样点（按预计到达时刻）</h2>
     <div id="pointCards">
-      ${r.points.map((p, i) => renderNavPointCard(p, i, r.expandIdx === i)).join('')}
+      ${r.points.map((p, i) => renderNavPointCard(p, i, state.expandIdx === i)).join('')}
     </div>
 
     <h2 class="sec-title">出行准备</h2>
@@ -815,15 +946,16 @@ function renderNavPointCard(p, i, expanded) {
   const p2 = n => String(Math.floor(n)).padStart(2, '0');
   const arriveLabel = `${p2(p.hour)}:00` + (p.dayOffset > 0 ? '<sup>次日</sup>' : '');
 
-  const dedHtml = p.deductions.length
-    ? p.deductions.slice(0, 3).map(d => `<span class="ded">${escapeHtml(d.label)}（−${d.pts}）</span>`).join('')
-    : `<span class="ded none">无明显扣分项</span>`;
+  const good = p.score >= 80;
+  const chips = good ? buildHighlights(p) : p.deductions.slice(0, 3).map(d => d.label);
+  const dedHtml = chips.length
+    ? chips.map(c => `<span class="ded${good ? ' up' : ''}">${good ? '✓ ' : ''}${escapeHtml(c)}</span>`).join('')
+    : `<span class="ded none">${good ? '天气条件良好' : '—'}</span>`;
 
   return `
     <div class="card pt-card" data-i="${i}">
       <div class="pt-card-head" data-i="${i}">
         <div class="pc-left">
-          <span class="pc-idx">${i + 1}</span>
           <div>
             <div class="pc-name">${escapeHtml(p.name)}</div>
             <div class="pc-meta">${p.weatherText}${p.temp != null ? ' · ' + p.temp.toFixed(1) + '℃' : ''}${p.elev != null ? ' · ' + p.elev + 'm' : ''}</div>
@@ -832,7 +964,6 @@ function renderNavPointCard(p, i, expanded) {
         <div class="pc-right">
           <span class="pc-score ${lv.key}">${p.score}</span>
           <span class="pc-lv ${lv.key}">${lv.text}</span>
-          <span class="pc-caret">${expanded ? '▲' : '▼'}</span>
         </div>
       </div>
 
@@ -895,26 +1026,21 @@ function renderNavHourly(p) {
  * ============================================================ */
 
 function renderReport(r, stale) {
-  const routeName = r.points.map(p => p.name).join(' → ');
+  const routeName = state.points.map(p => p.name).join(' → ');
   const worst = r.points[r.worstIndex];
+  const keyRows = r.points.map((p, i) => ({ p, i })).filter(x => x.p.kind !== 'leg');
+  const totalKm = (r.legs || []).reduce((s2, L) => s2 + L.km * 1.25, 0);
+  const totalMin = r.points.length > 1 ? (r.points[r.points.length - 1].minute - r.points[0].minute) : 0;
+  const legRows = r.points.map((p, i) => ({ p, i })).filter(x => x.p.kind === 'leg');
   const lv = r.level;
 
-  let windowHtml;
-  if (r.window.exists) {
-    windowHtml = `
-      <div class="kv">
-        <span class="kv-k">建议出发窗口</span>
-        <span class="kv-v strong">${pad(r.window.startHour)}:00 – ${pad(r.window.endHour)}:00</span>
-      </div>
-      ${r.window.capped ? `<div class="kv-note neutral">当天约 ${r.window.qualifyHours} 个时段达「一般」以上，以上为其中最优的一段</div>` : ''}`;
-  } else {
-    windowHtml = `
-      <div class="kv">
-        <span class="kv-k">今日无完全适宜窗口</span>
-        <span class="kv-v">最接近：${pad(r.window.nearestHour)}:00（全线最低 ${r.window.routeScoreAtNearest} 分）</span>
-      </div>
-      <div class="kv-note">瓶颈在「${escapeHtml(r.window.bottleneckName)}」，建议改期或缩短行程</div>`;
-  }
+  const dz = r.diagnosis || { items: [], blockCount: 0, warnCount: 0, summary: 'ok' };
+  const dzText = dz.summary === 'block' ? `发现 ${dz.blockCount} 处需要调整`
+    : dz.summary === 'warn' ? `${dz.warnCount} 处建议微调`
+    : (r.routeScore < 80 ? `全程最低 ${r.routeScore} 分` : '行程安排合理');
+  const dzNote = dz.summary === 'block' ? '按下面的建议调整后再出发'
+    : dz.summary === 'warn' ? '整体可行，把时间微调一下会更稳'
+    : (r.routeScore < 80 ? '没有明显问题，但有一处把总分拉低了' : '各点位的时间安排与天气都匹配');
 
   $('#reportBody').innerHTML = `
     <div class="card map-card">
@@ -938,29 +1064,43 @@ function renderReport(r, stale) {
         </div>
       </div>
 
-      ${windowHtml}
+      <div class="kv">
+        <span class="kv-k">行程诊断</span>
+        <span class="kv-v strong ${dz.summary}">${dzText}</span>
+      </div>
+      <div class="kv-note">${dzNote}</div>
 
       <div class="kv">
-        <span class="kv-k">最差点位</span>
-        <span class="kv-v">${escapeHtml(worst.name)}${worst.elev != null ? `（海拔 ${worst.elev} m）` : ''} · ${worst.score} 分</span>
-      </div>
-      <div class="kv">
-        <span class="kv-k">各点平均</span>
-        <span class="kv-v">${r.avgScore} 分</span>
-      </div>
-
-      <div class="explain">
-        路线得分取各点位中的<b>最低分</b>——一个人可以在 ${r.avgScore} 分的路上走，
-        但整条行程的安全性由最差的那一段决定。
+        <span class="kv-k">路线概况</span>
+        <span class="kv-v">路程 ${Math.round(totalKm)} km · 预计用时 ${fmtDuration(totalMin)}</span>
       </div>
 
       ${stale ? `<div class="warn">⚠️ 数据可能已过期（离线缓存），请联网后重试</div>` : ''}
     </div>
 
-    <h2 class="sec-title">逐点位 · ${pad(r.chosenHour)}:00 时刻</h2>
-    <div id="pointCards">
-      ${r.points.map((p, i) => renderPointCard(p, i, r.expandIdx === i)).join('')}
+    <h2 class="sec-title">行程诊断</h2>
+    <div class="dx-list">
+      ${dz.items.length ? dz.items.map(renderDx).join('') : '<div class="card dx-item ok"><div class="dx-t">没有发现问题</div></div>'}
     </div>
+
+    <h2 class="sec-title">关键点位 · 按你安排的时间</h2>
+    <div id="pointCards">
+      ${keyRows.map(x => renderPointCard(x.p, x.i, state.expandIdx === x.i)).join('')}
+    </div>
+
+    ${legRows.length ? `
+    <h2 class="sec-title">沿途采样 · ${legRows.length} 个</h2>
+    <div class="card leg-list">
+      <div class="leg-head"><span>位置</span><span>到达</span><span>天气</span><span>评分</span></div>
+      ${legRows.map(x => `
+        <div class="leg-row">
+          <span class="lr-name">${escapeHtml(x.p.name)}</span>
+          <span class="lr-time">${x.p.timeLabel}</span>
+          <span class="lr-wx">${x.p.icon || ''} ${escapeHtml(x.p.weatherText)}</span>
+          <span class="lr-score ${x.p.level.key}">${x.p.score}</span>
+        </div>`).join('')}
+      <div class="leg-note">沿途采样标准：在你设定的相邻点位之间按直线等距插值，约每 8 km 一个（单段最多 6 个，全线含关键点位不超过 20 个）；每个采样点取「预计到达该点那一刻」的天气。路线总分取所有采样点中的最低分。</div>
+    </div>` : ''}
 
     <h2 class="sec-title">出行准备</h2>
     <div class="card advice">
@@ -969,7 +1109,7 @@ function renderReport(r, stale) {
 
     <div class="card boundary">
       <div class="bd-title">⚠️ 使用边界</div>
-      <div class="bd-item">本报告仅评估你输入的 <b>${r.points.length} 个点位</b>，点位之间的路段不在评估范围内。</div>
+      <div class="bd-item">报告在关键点位之间<b>按里程自动采样</b>（约每 8 km，共 ${r.points.length} 处），已覆盖沿途主要路段；但采样点之间的连续路段仍未逐米评估。</div>
       <div class="bd-item">结果为基于公开气象预报的<b>参考性评估</b>，<b>不构成安全保证</b>，不替代官方预警信息与现场判断。</div>
       <div class="bd-item">预报数据来自全球模型，<b>山区局地精度有限</b>。</div>
     </div>
@@ -990,6 +1130,12 @@ function renderReport(r, stale) {
     <div class="bottom-space"></div>
   `;
 
+  // 诊断条目：点击弹出具体措施
+  $$('.dx-item[data-idx]').forEach(el => {
+    el.addEventListener('click', () => openDx(Number(el.dataset.idx)));
+    el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDx(Number(el.dataset.idx)); } });
+  });
+
   // 绑定展开/收起
   $$('#pointCards .pt-card-head').forEach(h => {
     h.addEventListener('click', () => {
@@ -1001,9 +1147,13 @@ function renderReport(r, stale) {
 
   // 地图：路线可视化 + 点击点位联动卡片（地图失败绝不能影响整页）
   try {
-    MapCtl.renderReport('reportMap', r.points.map((p, i) => Object.assign({}, p, { __i: i })), (i) => {
+    MapCtl.renderReport('reportMap', keyRows.map((x, k) => Object.assign({}, x.p, {
+      __i: x.i,
+      pinLabel: k === 0 ? '起' : (k === keyRows.length - 1 ? '终' : '途'),
+    })), (i) => {
+      const realIdx = keyRows[i] ? keyRows[i].i : i;
       MapCtl.highlight(i);
-      const card = document.querySelector(`#pointCards .pt-card[data-i="${i}"]`);
+      const card = document.querySelector(`#pointCards .pt-card[data-i="${realIdx}"]`);
       if (card) {
         card.scrollIntoView({ behavior: 'smooth', block: 'center' });
         card.classList.remove('flash');
@@ -1033,18 +1183,46 @@ function renderReport(r, stale) {
   runDiag();
 }
 
+/** 诊断条目：证据 + 影响 + 建议 */
+function renderDx(it, idx) {
+  const icon = it.severity === 'block' ? '⛔' : it.severity === 'warn' ? '⚠️' : '✅';
+  const lines = [];
+  if (it.evidence) lines.push(`<div class="dx-l"><b>证据：</b>${escapeHtml(it.evidence)}</div>`);
+  if (it.impact) lines.push(`<div class="dx-l"><b>影响：</b>${escapeHtml(it.impact)}</div>`);
+  const hint = (it.actions && it.actions.length)
+    ? '<div class="dx-hint">查看具体措施 ›</div>' : '';
+  return `<div class="dx-item ${it.severity}" data-idx="${idx}" role="button" tabindex="0">
+      <div class="dx-t">${icon} ${escapeHtml(it.title)}</div>
+      ${lines.join('')}
+      ${hint}
+    </div>`;
+}
+
+/** 天气好时展示的绿色加分项（不显示扣分） */
+function buildHighlights(p) {
+  const out = [];
+  if (p.precip != null && p.precip === 0) out.push('无降水');
+  else if (p.pp != null && p.pp <= 20) out.push('降水概率低（' + Math.round(p.pp) + '%）');
+  if (p.wind != null && p.wind <= 18) out.push('风速小（' + Math.round(p.wind) + ' km/h）');
+  if (p.temp != null && p.temp >= 12 && p.temp <= 26) out.push('气温舒适（' + Math.round(p.temp) + '℃）');
+  if (p.code != null && p.code <= 3) out.push('天气晴好');
+  if (p.elev != null && p.elev < 2500) out.push('海拔适中');
+  return out.slice(0, 4);
+}
+
 function renderPointCard(p, i, expanded) {
   const lv = p.level;
 
-  const dedHtml = p.deductions.length
-    ? p.deductions.slice(0, 3).map(d => `<span class="ded">${escapeHtml(d.label)}（−${d.pts}）</span>`).join('')
-    : `<span class="ded none">无明显扣分项</span>`;
+  const good = p.score >= 80;
+  const chips = good ? buildHighlights(p) : p.deductions.slice(0, 3).map(d => d.label);
+  const dedHtml = chips.length
+    ? chips.map(c => `<span class="ded${good ? ' up' : ''}">${good ? '✓ ' : ''}${escapeHtml(c)}</span>`).join('')
+    : `<span class="ded none">${good ? '天气条件良好' : '—'}</span>`;
 
   return `
     <div class="card pt-card" data-i="${i}">
       <div class="pt-card-head" data-i="${i}">
         <div class="pc-left">
-          <span class="pc-idx">${i + 1}</span>
           <div>
             <div class="pc-name">${escapeHtml(p.name)}</div>
             <div class="pc-meta">${p.weatherText}${p.temp != null ? ' · ' + p.temp.toFixed(1) + '℃' : ''}${p.elev != null ? ' · ' + p.elev + 'm' : ''}</div>
@@ -1053,17 +1231,39 @@ function renderPointCard(p, i, expanded) {
         <div class="pc-right">
           <span class="pc-score ${lv.key}">${p.score}</span>
           <span class="pc-lv ${lv.key}">${lv.text}</span>
-          <span class="pc-caret">${expanded ? '▲' : '▼'}</span>
         </div>
+      </div>
+
+      <div class="pc-arrive">
+        <span class="arr-time">你的到达时间 ${p.timeLabel || '—'}</span>
+        <span class="arr-km">${p.elev != null ? '海拔 ' + p.elev + ' m' : ''}</span>
       </div>
 
       <div class="pc-deds">${dedHtml}</div>
 
-      ${expanded ? renderHourly(p) : renderMiniBar(p)}
+      ${expanded ? renderHourly(p) : renderHourlyStrip(p)}
     </div>`;
 }
 
-/** 小时条（点位模式用）：p 是带 hourly 的点位 */
+/** 始终可见的「行程日 24 小时」天气条：时刻 / 天气 / 气温 / 降水概率 / 评分 */
+function renderHourlyStrip(p) {
+  const hours = p.hourly || [];
+  return `
+    <div class="hourly-strip-wrap">
+      <div class="hourly-strip">
+        ${hours.map(h => `
+          <div class="hs-col${h.hour === p.hour ? ' hs-now' : ''}" title="${pad(h.hour)}:00 ${wmoText(h.code)} ${h.score} 分">
+            <div class="hs-hour">${pad(h.hour)}</div>
+            <div class="hs-icon">${wmoIcon(h.code)}</div>
+            <div class="hs-temp">${h.temp != null ? Math.round(h.temp) + '°' : '—'}</div>
+            <div class="hs-pp">${h.pp != null ? Math.round(h.pp) + '%' : '—'}</div>
+          </div>`).join('')}
+      </div>
+      <div class="ht-legend">行程日逐小时：时刻 / 天气 / 气温 / 降水概率（高亮 = 你的到达时刻）</div>
+    </div>`;
+}
+
+/** 小时条（旧版，保留兼容） */
 function renderMiniBar(p) {
   return renderMiniBarOf(p.hourly, false);
 }
@@ -1081,13 +1281,14 @@ function renderHourly(p) {
       <div class="ht-scroll">
         ${p.hourly.map(h => `
           <div class="ht-col">
-            <div class="ht-score ${h.level.key}">${h.score}</div>
             <div class="ht-hour">${pad(h.hour)}</div>
+            <div class="ht-wx">${wmoIcon(h.code)} ${wmoText(h.code)}</div>
             <div class="ht-temp">${h.temp != null ? Math.round(h.temp) + '°' : '—'}</div>
             <div class="ht-pp">${h.pp != null ? h.pp + '%' : '—'}</div>
+            <div class="ht-wind">${h.wind != null ? Math.round(h.wind) + 'km/h' : '—'}</div>
           </div>`).join('')}
       </div>
-      <div class="ht-legend">上排：适宜度　中排：时刻　下排：气温 / 降水概率</div>
+      <div class="ht-legend">时刻 / 天气 / 气温 / 降水概率 / 风速</div>
     </div>`;
 }
 
@@ -1099,12 +1300,78 @@ function openTrip(id) {
   state.date = t.date;
   state.mode = t.mode;
   state.points = t.points.map(p => ({ name: p.name, lat: p.lat, lon: p.lon }));
+  state.times = Array.isArray(t.times) ? t.times.slice() : [];
+  state.checkMode = t.checkMode === 'nav' ? 'nav' : 'point';
+  $$('#segCheckMode button').forEach(b => b.classList.toggle('on', b.dataset.check === state.checkMode));
+  applyCheckModeUI();
   $('#inpDate').value = t.date;
   $$('#segMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === t.mode));
   renderPointList();
   showView('report');
   runCheckup();
 }
+
+/* ---------------- 诊断建议弹层 ---------------- */
+
+function openDx(idx) {
+  const r = state.currentReport;
+  if (!r || !r.diagnosis) return;
+  const it = r.diagnosis.items[idx];
+  if (!it) return;
+  state.dxIdx = idx;
+  $('#dxTitle').textContent = it.title;
+  const rows = [];
+  if (it.evidence) rows.push('<div class="dx-l"><b>证据：</b>' + escapeHtml(it.evidence) + '</div>');
+  if (it.actions && it.actions.length) {
+    rows.push('<div class="dx-sec">具体措施</div><ol class="dx-acts">'
+      + it.actions.map(a => '<li>' + escapeHtml(a) + '</li>').join('') + '</ol>');
+  } else if (it.severity === 'ok') {
+    rows.push('<div class="dx-l">这一点的安排与天气匹配，不需要调整。</div>');
+  }
+  $('#dxBody').innerHTML = rows.join('');
+  const box = $('#dxApplies');
+  const list = (it.applies && it.applies.length)
+    ? it.applies
+    : (it.apply ? [Object.assign({}, it.apply, { label: it.applyLabel || '应用这条建议' })] : []);
+  box.innerHTML = list.map((a, k) =>
+    '<button class="btn btn-primary dx-apply" data-k="' + k + '">' + escapeHtml(a.label || '应用') + '</button>'
+  ).join('');
+  box.style.display = list.length ? 'flex' : 'none';
+  $$('#dxApplies .dx-apply').forEach(b => {
+    b.addEventListener('click', () => applyDx(Number(b.dataset.k)));
+  });
+  $('#dxSheet').classList.remove('hidden');
+}
+
+function closeDx() {
+  $('#dxSheet').classList.add('hidden');
+}
+
+function applyDx(k) {
+  const r = state.currentReport;
+  const it = r && r.diagnosis ? r.diagnosis.items[state.dxIdx] : null;
+  if (!it) return;
+  const list = (it.applies && it.applies.length) ? it.applies : (it.apply ? [it.apply] : []);
+  const a = list[k || 0];
+  if (!a) return;
+  ensureTimes();
+  if (a.type === 'setTime') {
+    setPointTime(a.index, a.minute);
+  } else if (a.type === 'shiftAll') {
+    state.times = state.times.map(t => Math.max(0, t + a.delta));
+  }
+  closeDx();
+  toast('已按建议调整时间，正在重新诊断…');
+  runCheckup();
+}
+
+(function initDxSheet() {
+  const close = $('#dxClose');
+  if (close) close.addEventListener('click', closeDx);
+  const sheet = $('#dxSheet');
+  if (sheet) sheet.addEventListener('click', (e) => { if (e.target === sheet) closeDx(); });
+
+})();
 
 /* ---------------- 工具 ---------------- */
 

@@ -98,11 +98,12 @@ async function fetchHourly(points, dateStr, days) {
   const key = cacheKey('fc', [lat, lon, dateStr, days]);
 
   const hit = readCache(key);
-  if (hit) return { ok: true, stale: false, at: hit.at, series: normalizeSeries(hit.data, points) };
+  if (hit) return { ok: true, stale: false, at: hit.at, series: normalizeSeries(hit.data, points), sun: normalizeSun(hit.data, points) };
 
   const url = `${API.FORECAST}?latitude=${lat}&longitude=${lon}`
     + `&hourly=${HOURLY_FIELDS}`
     + `&start_date=${dateStr}&end_date=${endDate}`
+    + `&daily=sunrise,sunset`
     + `&timezone=Asia%2FShanghai`;
 
   try {
@@ -110,15 +111,15 @@ async function fetchHourly(points, dateStr, days) {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const json = await res.json();
     writeCache(key, json);
-    return { ok: true, stale: false, at: Date.now(), series: normalizeSeries(json, points) };
+    return { ok: true, stale: false, at: Date.now(), series: normalizeSeries(json, points), sun: normalizeSun(json, points) };
   } catch (e) {
     console.warn('预报获取失败：', e);
     // 降级 1：用过期缓存
     const stale = readCacheStale(key);
     if (stale) {
-      return { ok: true, stale: true, at: stale.at, series: normalizeSeries(stale.data, points) };
+      return { ok: true, stale: true, at: stale.at, series: normalizeSeries(stale.data, points), sun: normalizeSun(stale.data, points) };
     }
-    return { ok: false, stale: true, at: null, series: [] };
+    return { ok: false, stale: true, at: null, series: [], sun: [] };
   }
 }
 
@@ -141,6 +142,21 @@ function normalizeSeries(json, points) {
       code: num(h.weather_code, k),
     }));
     return { name: p.name, lat: p.lat, lon: p.lon, hours };
+  });
+}
+
+/** 从 daily.sunrise / daily.sunset 取每个点位的日出日落（HH:MM） */
+function normalizeSun(json, points) {
+  const blocks = Array.isArray(json) ? json : [json];
+  return points.map((p, i) => {
+    const b = blocks[i] || blocks[0] || {};
+    const d = b.daily || {};
+    const rise = d.sunrise && d.sunrise[0] ? String(d.sunrise[0]) : null;
+    const set = d.sunset && d.sunset[0] ? String(d.sunset[0]) : null;
+    return {
+      sunrise: rise ? rise.slice(11, 16) : null,
+      sunset: set ? set.slice(11, 16) : null,
+    };
   });
 }
 

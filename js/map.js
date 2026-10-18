@@ -1,7 +1,7 @@
 /* ============================================================
  * 地图模块（Leaflet，本地化于 vendor/leaflet）
  * ------------------------------------------------------------
- * 瓦片：Carto Voyager（免费、无需 Key、无需实名），失败自动降级到 OSM。
+ * 瓦片：只保留「普通（天地图矢量）」与「地形（天地地形晕渲）」两种；
  * 用途：
  *   · 报告页 —— 路线可视化，点位按评分着色，点击点位联动下方卡片
  *   · 新建页 —— 边加点边画线，可直接点地图选点
@@ -11,7 +11,7 @@
  * 底图源
  * gcj: true 表示该底图使用 GCJ-02（中国国测局）坐标系，
  *      绘制前必须把 WGS-84 坐标偏移过去，否则点位会偏几百米。
- *      高德/腾讯 = GCJ-02；OSM/Esri/天地图 = WGS-84（可直接用）
+ *      当前两套底图均为 WGS-84（可直接使用 Open-Meteo / OSRM 坐标）
  *
  * TIANDITU_KEY 定义在 js/config.js（地图与地名搜索共用）
  */
@@ -24,80 +24,55 @@ function tdtUrl(layer) {
 }
 
 function buildTileLayers() {
-  const out = [];
-
+  // 只保留两种底图：普通（矢量路网 + 注记）与地形（晕渲 + 注记）。
+  // 优先用天地图（国内访问快、路网与注记完整）；没有 Key 时退回 OSM / Esri。
   if (TIANDITU_KEY) {
-    out.push({
-      name: '天地图',
-      url: tdtUrl('vec'),
-      opts: {
-        subdomains: '01234567',
-        maxZoom: 18,
-        attribution: '底图 &copy; <a href="https://www.tianditu.gov.cn/">天地图</a>（国家地理信息公共服务平台）'
+    return [
+      {
+        name: '普通',
+        url: tdtUrl('vec'),
+        opts: {
+          subdomains: '01234567',
+          maxZoom: 18,
+          attribution: '底图 &copy; <a href="https://www.tianditu.gov.cn/">天地图</a>（国家地理信息公共服务平台）'
+        },
+        extras: [{ url: tdtUrl('cva'), opts: { subdomains: '01234567', maxZoom: 18, attribution: '' } }],
+        gcj: false,
       },
-      extras: [{ url: tdtUrl('cva'), opts: { subdomains: '01234567', maxZoom: 18, attribution: '' } }],
-      gcj: false,
-    });
-
-    // 地形晕渲版：山区路线更有用
-    out.push({
-      name: '天地地形',
-      url: tdtUrl('ter'),
-      opts: {
-        subdomains: '01234567',
-        maxZoom: 18,
-        attribution: '地形 &copy; <a href="https://www.tianditu.gov.cn/">天地图</a>'
+      {
+        name: '地形',
+        url: tdtUrl('ter'),
+        opts: {
+          subdomains: '01234567',
+          maxZoom: 18,
+          attribution: '地形 &copy; <a href="https://www.tianditu.gov.cn/">天地图</a>'
+        },
+        extras: [{ url: tdtUrl('cta'), opts: { subdomains: '01234567', maxZoom: 18, attribution: '' } }],
+        gcj: false,
       },
-      extras: [{ url: tdtUrl('cta'), opts: { subdomains: '01234567', maxZoom: 18, attribution: '' } }],
-      gcj: false,
-    });
+    ];
   }
 
-  out.push({
-    name: '中文',
-    // style=7 = 高德标准矢量底图（style=8 是纯路网，标注极少）
-    // 实测：高德在川西偏远山区几乎不画内容（泸定 z10 仅 4% 非白像素）
-    url: 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
-    opts: {
-      subdomains: '1234',
-      maxZoom: 18,
-      attribution: '底图 &copy; 高德地图（GCJ-02 坐标系，已做坐标纠偏）'
+  return [
+    {
+      name: '普通',
+      url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      opts: {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      },
+      gcj: false,
     },
-    gcj: true,
-  });
-
-  out.push({
-    name: 'OSM',
-    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    opts: {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    {
+      name: '地形',
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+      opts: {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; <a href="https://www.esri.com/">Esri</a> — Esri, HERE, Garmin, USGS, NGA'
+      },
+      gcj: false,
     },
-    gcj: false,
-  });
-
-  out.push({
-    name: 'Esri',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
-    opts: {
-      maxZoom: 19,
-      attribution: 'Tiles &copy; <a href="https://www.esri.com/">Esri</a> — Esri, HERE, Garmin, USGS, NGA'
-    },
-    gcj: false,
-  });
-
-  out.push({
-    name: '地形',
-    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    opts: {
-      subdomains: 'abc',
-      maxZoom: 17,
-      attribution: '地图 &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM | 样式 &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)'
-    },
-    gcj: false,
-  });
-
-  return out;
+  ];
 }
 
 const TILE_LAYERS = buildTileLayers();
@@ -280,6 +255,8 @@ const MapCtl = {
     const nextIdx = (idx + 1) % TILE_LAYERS.length;
     const btn = document.getElementById('mapToggle');
     if (btn) btn.textContent = TILE_LAYERS[nextIdx].name;
+    const btn2 = document.getElementById('btnCreateLayer');
+    if (btn2) btn2.textContent = TILE_LAYERS[nextIdx].name;
     if (typeof window.__onMapLayerChange === 'function') {
       window.__onMapLayerChange(name);
     }
@@ -308,8 +285,7 @@ const MapCtl = {
 
   /**
    * 切换底图
-   * 关键：不同底图坐标系不同（高德 GCJ-02 / OSM WGS-84），
-   * 只换瓦片不重画会导致点位偏移，所以必须整图重建。
+   * 关键：底图切换要连同点位一起重建，避免坐标系/图层残留导致的偏移。
    */
   toggleLayer() {
     preferredTileIdx = (preferredTileIdx + 1) % TILE_LAYERS.length;
@@ -382,7 +358,12 @@ const MapCtl = {
    * 颜色约定：起 = 绿、终 = 红（沿用地图 App 通行习惯，便于一眼定位）
    * 中间的采样点/途经点用评分色，直观表达"哪一段有问题"
    */
-  _iconFor(i, total, levelKey, active) {
+  _iconFor(i, total, levelKey, active, label) {
+    if (label != null) {
+      if (label === '起') return this._pinIcon(i, 'start', active, 0, '起', true);
+      if (label === '终') return this._pinIcon(i, 'end', active, 0, '终', true);
+      return this._pinIcon(i, levelKey, active, 0, label);
+    }
     if (i === 0) return this._pinIcon(i, 'start', active, 0, '起', true);
     if (i === total - 1) return this._pinIcon(i, 'end', active, 0, '终', true);
     return this._pinIcon(i, levelKey, active);
@@ -429,7 +410,7 @@ const MapCtl = {
     // 起点用「起」气泡、终点用「终」气泡，中间采样点用数字
     points.forEach((p, i) => {
       const mk = L.marker(this._conv(map, p.lat, p.lon), {
-        icon: this._iconFor(i, points.length, p.level ? p.level.key : 'neutral', false),
+        icon: this._iconFor(i, points.length, p.level ? p.level.key : 'neutral', false, p.pinLabel),
         keyboard: false,
       }).addTo(map);
 
@@ -502,11 +483,11 @@ const MapCtl = {
 
     points.forEach((p, i) => {
       const mk = L.marker(this._conv(map, p.lat, p.lon), {
-        icon: this._iconFor(i, points.length, p.level ? p.level.key : 'neutral', false),
+        icon: this._iconFor(i, points.length, p.level ? p.level.key : 'neutral', false, p.pinLabel),
         keyboard: false,
       }).addTo(map);
 
-      mk.bindTooltip(`${i + 1}. ${p.name}${p.score != null ? ' · ' + p.score + '分' : ''}`, {
+      mk.bindTooltip(`${p.pinLabel ? p.pinLabel + ' ' : (i + 1) + '. '}${p.name}${p.score != null ? ' · ' + p.score + '分' : ''}`, {
         direction: 'top',
         offset: [0, -14],
         opacity: 1,
@@ -545,7 +526,7 @@ const MapCtl = {
     Object.entries(map.reportMarkers).forEach(([k, mk]) => {
       const i = Number(k);
       const p = map.__points && map.__points[i];
-      mk.setIcon(this._iconFor(i, (map.__points || []).length, p && p.level ? p.level.key : 'neutral', i === index));
+      mk.setIcon(this._iconFor(i, (map.__points || []).length, p && p.level ? p.level.key : 'neutral', i === index, p && p.pinLabel));
       mk.setZIndexOffset(i === index ? 1000 : 0);
     });
   },
@@ -639,7 +620,13 @@ const MapCtl = {
   /** 视图切换后必须调用，否则地图尺寸为 0 会显示错位 */
   refresh(which) {
     const map = this[which];
-    if (map) setTimeout(() => map.invalidateSize({ animate: false }), 60);
+    if (!map) return;
+    // 延迟执行期间地图可能已被重建/销毁，必须确认还是同一个实例
+    setTimeout(() => {
+      if (this[which] !== map) return;
+      if (!map._container || !document.body.contains(map._container)) return;
+      try { map.invalidateSize({ animate: false }); } catch (e) { /* 已销毁则忽略 */ }
+    }, 60);
   },
 
   destroyAll() {

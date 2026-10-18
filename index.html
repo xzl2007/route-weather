@@ -7,6 +7,7 @@
 <title>路线天气体检</title>
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:,">
 <script>
 /* 早期错误捕获：把 JS 错误显示在页面上，避免"白屏无提示" */
 window.__errs = [];
@@ -67,14 +68,14 @@ window.addEventListener('error', function (e) {
       <div class="seg" id="segCheckMode">
         <button data-check="point" class="on">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s6.5-5.6 6.5-10.5a6.5 6.5 0 10-13 0C5.5 15.4 12 21 12 21z"/><circle cx="12" cy="10.5" r="2.3"/></svg>
-          点位模式
+          规划模式
         </button>
         <button data-check="nav">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="5.5" r="2.5"/><path d="M8 18.5h6a4 4 0 000-8h-4a4 4 0 010-8h6"/></svg>
           导航模式
         </button>
       </div>
-      <p class="mode-desc" id="modeDesc">按你输入的固定点位评估，所有点位取同一时刻的天气。</p>
+      <p class="mode-desc" id="modeDesc">你自己安排每个点位的到达时间：系统逐点核对，指出不合理的地方并给出调整建议。</p>
     </div>
 
     <div class="field hidden" id="fieldDepart">
@@ -103,13 +104,20 @@ window.addEventListener('error', function (e) {
 
     <div class="field">
       <label>地图选点 <span class="small">（点地图任意位置可直接添加点位）</span></label>
-      <div id="createMap" class="map map-create"></div>
+      <div class="map-wrap map-wrap-create" id="createMapWrap">
+        <div id="createMap" class="map map-create"></div>
+        <div class="map-tools">
+          <button class="map-btn" id="btnCreateLayer" type="button">地形</button>
+          <button class="map-btn" id="btnCreateFull" type="button">⛶ 全屏</button>
+        </div>
+      </div>
       <div class="map-hint">底图 © OpenStreetMap contributors · 仅供路线示意</div>
     </div>
 
     <div class="field">
       <label>路线点位 <span class="small">（起点 → 途经点 → 终点，最多 5 个）</span></label>
       <div id="pointList"></div>
+      <div id="planLegs" class="plan-legs"></div>
       <div class="row-btns">
         <button class="btn btn-ghost" id="btnAddPoint">＋ 添加点位</button>
         <button class="btn btn-ghost" id="btnDemo">载入示例路线</button>
@@ -127,7 +135,7 @@ window.addEventListener('error', function (e) {
     </div>
 
     <button class="btn btn-primary btn-lg" id="btnCheckup">开始体检</button>
-    <p class="hint">仅评估你输入的点位，点位之间的路段不在评估范围内。</p>
+    <p class="hint">规划模式：你自己定时间，系统指出不合理处；导航模式：只给起终点，系统帮你排时间。<br>两种模式都只评估你输入的点位，点位之间的路段不在评估范围内。</p>
   </section>
 
   <!-- ========== 体检报告 ========== -->
@@ -148,6 +156,17 @@ window.addEventListener('error', function (e) {
     <div id="sheetRemote" class="sheet-remote"></div>
     <div id="sheetRegions" class="regions"></div>
     <div id="sheetList" class="sheet-list"></div>
+  </div>
+</div>
+
+<div id="dxSheet" class="sheet hidden">
+  <div class="sheet-panel dx-panel">
+    <div class="sheet-head">
+      <span id="dxTitle">诊断建议</span>
+      <button class="btn-close" id="dxClose">✕</button>
+    </div>
+    <div id="dxBody" class="dx-body"></div>
+    <div id="dxApplies" class="dx-applies" style="display:none"></div>
   </div>
 </div>
 

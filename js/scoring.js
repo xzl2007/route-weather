@@ -43,6 +43,23 @@ function wmoText(code) {
   return (WMO[code] || { zh: '未知', sev: 0 }).zh;
 }
 
+/** WMO 天气码 → 图标（用于逐小时天气条） */
+function wmoIcon(code) {
+  if (code == null) return '·';
+  if (code === 0) return '☀️';
+  if (code === 1) return '🌤️';
+  if (code === 2) return '⛅';
+  if (code === 3) return '☁️';
+  if (code === 45 || code === 48) return '🌫️';
+  if (code >= 51 && code <= 57) return '🌦️';
+  if (code >= 61 && code <= 67) return '🌧️';
+  if (code >= 71 && code <= 77) return '🌨️';
+  if (code >= 80 && code <= 82) return '🌧️';
+  if (code >= 85 && code <= 86) return '🌨️';
+  if (code >= 95) return '⛈️';
+  return '·';
+}
+
 function wmoSev(code) {
   if (code === null || code === undefined) return 0;
   return (WMO[code] || { sev: 0 }).sev;
@@ -498,7 +515,700 @@ function buildNavAdvice(points, route, departHour, mode) {
   return out;
 }
 
+
+/* ============================================================
+ * 规划模式：用户给定「点位 + 到达时间」，逐点核对并给出诊断
+ * ------------------------------------------------------------
+ * 与导航模式的分工：
+ *   导航模式 = 系统排时间（按路网时长推算到达时刻，并推荐出发时刻）
+ *   规划模式 = 用户排时间（系统只核对合不合理，不替他排）
+ * ============================================================ */
+
+/** 分钟 → "HH:MM" */
+function minToHM(min) {
+  if (min == null || !isFinite(min)) return '--:--';
+  let m = Math.round(min) % 1440;
+  if (m < 0) m += 1440;
+  return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+}
+
+/** "HH:MM" → 分钟 */
+function hmToMin(hm) {
+  if (!hm) return null;
+  const parts = String(hm).split(':');
+  const h = Number(parts[0]), m = Number(parts[1] || 0);
+  if (!isFinite(h) || !isFinite(m)) return null;
+  return h * 60 + m;
+}
+
+/** 两点直线距离（km） */
+function haversineKm(a, b) {
+  const R = 6371;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat), dLon = toRad(b.lon - a.lon);
+  const la1 = toRad(a.lat), la2 = toRad(b.lat);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/** 出行方式速度（km/h），与 routing.js 的 SPEED 保持一致 */
+const PLAN_SPEED = { drive: 40, hike: 4, bike: 15 };
+
+/** 两点之间的路程与耗时（直线 × 1.25 近似山路里程） */
+function planLeg(a, b, mode) {
+  const km = haversineKm(a, b) * 1.25;
+  const spd = PLAN_SPEED[mode] || PLAN_SPEED.drive;
+  return { km, minutes: km / spd * 60 };
+}
+
+/** 取某点位在指定分钟对应的那一小时数据 */
+function hourAtMinute(series, minute) {
+  if (!series || !series.hours) return null;
+  const hh = Math.floor((((minute % 1440) + 1440) % 1440) / 60);
+  return series.hours.find(h => h.hour === hh) || null;
+}
+
+/**
+ * 规划模式：把「点位 + 时间」展开成「点位 + 沿途采样点」
+ * 目的：体检不能只看几个点，必须覆盖点与点之间的路段。
+ *
+ * @param {Array} points   [{name, lat, lon}]（2–5 个）
+ * @param {Array} times    每个点位的到达时刻（分钟）
+ * @param {string} mode    drive | hike | bike
+ * @param {number} maxTotal 采样点总数上限（含关键点位），默认 20
+ */
+function buildPlanSamples(points, times, mode, maxTotal) {
+  maxTotal = maxTotal || 20;
+  const K = points.length;
+  const out = [];
+  if (!K) return { samples: [], legs: [] };
+
+  const legRaw = [];
+  let cum = 0;
+  for (let i = 1; i < K; i++) {
+    const km = haversineKm(points[i - 1], points[i]);
+    const L = planLeg(points[i - 1], points[i], mode);
+    legRaw.push({
+      from: points[i - 1].name, to: points[i].name,
+      km, needed: L.minutes, planned: times[i] - times[i - 1],
+      a: points[i - 1], b: points[i], t0: times[i - 1], t1: times[i], cumStart: cum,
+    });
+    cum += km;
+  }
+
+  // 每条路段的中间采样数：约每 8 km 一个，单段 0–6 个，总预算内按最大段优先削减
+  const budget = Math.max(0, maxTotal - K);
+  const counts = legRaw.map(L => Math.min(6, Math.max(0, Math.round(L.km / 8))));
+  let total = counts.reduce((a, b) => a + b, 0);
+  while (total > budget) {
+    let idx = -1, best = 0;
+    counts.forEach((c, i) => { if (c > best) { best = c; idx = i; } });
+    if (idx < 0) break;
+    counts[idx]--; total--;
+  }
+
+  // 起点
+  out.push({
+    name: points[0].name, lat: points[0].lat, lon: points[0].lon,
+    minute: times[0], kind: 'point', pointIdx: 0, legIndex: -1, ratio: 0, cumKm: 0,
+  });
+
+  legRaw.forEach((L, i) => {
+    const n = counts[i] || 0;
+    for (let k = 1; k <= n; k++) {
+      const f = k / (n + 1);
+      out.push({
+        name: L.from + '→' + L.to + ' K' + Math.max(1, Math.round(L.km * f)),
+        lat: L.a.lat + (L.b.lat - L.a.lat) * f,
+        lon: L.a.lon + (L.b.lon - L.a.lon) * f,
+        minute: L.t0 + (L.t1 - L.t0) * f,
+        kind: 'leg', pointIdx: -1, legIndex: i, ratio: f,
+        cumKm: L.cumStart + L.km * f,
+      });
+    }
+    // 该段终点（关键点位）
+    out.push({
+      name: L.to, lat: L.b.lat, lon: L.b.lon,
+      minute: L.t1, kind: 'point', pointIdx: i + 1, legIndex: i, ratio: 1,
+      cumKm: L.cumStart + L.km,
+    });
+  });
+
+  return {
+    samples: out,
+    legs: legRaw.map(L => ({
+      from: L.from, to: L.to, km: L.km,
+      needed: L.needed, planned: L.planned,
+    })),
+  };
+}
+
+/**
+ * 高程剖面
+ * ------------------------------------------------------------
+ * ⚠️ 口径说明（重要）：
+ *   累计爬升只按「用户输入的关键点位」逐段累加，不按沿途采样点累加。
+ *   原因：规划模式的沿途采样点是「两点之间的直线插值」，海拔取的是 DEM
+ *   地形高程（可能是山脊/沟谷），不是路面高程。若按采样点累加，
+ *   直线穿过的起伏会被反复计入，得到虚高的累计爬升（如 3008 m 最高点
+ *   却算出 3187 m 爬升）。
+ *   terrainMax 单独保留，仅用于展示「沿线地形采样最高」，不参与爬升统计。
+ */
+function buildProfile(entries) {
+  const keys = entries.filter(e => e.kind !== 'leg');
+  const use = keys.length >= 2 ? keys : entries;
+
+  let climb = 0, descent = 0, maxGrade = 0, maxElev = null, minElev = null;
+  let steep = null, longDown = null, terrainMax = null;
+
+  // 地形采样最高（仅展示，不作为路面海拔）
+  entries.forEach(e => {
+    if (e.elev == null) return;
+    if (terrainMax == null || e.elev > terrainMax) terrainMax = e.elev;
+  });
+
+  // 关键点位：海拔极值与累计升降
+  use.forEach(e => {
+    if (e.elev == null) return;
+    if (maxElev == null || e.elev > maxElev) maxElev = e.elev;
+    if (minElev == null || e.elev < minElev) minElev = e.elev;
+  });
+
+  for (let i = 1; i < use.length; i++) {
+    const a = use[i - 1], b = use[i];
+    if (a.elev == null || b.elev == null) continue;
+    const dh = b.elev - a.elev;
+    const d = haversineKm(a, b) * 1000;
+    if (!d) continue;
+    if (dh > 0) climb += dh; else descent += -dh;
+    const grade = Math.abs(dh) / d * 100;
+    if (grade > maxGrade) maxGrade = grade;
+    if (dh > 0 && grade >= 5 && dh >= 300 && (!steep || dh > steep.dh)) steep = { a, b, dh, grade };
+    if (dh < 0 && -dh >= 500 && (!longDown || -dh > longDown.dh)) longDown = { a, b, dh: -dh, grade };
+  }
+
+  const netGain = (use.length >= 2 && use[0].elev != null && use[use.length - 1].elev != null)
+    ? Math.round(use[use.length - 1].elev - use[0].elev)
+    : null;
+
+  return {
+    climb: Math.round(climb),
+    descent: Math.round(descent),
+    netGain,
+    maxGrade,
+    maxElev,
+    minElev,
+    terrainMax,
+    steep,
+    longDown,
+  };
+}
+
+/**
+ * 规划模式分析（含沿途采样）
+ * 与 analyzePlan 的区别：这里接受已展开的 samples（含 kind='leg'），
+ * 路线分取「所有采样点」的最低分，并在报告中单列沿途风险。
+ */
+function analyzePlanRoute(opts) {
+  const series = opts.series || [];
+  const elevations = opts.elevations || [];
+  const samples = opts.samples || [];
+  if (!series.length || !samples.length) return null;
+
+  const entries = [];
+  for (let i = 0; i < samples.length; i++) {
+    const sm = samples[i];
+    const s = series[i];
+    if (!s) continue;
+    const h = hourAtMinute(s, sm.minute);
+    if (!h) return null;
+    const elev = elevations ? elevations[i] : null;
+    const hourly = s.hours.map(x => {
+      const s2 = scoreHour(x, elev);
+      return {
+        hour: x.hour, time: x.time, score: s2.score, level: s2.level, deductions: s2.deductions,
+        temp: x.temp, pp: x.pp, precip: x.precip, wind: x.wind, code: x.code,
+      };
+    });
+    const sc = scoreHour(h, elev);
+    entries.push({
+      name: sm.name, lat: sm.lat, lon: sm.lon, elev,
+      minute: sm.minute, timeLabel: minToHM(sm.minute), hour: h.hour,
+      kind: sm.kind, pointIdx: sm.pointIdx, legIndex: sm.legIndex, ratio: sm.ratio, cumKm: sm.cumKm,
+      score: sc.score, level: sc.level, deductions: sc.deductions,
+      temp: h.temp, code: h.code, pp: h.pp, precip: h.precip, wind: h.wind,
+      weatherText: wmoText(h.code), icon: wmoIcon(h.code),
+      hourly,
+    });
+  }
+  if (!entries.length) return null;
+
+  const scores = entries.map(e => e.score);
+  const combined = combineRouteScore(scores);
+  const routeScore = combined.score;
+  const worstIndex = argmin(scores, entries.map(e => e.elev));
+  const profile = buildProfile(entries);
+  const diagnosis = diagnosePlan(entries, opts.legs || [], opts.sun || [], opts.mode, profile);
+
+  return {
+    mode: 'plan',
+    date: opts.dateStr,
+    travelMode: opts.mode,
+    points: entries,
+    legs: opts.legs || [],
+    profile,
+    routeScore,
+    avgScore: combined.avg,
+    minScore: combined.min,
+    level: levelOf(routeScore),
+    worstIndex,
+    diagnosis,
+    advice: buildPlanAdvice(entries, opts.legs || [], diagnosis, profile),
+  };
+}
+
+/**
+ * 规划模式分析
+ * @param {Array} series      每个点位的逐小时数据（1 天，0–23 时）
+ * @param {Array} elevations  海拔
+ * @param {Array} points      [{name, lat, lon}]
+ * @param {Array} times       每个点位的到达时刻（分钟）
+ * @param {Array} sun         [{sunrise, sunset}]
+ */
+function analyzePlan(series, elevations, points, times, sun, dateStr, mode) {
+  if (!series || !series.length) return null;
+  const entries = [];
+  for (let i = 0; i < series.length; i++) {
+    const t = times && times[i] != null ? times[i] : 8 * 60;
+    const h = hourAtMinute(series[i], t);
+    if (!h) return null;
+    const elev = elevations ? elevations[i] : null;
+    // 逐小时全部评分（与 analyze() 的结构保持一致，供小时条/展开表复用）
+    const hourly = series[i].hours.map(x => {
+      const s2 = scoreHour(x, elev);
+      return {
+        hour: x.hour, time: x.time, score: s2.score, level: s2.level, deductions: s2.deductions,
+        temp: x.temp, pp: x.pp, precip: x.precip, wind: x.wind, code: x.code,
+      };
+    });
+    const sc = scoreHour(h, elev);
+    entries.push({
+      name: points[i] ? points[i].name : series[i].name,
+      lat: series[i].lat, lon: series[i].lon,
+      elev,
+      minute: t,
+      timeLabel: minToHM(t),
+      hour: h.hour,
+      score: sc.score, level: sc.level, deductions: sc.deductions,
+      temp: h.temp, code: h.code, pp: h.pp, precip: h.precip, wind: h.wind,
+      weatherText: wmoText(h.code),
+      hourly,
+    });
+  }
+
+  // 点与点之间的路程 / 耗时 / 你留出的时间
+  const legs = [];
+  for (let i = 1; i < entries.length; i++) {
+    const L = planLeg(points[i - 1], points[i], mode);
+    legs.push({
+      from: entries[i - 1].name,
+      to: entries[i].name,
+      km: L.km,
+      needed: L.minutes,
+      planned: entries[i].minute - entries[i - 1].minute,
+    });
+  }
+
+  const scores = entries.map(e => e.score);
+  const combined = combineRouteScore(scores);
+  const routeScore = combined.score;
+  const worstIndex = argmin(scores, entries.map(e => e.elev));
+  const diagnosis = diagnosePlan(entries, legs, sun, mode);
+
+  return {
+    mode: 'plan',
+    date: dateStr,
+    travelMode: mode,
+    points: entries,
+    legs,
+    routeScore,
+    avgScore: combined.avg,
+    minScore: combined.min,
+    level: levelOf(routeScore),
+    worstIndex,
+    diagnosis,
+    advice: buildPlanAdvice(entries, legs, diagnosis),
+  };
+}
+
+/**
+ * 行程诊断：R1 单点天气 / R2 高海拔午后 / R3 时间过紧 / R4 天黑 / R5 全程降雨
+ * 每条都输出：证据 + 影响 + 建议
+ */
+/** 路线综合分：平均分 70% + 最差段 30%；最差段低于 60 时封顶，避免"一段很差还被平均掉" */
+function combineRouteScore(scores) {
+  const n = scores.length || 1;
+  const avg = Math.round(scores.reduce((a, b) => a + b, 0) / n);
+  const minScore = Math.min.apply(null, scores);
+  let score = Math.round(avg * 0.7 + minScore * 0.3);
+  if (minScore < 40) score = Math.min(score, 59);
+  else if (minScore < 60) score = Math.min(score, 79);
+  return { score, avg, min: minScore };
+}
+
+/** 某点位在 lo–hi 点之间、评分 ≥ threshold 的连续时段 */
+function goodWindowsOf(p, lo, hi, threshold) {
+  const hits = (p.hourly || []).filter(h => h.hour >= lo && h.hour <= hi && h.score >= threshold);
+  const wins = [];
+  let cur = null;
+  hits.forEach(h => {
+    if (cur && h.hour === cur.end + 1) { cur.end = h.hour; cur.max = Math.max(cur.max, h.score); }
+    else { if (cur) wins.push(cur); cur = { start: h.hour, end: h.hour, max: h.score }; }
+  });
+  if (cur) wins.push(cur);
+  return wins;
+}
+
+/** 时段 → "09:00–11:00" */
+function fmtWindow(w) {
+  const a = String(w.start).padStart(2, '0') + ':00';
+  if (w.end === w.start) return a;
+  return a + '–' + String(w.end + 1).padStart(2, '0') + ':00';
+}
+
+/** 按 pointIdx 找到该关键点位在 entries 中的下标（entries 里混有沿途采样点） */
+function entryIndexByPoint(entries, pointIdx) {
+  for (let k = 0; k < entries.length; k++) {
+    if (entries[k].kind === 'point' && entries[k].pointIdx === pointIdx) return k;
+  }
+  return Math.min(entries.length - 1, pointIdx);
+}
+
+/** 某个点位 06–20 点之间评分最高的时刻 */
+function bestHourOf(p, lo, hi) {
+  let best = null;
+  (p.hourly || []).forEach(h => {
+    if (h.hour < lo || h.hour > hi) return;
+    if (!best || h.score > best.score) best = { hour: h.hour, minute: h.hour * 60, score: h.score };
+  });
+  return best;
+}
+
+/**
+ * 把诊断条目变成「可执行措施 + 具体时间」
+ * 输出：it.actions（给人看的措施列表）、it.apply（可一键执行的调整）
+ */
+function concretizeItem(it, entries, legs, sun, mode, profile) {
+  const p = entries[it.index];
+  if (!p || it.severity === 'ok') return it;
+  const dep = entries[0] ? entries[0].minute : 0;
+  const hm = minToHM;
+  const MIN_DEP = 8 * 60 + 30;   // 08:30：不早于这个时间出发
+
+  const sunsetOf = (i) => {
+    const v = sun && sun[i] ? hmToMin(sun[i].sunset) : null;
+    return v == null ? 18 * 60 + 30 : v;
+  };
+  const latestOf = (i) => sunsetOf(i) - 60;   // 天黑前 1 小时
+
+  const cumNeed = (pointIdx) => {
+    if (pointIdx == null || pointIdx <= 0) return 0;
+    return (legs || []).slice(0, pointIdx).reduce((s2, L) => s2 + L.needed, 0);
+  };
+
+  if (it.tag === '天气不适合' || it.tag === '天气偏弱' || it.tag === '天气一般') {
+    // 可出行窗口：09:00 – 日落前 1 小时（按整点时段给出，天然不早于 08:30）
+    const hiH = Math.min(20, Math.floor(latestOf(it.index) / 60));
+    let wins = goodWindowsOf(p, 9, hiH, 80);
+    if (!wins.length) wins = goodWindowsOf(p, 9, hiH, Math.max(60, p.score + 5));
+
+    const picks = wins.slice()
+      .sort((a, b) => Math.abs(a.start * 60 - p.minute) - Math.abs(b.start * 60 - p.minute))
+      .slice(0, 3)
+      .sort((a, b) => a.start - b.start);
+
+    if (picks.length) {
+      it.actions = ['可选的到达时段：' + picks.map(fmtWindow).join('、')];
+      it.applies = [];
+      const target = picks[0].start * 60;
+      if (p.pointIdx != null && p.pointIdx >= 0) {
+        it.applies.push({
+          type: 'setTime', index: p.pointIdx, minute: target,
+          label: '把「' + p.name + '」到达时刻改到 ' + hm(target),
+        });
+      }
+      const diff = target - p.minute;
+      if (Math.abs(diff) >= 5) {
+        const newDep = dep + diff;
+        if (newDep >= MIN_DEP) {
+          it.applies.push({
+            type: 'shiftAll', delta: diff,
+            label: '整体' + (diff > 0 ? '推迟' : '提前') + ' ' + Math.abs(diff) + ' 分钟出发（'
+              + hm(dep) + ' → ' + hm(newDep) + '）',
+          });
+        } else if (dep < MIN_DEP) {
+          it.applies.push({
+            type: 'shiftAll', delta: MIN_DEP - dep,
+            label: '把出发时间调整到 ' + hm(MIN_DEP),
+          });
+        }
+      }
+    } else {
+      it.actions = ['本日 08:30–' + hm(latestOf(it.index)) + ' 没有更合适的时段，建议改期'];
+    }
+  }
+
+  if (it.tag === '时间过紧') {
+    const L = legs[it.legIndex != null ? it.legIndex : it.index - 1];
+    const dest = entries[it.index];
+    if (L && dest) {
+      const dep2 = Math.max(dep, MIN_DEP);
+      const arrive = dep2 + Math.round(L.needed);
+      const target = arrive + 10;
+      const latest = latestOf(it.index);
+      it.actions = [
+        '这段车程约 ' + Math.round(L.needed) + ' 分钟，你只安排了 ' + Math.round(L.planned) + ' 分钟',
+      ];
+      it.applies = [];
+      if (target > latest) {
+        it.actions.push('按 ' + hm(dep2) + ' 出发也要 ' + hm(arrive) + ' 才到，已晚于 ' + hm(latest) + '，建议缩短行程或改期');
+      } else {
+        it.actions.push('按 ' + hm(dep2) + ' 出发，约 ' + hm(arrive) + ' 到达；建议把到达时刻设为 ' + hm(target) + '（含 10 分钟余量）');
+        if (dest.pointIdx != null && dest.pointIdx >= 0) {
+          it.applies.push({
+            type: 'setTime', index: dest.pointIdx, minute: target,
+            label: '把「' + dest.name + '」到达时刻设为 ' + hm(target),
+          });
+        }
+        if (dep2 > dep) {
+          it.applies.push({
+            type: 'shiftAll', delta: dep2 - dep,
+            label: '把出发时间调整到 ' + hm(dep2),
+          });
+        }
+      }
+    }
+  }
+
+  if (it.tag === '天黑风险') {
+    const latest = latestOf(it.index);
+    const need = Math.max(0, p.minute - latest);
+    if (need > 0) {
+      const canShift = dep - need >= MIN_DEP;
+      it.actions = [
+        '最晚 ' + hm(latest) + ' 前通过（日落 ' + sun[it.index].sunset + ' 前 60 分钟）',
+      ];
+      it.applies = [];
+      if (canShift) {
+        it.actions.push('可以整体提前 ' + need + ' 分钟出发（' + hm(dep) + ' → ' + hm(dep - need) + '）');
+        it.applies.push({
+          type: 'shiftAll', delta: -need,
+          label: '整体提前 ' + need + ' 分钟出发（' + hm(dep) + ' → ' + hm(dep - need) + '）',
+        });
+      } else {
+        it.actions.push('按 ' + hm(MIN_DEP) + ' 出发仍会晚 ' + Math.round(p.minute - (MIN_DEP + (p.minute - dep))) + ' 分钟，建议缩短行程或改期');
+      }
+    }
+  }
+
+  if (it.tag === '高海拔午后') {
+    const target = 10 * 60 + 30;
+    const delta = Math.max(0, p.minute - target);
+    it.actions = ['把「' + p.name + '」调整到 10:30 前通过（当前 ' + p.timeLabel + '）'];
+    it.applies = [];
+    if (p.pointIdx != null && p.pointIdx >= 0 && delta > 0) {
+      it.applies.push({ type: 'setTime', index: p.pointIdx, minute: target,
+        label: '把「' + p.name + '」改到 10:30' });
+    }
+    if (delta > 0 && dep - delta >= MIN_DEP) {
+      it.applies.push({ type: 'shiftAll', delta: -delta,
+        label: '整体提前 ' + delta + ' 分钟出发（' + hm(dep) + ' → ' + hm(dep - delta) + '）' });
+    }
+  }
+
+  if (it.tag === '全程降雨') {
+    it.actions = [
+      '本日整条路线都在降雨中，建议改期（换到预报转好的日期）',
+      '若必须当天走，把出发时间安排在 08:30 之后、并在午后雷雨前通过主要路段',
+    ];
+  }
+
+  return it;
+}
+
+function diagnosePlan(entries, legs, sun, mode, profile) {
+  const items = [];
+
+  // 沿途采样点很多时只保留每段最差的一个，避免报告被淹没
+  const legWorst = {};
+  entries.forEach((p, i) => {
+    if (p.kind !== 'leg') return;
+    const k = p.legIndex;
+    if (legWorst[k] == null || p.score < entries[legWorst[k]].score) legWorst[k] = i;
+  });
+
+  entries.forEach((p, i) => {
+    // 沿途采样点：每段只报告最差的那一个
+    if (p.kind === 'leg' && legWorst[p.legIndex] !== i) return;
+
+    // R1 单点天气
+    if (p.score < 40) {
+      items.push({
+        severity: 'block', index: i, tag: '天气不适合',
+        title: p.name + '（' + p.timeLabel + '）天气不适合停留',
+        evidence: p.weatherText + '，降水概率 ' + (p.pp == null ? '—' : Math.round(p.pp) + '%')
+          + '，气温 ' + (p.temp == null ? '—' : p.temp.toFixed(1) + '℃'),
+        impact: '在这个时刻经过或停留，体验差、风险高',
+        advice: '把这一段提前或推迟到评分 ≥60 的时段；若终点就是这个时刻，建议改期',
+      });
+    } else if (p.score < 60) {
+      items.push({
+        severity: 'warn', index: i, tag: '天气偏弱',
+        title: p.name + '（' + p.timeLabel + '）天气条件一般',
+        evidence: p.weatherText + '，降水概率 ' + (p.pp == null ? '—' : Math.round(p.pp) + '%')
+          + '，风速 ' + (p.wind == null ? '—' : Math.round(p.wind) + ' km/h'),
+        impact: '可以通过，但这一段的体验和余量都会打折',
+        advice: '如果时间能挪动，优先把这一段换到评分更高的相邻小时',
+      });
+    } else if (p.score < 80) {
+      items.push({
+        severity: 'warn', index: i, tag: '天气一般',
+        title: p.name + '（' + p.timeLabel + '）天气一般',
+        evidence: p.weatherText + '，降水概率 ' + (p.pp == null ? '—' : Math.round(p.pp) + '%')
+          + '，风速 ' + (p.wind == null ? '—' : Math.round(p.wind) + ' km/h'),
+        impact: '这一段是全程最低分，会把整条路线的评分拉到 ' + p.score,
+        advice: '把这一段挪到当天评分更高的时段',
+      });
+    }
+
+    // R2 高海拔 + 午后
+    if (p.elev != null && p.elev > 2500 && p.hour >= 12 && p.hour <= 18 &&
+        (wmoSev(p.code) >= 20 || (p.pp != null && p.pp >= 60))) {
+      items.push({
+        severity: 'warn', index: i, tag: '高海拔午后',
+        title: p.name + '（' + p.timeLabel + '）高海拔 + 午后',
+        evidence: '海拔 ' + p.elev + ' m，' + p.weatherText
+          + '，降水概率 ' + (p.pp == null ? '—' : Math.round(p.pp) + '%'),
+        impact: '午后是山区雷暴与阵雨的高发时段，高海拔处风大、体感更差',
+        advice: '把这一段调整到 11:00 前通过；无法调整时，缩短停留时间、不在山脊久留',
+      });
+    }
+
+    // R4 天黑前未通过
+    const sunset = sun && sun[i] ? sun[i].sunset : null;
+    const sm = hmToMin(sunset);
+    if (sm != null && p.minute > sm - 60) {
+      items.push({
+        severity: 'warn', index: i, tag: '天黑风险',
+        title: p.name + '（' + p.timeLabel + '）接近或晚于日落',
+        evidence: '当天日落 ' + sunset + '，你的到达时刻 ' + p.timeLabel,
+        impact: '天黑后山路能见度低、气温骤降，一旦出问题救援难度明显上升',
+        advice: '调整到 ' + minToHM(sm - 60) + ' 前通过，或把这一段整体提到上午',
+      });
+    }
+  });
+
+  // R3 时间安排过紧（留 5 分钟估算容差，避免 1–2 分钟的误差也报警）
+  const SLACK = 5;
+  legs.forEach((L, i) => {
+    if (L.planned > 0 && L.planned + SLACK < L.needed) {
+      const short = Math.round(L.needed - L.planned);
+      const severe = L.planned < L.needed * 0.6;
+      items.push({
+        severity: severe ? 'block' : 'warn', index: entryIndexByPoint(entries, i + 1), legIndex: i, tag: '时间过紧',
+        title: L.from + ' → ' + L.to + ' 时间不够',
+        evidence: '约 ' + L.km.toFixed(0) + ' km，按 ' + (PLAN_SPEED[mode] || 40) + ' km/h 需 '
+          + Math.round(L.needed) + ' 分钟；你只留了 ' + Math.round(L.planned) + ' 分钟',
+        impact: '至少缺 ' + short + ' 分钟，实际会一路赶，没有停留和会车余量',
+        advice: '把「' + L.to + '」至少推迟 ' + (short + 10) + ' 分钟，或缩短这一段',
+      });
+    }
+  });
+
+  // R5 连续点位都在降雨
+  const rainRuns = [];
+  let run = [];
+  entries.forEach((p, i) => {
+    const rainy = p.precip != null && p.precip > 0 && p.score < 60;
+    if (rainy) run.push(i);
+    else { if (run.length >= 2) rainRuns.push(run.slice()); run = []; }
+  });
+  if (run.length >= 2) rainRuns.push(run.slice());
+  rainRuns.forEach(idxs => {
+    items.push({
+      severity: 'block', index: idxs[0], tag: '全程降雨',
+      title: idxs.length + ' 个连续点位都在降雨中',
+      evidence: idxs.map(i => entries[i].name + ' ' + entries[i].timeLabel
+        + '（' + Math.round(entries[i].pp == null ? 0 : entries[i].pp) + '%）').join('、'),
+      impact: '整段行程都处在降雨里，属于"换时间也难解决"的情况',
+      advice: '建议整体改期；必须走时，压缩为最短路线并避开高海拔段',
+    });
+  });
+
+  // 合理项（最多 3 条）
+  entries.forEach((p, i) => {
+    if (p.score >= 80) {
+      items.push({
+        severity: 'ok', index: i, tag: '合理安排',
+        title: p.name + '（' + p.timeLabel + '）安排合理',
+        evidence: p.weatherText + (p.temp == null ? '' : '，' + p.temp.toFixed(1) + '℃') + '，评分 ' + p.score,
+        impact: '', advice: '',
+      });
+    }
+  });
+
+  // 把每条诊断变成可执行措施 + 具体时间
+  items.forEach(it => concretizeItem(it, entries, legs, sun, mode, profile));
+
+  // 排序：阻断 → 建议 → 合理；同类按点位顺序
+  const order = { block: 0, warn: 1, ok: 2 };
+  items.sort((a, b) => (order[a.severity] - order[b.severity]) || (a.index - b.index));
+
+  const okItems = items.filter(x => x.severity === 'ok');
+  const trimmed = items.filter(x => x.severity !== 'ok').concat(okItems.slice(0, 3));
+
+  const blockCount = trimmed.filter(x => x.severity === 'block').length;
+  const warnCount = trimmed.filter(x => x.severity === 'warn').length;
+
+  return {
+    items: trimmed,
+    blockCount,
+    warnCount,
+    summary: blockCount ? 'block' : (warnCount ? 'warn' : 'ok'),
+  };
+}
+
+/** 规划模式的"出行准备"清单 */
+function buildPlanAdvice(entries, legs, diagnosis, profile) {
+  const out = [];
+  if (diagnosis.blockCount) out.push('先解决上面标红的阻断项，再决定是否出发');
+  else if (diagnosis.warnCount) out.push('整体可行，但按上面的建议把时间微调一下会更稳');
+
+  const withElev = entries.filter(e => e.elev != null);
+  const maxElev = withElev.length ? Math.max.apply(null, withElev.map(e => e.elev)) : null;
+  const temps = entries.filter(e => e.temp != null).map(e => e.temp);
+  const minTemp = temps.length ? Math.min.apply(null, temps) : null;
+  const winds = entries.filter(e => e.wind != null).map(e => e.wind);
+  const maxWind = winds.length ? Math.max.apply(null, winds) : null;
+  const maxPP = Math.max.apply(null, entries.map(e => e.pp == null ? 0 : e.pp));
+
+  if (maxPP >= 50) out.push('带雨具，山路湿滑，下坡和弯道减速');
+  if (maxElev != null && maxElev > 2500) out.push('最高海拔约 ' + Math.round(maxElev) + ' m，带保暖层，注意高反');
+  if (minTemp != null && minTemp < 5) out.push('最低气温约 ' + minTemp.toFixed(0) + '℃，注意防寒与结冰');
+  if (maxWind != null && maxWind >= 30) out.push('部分点位风速较大（约 ' + Math.round(maxWind) + ' km/h），山脊段注意防风');
+  const tight = legs.filter(L => L.planned > 0 && L.planned + 5 < L.needed).length;
+  if (tight) out.push('有 ' + tight + ' 段安排偏紧，建议每段再留 20–30 分钟余量');
+  if (!out.length) out.push('天气与时间安排都没有明显问题，按计划出发即可');
+
+  out.push('以上仅为基于公开预报的参考，不构成安全保证');
+  return out;
+}
+
 /* ---------------- 导出（供 node 测试） ---------------- */
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { scoreHour, levelOf, analyze, analyzeNavigation, findBestDeparture, wmoText, WMO };
+  module.exports = { scoreHour, levelOf, analyze, analyzeNavigation, analyzePlan, analyzePlanRoute,
+    buildPlanSamples, buildProfile, diagnosePlan, concretizeItem, bestHourOf,
+    combineRouteScore, goodWindowsOf, fmtWindow,
+    findBestDeparture, planLeg, minToHM, hmToMin,
+    wmoText, wmoIcon, WMO };
 }
