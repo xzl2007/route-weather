@@ -532,6 +532,17 @@ function minToHM(min) {
   return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
 }
 
+/** 分钟（可超过 1440）→ "次日 00:54" / "第3天 05:20" */
+function minToLabel(min) {
+  if (min == null || !isFinite(min)) return '--:--';
+  const m = Math.round(min);
+  const day = Math.floor(m / 1440);
+  const rest = ((m % 1440) + 1440) % 1440;
+  const hm = String(Math.floor(rest / 60)).padStart(2, '0') + ':' + String(rest % 60).padStart(2, '0');
+  if (day <= 0) return hm;
+  return (day === 1 ? '次日 ' : '第' + (day + 1) + '天 ') + hm;
+}
+
 /** "HH:MM" → 分钟 */
 function hmToMin(hm) {
   if (!hm) return null;
@@ -564,8 +575,8 @@ function planLeg(a, b, mode) {
 /** 取某点位在指定分钟对应的那一小时数据 */
 function hourAtMinute(series, minute) {
   if (!series || !series.hours) return null;
-  const hh = Math.floor((((minute % 1440) + 1440) % 1440) / 60);
-  return series.hours.find(h => h.hour === hh) || null;
+  const idx = Math.floor(minute / 60);   // 绝对小时下标：24 = 次日 00:00
+  return series.hours[idx] || null;
 }
 
 /**
@@ -578,7 +589,7 @@ function hourAtMinute(series, minute) {
  * @param {number} maxTotal 采样点总数上限（含关键点位），默认 20
  */
 function buildPlanSamples(points, times, mode, maxTotal) {
-  maxTotal = maxTotal || 20;
+  maxTotal = maxTotal || 30;
   const K = points.length;
   const out = [];
   if (!K) return { samples: [], legs: [] };
@@ -598,7 +609,7 @@ function buildPlanSamples(points, times, mode, maxTotal) {
 
   // 每条路段的中间采样数：约每 8 km 一个，单段 0–6 个，总预算内按最大段优先削减
   const budget = Math.max(0, maxTotal - K);
-  const counts = legRaw.map(L => Math.min(6, Math.max(0, Math.round(L.km / 8))));
+  const counts = legRaw.map(L => Math.min(12, Math.max(0, Math.round(L.km / 8))));
   let total = counts.reduce((a, b) => a + b, 0);
   while (total > budget) {
     let idx = -1, best = 0;
@@ -723,7 +734,10 @@ function analyzePlanRoute(opts) {
     const h = hourAtMinute(s, sm.minute);
     if (!h) return null;
     const elev = elevations ? elevations[i] : null;
-    const hourly = s.hours.map(x => {
+    // 只取「到达那一天」的 24 小时用于展示（跨天时 series 有 48+ 小时）
+    const dayIdx = Math.floor(sm.minute / 1440);
+    const dayHours = s.hours.slice(dayIdx * 24, dayIdx * 24 + 24);
+    const hourly = dayHours.map(x => {
       const s2 = scoreHour(x, elev);
       return {
         hour: x.hour, time: x.time, score: s2.score, level: s2.level, deductions: s2.deductions,
@@ -733,7 +747,7 @@ function analyzePlanRoute(opts) {
     const sc = scoreHour(h, elev);
     entries.push({
       name: sm.name, lat: sm.lat, lon: sm.lon, elev,
-      minute: sm.minute, timeLabel: minToHM(sm.minute), hour: h.hour,
+      minute: sm.minute, timeLabel: minToLabel(sm.minute), hour: h.hour,
       kind: sm.kind, pointIdx: sm.pointIdx, legIndex: sm.legIndex, ratio: sm.ratio, cumKm: sm.cumKm,
       score: sc.score, level: sc.level, deductions: sc.deductions,
       temp: h.temp, code: h.code, pp: h.pp, precip: h.precip, wind: h.wind,
@@ -783,8 +797,11 @@ function analyzePlan(series, elevations, points, times, sun, dateStr, mode) {
     const h = hourAtMinute(series[i], t);
     if (!h) return null;
     const elev = elevations ? elevations[i] : null;
-    // 逐小时全部评分（与 analyze() 的结构保持一致，供小时条/展开表复用）
-    const hourly = series[i].hours.map(x => {
+    // 只取「到达那一天」的 24 小时用于展示
+    const dayIdx = Math.floor(t / 1440);
+    const dayHours = series[i].hours.slice(dayIdx * 24, dayIdx * 24 + 24);
+    // 逐小时评分（与 analyze() 的结构保持一致，供小时条/展开表复用）
+    const hourly = dayHours.map(x => {
       const s2 = scoreHour(x, elev);
       return {
         hour: x.hour, time: x.time, score: s2.score, level: s2.level, deductions: s2.deductions,
@@ -797,7 +814,7 @@ function analyzePlan(series, elevations, points, times, sun, dateStr, mode) {
       lat: series[i].lat, lon: series[i].lon,
       elev,
       minute: t,
-      timeLabel: minToHM(t),
+      timeLabel: minToLabel(t),
       hour: h.hour,
       score: sc.score, level: sc.level, deductions: sc.deductions,
       temp: h.temp, code: h.code, pp: h.pp, precip: h.precip, wind: h.wind,
@@ -1097,7 +1114,8 @@ function diagnosePlan(entries, legs, sun, mode, profile) {
     // R4 天黑前未通过
     const sunset = sun && sun[i] ? sun[i].sunset : null;
     const sm = hmToMin(sunset);
-    if (sm != null && p.minute > sm - 60) {
+    const modMin = ((p.minute % 1440) + 1440) % 1440;   // 跨天时只看当天时刻
+    if (sm != null && modMin > sm - 60) {
       items.push({
         severity: 'warn', index: i, tag: '天黑风险',
         title: p.name + '（' + p.timeLabel + '）接近或晚于日落',
@@ -1143,6 +1161,36 @@ function diagnosePlan(entries, legs, sun, mode, profile) {
       impact: '整段行程都处在降雨里，属于"换时间也难解决"的情况',
       advice: '建议整体改期；必须走时，压缩为最短路线并避开高海拔段',
     });
+  });
+
+  // R6 单段车程过长（>6 小时）：建议拆分途经点
+  legs.forEach((L, i) => {
+    if (L && L.needed > 360) {
+      const hrs = (L.needed / 60).toFixed(1);
+      items.push({
+        severity: L.needed > 720 ? 'block' : 'warn',
+        index: entryIndexByPoint(entries, i + 1),
+        legIndex: i, tag: '单段过长',
+        title: L.from + ' → ' + L.to + ' 车程约 ' + hrs + ' 小时',
+        evidence: '约 ' + Math.round(L.km) + ' km，按 ' + (PLAN_SPEED[mode] || 40) + ' km/h 估算',
+        impact: '单段超过 6 小时，途中休息、加油、突发状况都没有余量，且会跨天',
+        advice: '在这两点的中间再加 1–2 个途经点，把行程拆成半天以内的段落',
+      });
+    }
+  });
+
+  // R7 夜间到达（凌晨 0–6 点 / 22 点以后）
+  entries.forEach((p, i) => {
+    const hh = ((p.minute % 1440) + 1440) % 1440 / 60;
+    if (hh < 6 || hh >= 22) {
+      items.push({
+        severity: 'warn', index: i, tag: '夜间到达',
+        title: p.name + '（' + p.timeLabel + '）夜间到达',
+        evidence: '按你安排的时间推算，到达时约 ' + p.timeLabel,
+        impact: '夜间山路能见度低、气温低，事故与迷路风险明显上升',
+        advice: '把这一段调整到 08:30–日落前 1 小时之间；做不到就缩短行程或改期',
+      });
+    }
   });
 
   // 合理项（最多 3 条）
@@ -1209,6 +1257,6 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = { scoreHour, levelOf, analyze, analyzeNavigation, analyzePlan, analyzePlanRoute,
     buildPlanSamples, buildProfile, diagnosePlan, concretizeItem, bestHourOf,
     combineRouteScore, goodWindowsOf, fmtWindow,
-    findBestDeparture, planLeg, minToHM, hmToMin,
+    findBestDeparture, planLeg, minToHM, minToLabel, hourAtMinute, hmToMin,
     wmoText, wmoIcon, WMO };
 }

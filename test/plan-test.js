@@ -5,7 +5,7 @@
  * ============================================================ */
 
 const path = require('path');
-const { analyzePlan, analyzePlanRoute, buildPlanSamples, buildProfile, diagnosePlan, planLeg, minToHM, hmToMin, combineRouteScore, goodWindowsOf, fmtWindow } = require(path.join(__dirname, '..', 'js', 'scoring.js'));
+const { analyzePlan, analyzePlanRoute, buildPlanSamples, buildProfile, diagnosePlan, planLeg, minToHM, hmToMin, combineRouteScore, goodWindowsOf, fmtWindow, minToLabel, hourAtMinute } = require(path.join(__dirname, '..', 'js', 'scoring.js'));
 
 const p2 = n => String(n).padStart(2, '0');
 
@@ -188,6 +188,33 @@ console.log('\n【用例13】综合分公式与可选时段');
     { hour: 11, score: 85 }, { hour: 12, score: 86 } ] }, 8, 20, 80);
   ok('时段合并为 2 段', w.length === 2, JSON.stringify(w));
   ok('时段格式化正确', fmtWindow(w[0]) === '08:00–10:00', fmtWindow(w[0]));
+}
+
+console.log('\n【用例14】跨天：时间标签、取数与诊断');
+{
+  ok('minToLabel(480) = 08:00', minToLabel(480) === '08:00', minToLabel(480));
+  ok('minToLabel(1500) = 次日 01:00', minToLabel(1500) === '次日 01:00', minToLabel(1500));
+  ok('minToLabel(2900) = 第3天 00:20', minToLabel(2900) === '第3天 00:20', minToLabel(2900));
+
+  // 48 小时序列，验证按绝对下标取小时
+  const hours = [];
+  for (let i = 0; i < 48; i++) hours.push({ hour: i % 24, time: 'T' + i, temp: 20, appTemp: 20, pp: 5, precip: 0, wind: 5, dir: 0, code: 1 });
+  const h25 = hourAtMinute({ hours }, 25 * 60);
+  ok('hourAtMinute(25:00) 取第 26 个元素', h25 && h25.time === 'T25', h25 && h25.time);
+
+  // 890 km 两点，时间跨 23 小时
+  const far = [{ name: 'A', lat: 30, lon: 103 }, { name: 'B', lat: 38, lon: 103 }];
+  const t0 = 12 * 60 + 14;
+  const b = buildPlanSamples(far, [t0, t0 + 23 * 60], 'drive', 30);
+  ok('长路段采样数 > 6', b.samples.filter(s => s.kind === 'leg').length > 6, b.samples.length);
+  ok('采样总数 ≤ 30', b.samples.length <= 30, b.samples.length);
+
+  const series = b.samples.map(s => ({ name: s.name, lat: s.lat, lon: s.lon, hours }));
+  const elevs = b.samples.map(() => 1000);
+  const r = analyzePlanRoute({ series, elevations: elevs, samples: b.samples, legs: b.legs, sun: [{ sunset: '18:30' }, { sunset: '18:30' }], dateStr: '2026-10-19', mode: 'drive' });
+  ok('有「次日」标签', r.points.some(p => p.timeLabel.indexOf('次日') === 0));
+  ok('命中「单段过长」', r.diagnosis.items.some(x => x.tag === '单段过长'));
+  ok('命中「夜间到达」', r.diagnosis.items.some(x => x.tag === '夜间到达'));
 }
 console.log('\n结果: ' + pass + ' 通过, ' + fail + ' 失败\n');
 process.exit(fail ? 1 : 0);

@@ -13,6 +13,7 @@ const state = {
   currentReport: null,
   expandIdx: -1,
   dxIdx: -1,
+  hourSel: {},          // 每个点位当前查看的小时（默认到达时刻）
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -216,7 +217,7 @@ function applyCheckModeUI() {
   if (lbl) {
     lbl.innerHTML = nav
       ? '起点与终点 <span class="small">（中间可加途经点，最多 5 个）</span>'
-      : '行程点位与到达时间 <span class="small">（起点 → 途经点 → 终点，最多 5 个）</span>';
+      : '行程点位与时刻 <span class="small">（起点 = 出发时刻；途经/终点 = 到达时刻）</span>';
   }
   if (state.points.length) renderPointList();
 }
@@ -258,8 +259,12 @@ function renderPointList() {
   el.innerHTML = state.points.map((p, i) => {
     const role = i === 0 ? '起点' : (i === state.points.length - 1 ? '终点' : '途经');
     const roleCls = i === 0 ? 'start' : (i === state.points.length - 1 ? 'end' : 'mid');
+    const dayOff = Math.floor((state.times[i] || 0) / 1440);
+    const timeWord = i === 0 ? '出发' : '到达';
     const tail = plan
-      ? `<input class="pt-time" type="time" step="600" data-i="${i}" value="${minToHM(state.times[i])}" aria-label="到达时间">`
+      ? `<span class="pt-time-label">${timeWord}</span>`
+        + `<input class="pt-time" type="time" step="600" data-i="${i}" value="${minToHM(state.times[i])}" aria-label="${timeWord}时刻">`
+        + (dayOff > 0 ? `<span class="pt-day">+${dayOff}天</span>` : '')
       : `<span class="pt-coord">${p.lat.toFixed(2)}, ${p.lon.toFixed(2)}</span>`;
     return `
       <div class="pt-row" data-i="${i}">
@@ -321,11 +326,15 @@ function legInfo(a, b) {
 }
 
 /** 用户改某个点的时间：必须晚于上一点，并自动顺延后面的点 */
-function setPointTime(i, min) {
-  if (min == null || !isFinite(min)) { renderPointList(); return; }
+function setPointTime(i, minOfDay) {
+  if (minOfDay == null || !isFinite(minOfDay)) { renderPointList(); return; }
+  // 时间输入只有 HH:MM，需要保留该点原本的“第几天”
+  const cur = state.times[i] != null ? state.times[i] : 8 * 60;
+  const day = Math.floor(cur / 1440);
+  let min = day * 1440 + minOfDay;
   if (i > 0 && min <= state.times[i - 1]) {
-    min = state.times[i - 1] + 5;
-    toast('时间必须晚于上一点，已自动顺延');
+    min += 1440;
+    toast('时间必须晚于上一点，已顺延到次日');
   }
   state.times[i] = min;
   for (let k = i + 1; k < state.points.length; k++) {
@@ -621,8 +630,10 @@ async function checkupPoints() {
     `正在获取 ${pts.length} 个采样点（${state.points.length} 个点位 + ${pts.length - state.points.length} 个沿途点）的逐小时预报…`);
 
   try {
+    const maxMin = built.samples.reduce((m, s2) => Math.max(m, s2.minute), 0);
+    const days = Math.max(1, Math.min(5, Math.ceil((maxMin + 60) / 1440)));
     const [series, elevations] = await Promise.all([
-      fetchHourly(pts, state.date),
+      fetchHourly(pts, state.date, days),
       fetchElevations(pts),
     ]);
 
@@ -654,6 +665,7 @@ async function checkupPoints() {
     report.fetchedAt = series.at;
     state.currentReport = report;
     state.expandIdx = -1;
+    state.hourSel = {};
     renderReport(report, series.stale);
 
     // 存入本机历史
@@ -1069,6 +1081,7 @@ function renderReport(r, stale) {
         <span class="kv-v strong ${dz.summary}">${dzText}</span>
       </div>
       <div class="kv-note">${dzNote}</div>
+      <div class="kv-note dim">时间口径：起点为「出发时刻」，其余点位为「到达时刻」</div>
 
       <div class="kv">
         <span class="kv-k">路线概况</span>
@@ -1099,7 +1112,7 @@ function renderReport(r, stale) {
           <span class="lr-wx">${x.p.icon || ''} ${escapeHtml(x.p.weatherText)}</span>
           <span class="lr-score ${x.p.level.key}">${x.p.score}</span>
         </div>`).join('')}
-      <div class="leg-note">沿途采样标准：在你设定的相邻点位之间按直线等距插值，约每 8 km 一个（单段最多 6 个，全线含关键点位不超过 20 个）；每个采样点取「预计到达该点那一刻」的天气。路线总分取所有采样点中的最低分。</div>
+      <div class="leg-note">沿途采样标准：在相邻点位之间按直线等距插值，约每 8 km 一个；单段最多 12 个、全线含关键点位不超过 30 个，长路段间隔会更大。每个采样点取「预计到达该点那一刻」的天气，跨天时自动取次日预报。路线总分取所有采样点中的最低分。</div>
     </div>` : ''}
 
     <h2 class="sec-title">出行准备</h2>
@@ -1136,14 +1149,8 @@ function renderReport(r, stale) {
     el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDx(Number(el.dataset.idx)); } });
   });
 
-  // 绑定展开/收起
-  $$('#pointCards .pt-card-head').forEach(h => {
-    h.addEventListener('click', () => {
-      const i = Number(h.dataset.i);
-      state.expandIdx = state.expandIdx === i ? -1 : i;
-      renderReport(r, stale);
-    });
-  });
+  // 绑定卡片：展开/收起 + 点击小时切换
+  $$('#pointCards .pt-card').forEach(card => bindCard(card, r));
 
   // 地图：路线可视化 + 点击点位联动卡片（地图失败绝不能影响整页）
   try {
@@ -1210,14 +1217,61 @@ function buildHighlights(p) {
   return out.slice(0, 4);
 }
 
-function renderPointCard(p, i, expanded) {
-  const lv = p.level;
+function bindCard(card, r) {
+  const i = Number(card.dataset.i);
+  const head = card.querySelector('.pt-card-head');
+  if (head) {
+    head.addEventListener('click', () => {
+      state.expandIdx = state.expandIdx === i ? -1 : i;
+      renderReport(r, !!r.stale);
+    });
+  }
+  card.querySelectorAll('[data-hour]').forEach(el => {
+    el.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      state.hourSel[i] = Number(el.dataset.hour);
+      refreshCard(i);
+    });
+  });
+  const back = card.querySelector('.arr-reset');
+  if (back) {
+    back.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      delete state.hourSel[i];
+      refreshCard(i);
+    });
+  }
+}
 
-  const good = p.score >= 80;
-  const chips = good ? buildHighlights(p) : p.deductions.slice(0, 3).map(d => d.label);
+/** 只重绘一张卡片（不重建地图） */
+function refreshCard(i) {
+  const r = state.currentReport;
+  const old = document.querySelector(`#pointCards .pt-card[data-i="${i}"]`);
+  if (!r || !old) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = renderPointCard(r.points[i], i, state.expandIdx === i);
+  const fresh = tmp.firstElementChild;
+  old.replaceWith(fresh);
+  bindCard(fresh, r);
+}
+
+function renderPointCard(p, i, expanded) {
+  const selHour = state.hourSel[i] != null ? state.hourSel[i] : p.hour;
+  const sel = (p.hourly || []).find(h => h.hour === selHour) || null;
+  const cur = sel ? Object.assign({ elev: p.elev }, sel) : p;
+
+  const lv = cur.level;
+  const good = cur.score >= 80;
+  const chips = good ? buildHighlights(cur) : (cur.deductions || []).slice(0, 3).map(d => d.label);
   const dedHtml = chips.length
     ? chips.map(c => `<span class="ded${good ? ' up' : ''}">${good ? '✓ ' : ''}${escapeHtml(c)}</span>`).join('')
     : `<span class="ded none">${good ? '天气条件良好' : '—'}</span>`;
+
+  const isArrival = selHour === p.hour;
+  const timeLine = isArrival
+    ? `${p.kind === 'point' && p.pointIdx === 0 ? '出发时刻' : '到达时刻'} ${p.timeLabel || '—'}`
+    : `正在查看 ${pad(selHour)}:00 · 到达 ${p.timeLabel || '—'}`;
+  const resetBtn = isArrival ? '' : `<button class="arr-reset" data-back="${i}">回到到达时刻</button>`;
 
   return `
     <div class="card pt-card" data-i="${i}">
@@ -1225,41 +1279,41 @@ function renderPointCard(p, i, expanded) {
         <div class="pc-left">
           <div>
             <div class="pc-name">${escapeHtml(p.name)}</div>
-            <div class="pc-meta">${p.weatherText}${p.temp != null ? ' · ' + p.temp.toFixed(1) + '℃' : ''}${p.elev != null ? ' · ' + p.elev + 'm' : ''}</div>
+            <div class="pc-meta">${wmoText(cur.code)}${cur.temp != null ? ' · ' + cur.temp.toFixed(1) + '℃' : ''}${p.elev != null ? ' · ' + p.elev + 'm' : ''}</div>
           </div>
         </div>
         <div class="pc-right">
-          <span class="pc-score ${lv.key}">${p.score}</span>
+          <span class="pc-score ${lv.key}">${cur.score}</span>
           <span class="pc-lv ${lv.key}">${lv.text}</span>
         </div>
       </div>
 
       <div class="pc-arrive">
-        <span class="arr-time">你的到达时间 ${p.timeLabel || '—'}</span>
-        <span class="arr-km">${p.elev != null ? '海拔 ' + p.elev + ' m' : ''}</span>
+        <span class="arr-time">${timeLine}</span>
+        ${resetBtn}
       </div>
 
       <div class="pc-deds">${dedHtml}</div>
 
-      ${expanded ? renderHourly(p) : renderHourlyStrip(p)}
+      ${expanded ? renderHourly(p, i, selHour) : renderHourlyStrip(p, i, selHour)}
     </div>`;
 }
 
 /** 始终可见的「行程日 24 小时」天气条：时刻 / 天气 / 气温 / 降水概率 / 评分 */
-function renderHourlyStrip(p) {
+function renderHourlyStrip(p, i, selHour) {
   const hours = p.hourly || [];
   return `
     <div class="hourly-strip-wrap">
       <div class="hourly-strip">
         ${hours.map(h => `
-          <div class="hs-col${h.hour === p.hour ? ' hs-now' : ''}" title="${pad(h.hour)}:00 ${wmoText(h.code)} ${h.score} 分">
+          <div class="hs-col${h.hour === selHour ? ' hs-now' : ''}" data-i="${i}" data-hour="${h.hour}" title="点击查看 ${pad(h.hour)}:00 ${wmoText(h.code)} ${h.score} 分">
             <div class="hs-hour">${pad(h.hour)}</div>
             <div class="hs-icon">${wmoIcon(h.code)}</div>
             <div class="hs-temp">${h.temp != null ? Math.round(h.temp) + '°' : '—'}</div>
             <div class="hs-pp">${h.pp != null ? Math.round(h.pp) + '%' : '—'}</div>
           </div>`).join('')}
       </div>
-      <div class="ht-legend">行程日逐小时：时刻 / 天气 / 气温 / 降水概率（高亮 = 你的到达时刻）</div>
+      <div class="ht-legend">行程日逐小时：时刻 / 天气 / 气温 / 降水概率（点击任意小时可切换查看）</div>
     </div>`;
 }
 
@@ -1275,12 +1329,12 @@ function renderMiniBarOf(hours, showCenter) {
   ).join('')}</div>`;
 }
 
-function renderHourly(p) {
+function renderHourly(p, i, selHour) {
   return `
     <div class="hourly-table">
       <div class="ht-scroll">
         ${p.hourly.map(h => `
-          <div class="ht-col">
+          <div class="ht-col${h.hour === selHour ? ' ht-center' : ''}" data-i="${i}" data-hour="${h.hour}">
             <div class="ht-hour">${pad(h.hour)}</div>
             <div class="ht-wx">${wmoIcon(h.code)} ${wmoText(h.code)}</div>
             <div class="ht-temp">${h.temp != null ? Math.round(h.temp) + '°' : '—'}</div>

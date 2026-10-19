@@ -698,8 +698,12 @@ body.reordering { user-select: none; -webkit-user-select: none; }
 /* ============================================================
  * 规划模式：到达时间输入 + 点间核对 + 行程诊断
  * ============================================================ */
-.pt-time {
+.pt-time-label {
   margin-left: auto;
+  font-size: 11px; color: var(--ink-3); white-space: nowrap;
+}
+.pt-time {
+  margin-left: 4px;
   width: 94px; flex: 0 0 auto;
   font: inherit; font-size: 13px; font-variant-numeric: tabular-nums;
   color: var(--ink); background: var(--field);
@@ -829,3 +833,20 @@ body.map-immersive { overflow: hidden; }
 /* 多个应用按钮 */
 .dx-applies { display: flex; flex-direction: column; gap: 8px; padding: 8px 14px 16px; }
 .dx-applies .dx-apply { width: 100%; margin: 0; }
+
+
+/* 跨天到达标记 */
+.pt-day { font-size: 11px; font-weight: 700; color: var(--caution); margin-left: 2px; white-space: nowrap; }
+
+/* 逐小时可点击切换 */
+.hs-col { cursor: pointer; transition: background .12s ease, border-color .12s ease; }
+.hs-col:hover { background: var(--brand-soft); }
+.hs-col:active { transform: scale(.97); }
+.ht-col { cursor: pointer; }
+.ht-col:hover .ht-hour { color: var(--brand); font-weight: 700; }
+.arr-reset {
+  margin-left: auto; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--line); background: #fff; color: var(--brand-dark);
+  font-size: 11px; font-family: inherit; cursor: pointer; white-space: nowrap;
+}
+.arr-reset:active { transform: scale(.95); }
