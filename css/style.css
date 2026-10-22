@@ -1203,3 +1203,25 @@ input, select, textarea {
 .sheet-panel { background: linear-gradient(180deg, rgba(12,40,80,.98), rgba(9,28,58,.98)) !important; }
 .map-fail { background: rgba(8,30,60,.92) !important; color: #fff; }
 .home-cta .btn-primary { background: #fff !important; color: #0b5fa5 !important; }
+/* ============================================================
+ * 连续渐变：去掉所有版块底色/边框/阴影，只留文字与控件
+ * ============================================================ */
+.card, .summary, .advice, .leg-list, .boundary, .source, .empty, .empty-inline,
+.pt-row, .feat, .trips-toggle, .dx-item, .hs-col, .arr-reset,
+.leg, .rec-day, .trip, .cmp, .map-card {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+.topbar, body.home-active .topbar {
+  background: transparent !important;
+  border-bottom: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+body.home-active .topbar { position: static; }
+.leg-head { border-bottom: 1px solid rgba(255,255,255,.14) !important; }
+.leg-row { border-bottom: 1px dashed rgba(255,255,255,.10) !important; }
+.map-card { padding: 0 !important; }
+.map-wrap { border-radius: 16px; overflow: hidden; }
