@@ -9,6 +9,7 @@ const state = {
   checkMode: 'point',   // point | nav
   departHour: -1,       // 首次进入时设为“现在”
   departOriginal: null, // 用户原始出发时刻，用于“恢复原时间”
+  planOriginalTimes: null, // 规划模式：平移前的原始时间
   points: [],           // [{name, lat, lon}]
   times: [],            // 规划模式：每个点位的到达时刻（分钟，0–1439）
   currentReport: null,
@@ -384,6 +385,7 @@ function setPointTime(i, minOfDay) {
     toast('时间必须晚于上一点，已顺延到次日');
   }
   state.times[i] = min;
+  state.planOriginalTimes = null;   // 手动改过时间，旧基准失效
   for (let k = i + 1; k < state.points.length; k++) {
     const need = Math.max(5, Math.round(legInfo(state.points[k - 1], state.points[k]).minutes));
     const earliest = state.times[k - 1] + need;
@@ -973,9 +975,6 @@ function renderNavReport(r, stale) {
         <span class="kv-v">${arriveText}</span></div>
       <div class="kv"><span class="kv-k">风险采样点</span>
         <span class="kv-v">${r.riskyCount} / ${r.points.length} 个低于 60 分</span></div>
-      <div class="kv"><span class="kv-k">行程诊断</span>
-        <span class="kv-v strong ${dz.summary}">${dzText}</span></div>
-      <div class="kv-note">${dzNote}</div>
 
       ${r.recommendedHour != null ? `<div class="kv-note neutral" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         推荐出发时刻 ${minToHM(Math.round(r.recommendedHour * 60))}（全程最低分 ${r.recommendedMin}）
@@ -995,11 +994,6 @@ function renderNavReport(r, stale) {
       <div class="shift-row">${renderShiftChips(r)}</div>
     </div>
 
-    <h2 class="sec-title">行程诊断</h2>
-    <div class="dx-list">
-      ${dz.items.length ? dz.items.map(renderDx).join('') : '<div class="card dx-item ok"><div class="dx-t">没有发现问题</div></div>'}
-    </div>
-
     <h2 class="sec-title">关键点位 · 起点与终点</h2>
     <div id="pointCards">
       ${keyIdx.map(i => renderNavPointCard(r.points[i], i, state.expandIdx === i)).join('')}
@@ -1008,7 +1002,7 @@ function renderNavReport(r, stale) {
     ${legIdx.length ? `
     <h2 class="sec-title">沿途采样 · ${legIdx.length} 个</h2>
     <div class="card leg-list">
-      <div class="leg-head"><span>位置</span><span>到达</span><span>天气</span><span>评分</span></div>
+      <div class="leg-head"><span>位置</span><span>到达</span><span>天气</span><span>评分</span><span>原因</span></div>
       ${legIdx.map(i => {
         const p = r.points[i];
         const day = p.dayOffset > 0 ? ' <sup>次日</sup>' : '';
@@ -1017,14 +1011,15 @@ function renderNavReport(r, stale) {
           <span class="lr-time">${p2(p.hour)}:00${day}</span>
           <span class="lr-wx">${p.icon || ''} ${escapeHtml(p.weatherText)}</span>
           <span class="lr-score ${p.level.key}">${p.score}</span>
+          <span class="lr-why">${escapeHtml(legReason(p))}</span>
         </div>`;
       }).join('')}
       <div class="leg-note">沿途采样点按里程等距取，天气取「预计到达该点那一刻」的那一小时。点上方关键点位卡片可展开逐小时天气。</div>
     </div>` : ''}
 
-    <h2 class="sec-title">出行准备</h2>
+    <h2 class="sec-title">出行建议</h2>
     <div class="card advice">
-      ${r.advice.map(a => `<div class="advice-item">· ${escapeHtml(a)}</div>`).join('')}
+      ${buildTripAdvice(r).map(a => `<div class="advice-item">· ${escapeHtml(a)}</div>`).join('')}
     </div>
 
     <div class="card boundary">
@@ -1354,6 +1349,23 @@ function bindShiftChips(r) {
   });
 }
 
+/** 沿途采样：评分低给原因，评分高提示天气良好 */
+function legReason(p) {
+  if (p.score >= 80) return '天气良好';
+  const ds = (p.deductions || []).slice(0, 2).map(d => d.label);
+  return ds.length ? ds.join('；') : '综合条件一般';
+}
+
+/** 出行建议：只列行程中不合理的地方 + 对应措施 */
+function buildTripAdvice(r) {
+  const items = ((r.diagnosis && r.diagnosis.items) || []).filter(x => x.severity !== 'ok');
+  if (!items.length) return ['行程安排整体合理，按计划出发即可。'];
+  return items.slice(0, 5).map(it => {
+    const act = (it.actions && it.actions.length) ? it.actions[0] : (it.advice || '');
+    return it.title + (act ? '：' + act : '');
+  });
+}
+
 function renderReport(r, stale) {
   const routeName = state.points.map(p => p.name).join(' → ');
   const worst = r.points[r.worstIndex];
@@ -1396,11 +1408,6 @@ function renderReport(r, stale) {
         </div>
       </div>
 
-      <div class="kv">
-        <span class="kv-k">行程诊断</span>
-        <span class="kv-v strong ${dz.summary}">${dzText}</span>
-      </div>
-      <div class="kv-note">${dzNote}</div>
       <div class="kv-note dim">时间口径：起点为「出发时刻」，其余点位为「到达时刻」</div>
 
       <div class="kv">
@@ -1421,11 +1428,7 @@ function renderReport(r, stale) {
         <span class="lg good">80+ 适宜</span><span class="lg fair">60–79 一般</span>
         <span class="lg caution">40–59 谨慎</span><span class="lg bad">&lt;40 不建议</span>
       </div>
-    </div>
-
-    <h2 class="sec-title">行程诊断</h2>
-    <div class="dx-list">
-      ${dz.items.length ? dz.items.map(renderDx).join('') : '<div class="card dx-item ok"><div class="dx-t">没有发现问题</div></div>'}
+      ${state.planOriginalTimes ? `<div style="margin-top:10px"><button class="btn btn-ghost" id="btnRestorePlan" type="button">恢复原时间</button></div>` : ''}
     </div>
 
     <h2 class="sec-title">关键点位 · 按你安排的时间</h2>
@@ -1436,20 +1439,21 @@ function renderReport(r, stale) {
     ${legRows.length ? `
     <h2 class="sec-title">沿途采样 · ${legRows.length} 个</h2>
     <div class="card leg-list">
-      <div class="leg-head"><span>位置</span><span>到达</span><span>天气</span><span>评分</span></div>
+      <div class="leg-head"><span>位置</span><span>到达</span><span>天气</span><span>评分</span><span>原因</span></div>
       ${legRows.map(x => `
         <div class="leg-row">
           <span class="lr-name">${escapeHtml(x.p.name)}</span>
           <span class="lr-time">${x.p.timeLabel}</span>
           <span class="lr-wx">${x.p.icon || ''} ${escapeHtml(x.p.weatherText)}</span>
           <span class="lr-score ${x.p.level.key}">${x.p.score}</span>
+          <span class="lr-why">${escapeHtml(legReason(x.p))}</span>
         </div>`).join('')}
       <div class="leg-note">沿途采样标准：在相邻点位之间按直线等距插值，约每 8 km 一个；单段最多 12 个、全线含关键点位不超过 30 个，长路段间隔会更大。每个采样点取「预计到达该点那一刻」的天气，跨天时自动取次日预报。路线总分取所有采样点中的最低分。</div>
     </div>` : ''}
 
-    <h2 class="sec-title">出行准备</h2>
+    <h2 class="sec-title">出行建议</h2>
     <div class="card advice">
-      ${r.advice.map(a => `<div class="advice-item">· ${escapeHtml(a)}</div>`).join('')}
+      ${buildTripAdvice(r).map(a => `<div class="advice-item">· ${escapeHtml(a)}</div>`).join('')}
     </div>
 
     <div class="card boundary">
@@ -1484,6 +1488,16 @@ function renderReport(r, stale) {
   // 绑定卡片：展开/收起 + 点击小时切换
   $$('#pointCards .pt-card').forEach(card => bindCard(card, r));
 
+  // 恢复原时间
+  const rp = $('#btnRestorePlan');
+  if (rp) rp.addEventListener('click', () => {
+    if (!state.planOriginalTimes) return;
+    state.times = state.planOriginalTimes.slice();
+    state.planOriginalTimes = null;
+    toast('已恢复原时间，重新体检…');
+    runCheckup();
+  });
+
   // 逐小时出发格：点击后整体平移行程
   $$('#planHours .rec-hour').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1494,6 +1508,7 @@ function renderReport(r, stale) {
       const diff = Math.round((new Date(date + 'T00:00:00') - new Date(ctx.baseDate + 'T00:00:00')) / 86400000);
       const targetMin = diff * 1440 + hour * 60;
       ensureTimes();
+      if (!state.planOriginalTimes) state.planOriginalTimes = state.times.slice();
       const delta = targetMin - state.times[0];
       state.times = state.times.map(t => Math.max(0, t + delta));
       toast(`已平移到 ${date} ${pad(hour)}:00 出发，重新体检…`);

@@ -615,7 +615,7 @@ function diagnoseNav(points, route, departHour, mode, recommendedHour) {
         ? `避开这个时段：改到 ${hh(recommendedHour)} 出发（自动推荐）`
         : '在出发时刻对比里换一个评分更高的时刻',
       actions: [
-        '点报告上方的逐小时推荐，换到另一小时出发再看评分',
+        '点摘要里的「采用」推荐时刻，或用上方的提前/推迟对比调整出发时间',
         '无法调整时，缩短在这一段的停留并留意路面湿滑',
       ],
     }, moveApply));

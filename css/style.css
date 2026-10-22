@@ -792,7 +792,7 @@ body.map-immersive { overflow: hidden; }
  * ============================================================ */
 .leg-list { padding: 10px 12px; }
 .leg-head, .leg-row {
-  display: grid; grid-template-columns: 1.7fr .6fr 1.15fr .45fr;
+  display: grid; grid-template-columns: 1.45fr .55fr .95fr .4fr 1.35fr;
   gap: 6px; align-items: center;
 }
 .leg-head {
@@ -805,6 +805,7 @@ body.map-immersive { overflow: hidden; }
 .lr-time { color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .lr-wx { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lr-score { text-align: center; font-weight: 700; border-radius: 5px; padding: 2px 0; }
+.lr-why { font-size: 11px; color: var(--ink-3); line-height: 1.45; }
 .lr-score.good    { background: var(--good-bg);    color: var(--good); }
 .lr-score.fair    { background: var(--fair-bg);    color: #8a6a00; }
 .lr-score.caution { background: var(--caution-bg); color: var(--caution); }
