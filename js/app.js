@@ -129,6 +129,21 @@ function initCreate() {
   });
 
   $('#btnAddPoint').addEventListener('click', () => openSheet());
+
+  // 首页：载入示例路线
+  const homeDemo = $('#btnHomeDemo');
+  if (homeDemo) {
+    homeDemo.addEventListener('click', () => {
+      state.points = DEMO_ROUTE.map(n => findPointByName(n)).filter(Boolean)
+        .map(p => ({ name: p.name, lat: p.lat, lon: p.lon }));
+      state.checkMode = 'point';
+      $$('#segCheckMode button').forEach(b => b.classList.toggle('on', b.dataset.check === 'point'));
+      applyCheckModeUI();
+      showView('create');
+      renderPointList();
+      toast('已载入示例路线：雅安 → 天全 → 泸定');
+    });
+  }
   $('#btnDemo').addEventListener('click', () => {
     state.points = DEMO_ROUTE.map(n => findPointByName(n)).filter(Boolean)
       .map(p => ({ name: p.name, lat: p.lat, lon: p.lon }));
