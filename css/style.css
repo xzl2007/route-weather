@@ -1361,3 +1361,8 @@ body:not(.home-active) .hour-cell.on { background: var(--brand-soft) !important;
 body:not(.home-active) .sheet-panel { background: #fff !important; }
 body:not(.home-active) .map-fail { background: rgba(233,238,243,.96) !important; color: var(--ink); }
 body:not(.home-active) .cmp-legend .lg.fair { color: #8A6100; }
+/* 采样表：表头与数据列对齐（评分列居中） */
+.leg-head span:nth-child(4) { text-align: center; }
+.leg-head span:nth-child(2),
+.leg-head span:nth-child(3),
+.leg-head span:nth-child(5) { text-align: left; }
