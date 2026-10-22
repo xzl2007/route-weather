@@ -1225,3 +1225,19 @@ body.home-active .topbar { position: static; }
 .leg-row { border-bottom: 1px dashed rgba(255,255,255,.10) !important; }
 .map-card { padding: 0 !important; }
 .map-wrap { border-radius: 16px; overflow: hidden; }
+/* ============================================================
+ * 平滑渐变：6 段小跨度，避免上下“两块”的断层感
+ * ============================================================ */
+html, body { background: #0B2E63; }
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: -1;
+  background: linear-gradient(180deg,
+    #0B2E63 0%,
+    #0F3D7C 20%,
+    #13509B 40%,
+    #1763B8 60%,
+    #1F74CC 80%,
+    #2A86DF 100%);
+}
+/* 让固定的渐变层成为唯一背景（避免 body 实色盖住上半部分） */
+html, body { background: transparent !important; }
