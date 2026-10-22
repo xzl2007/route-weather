@@ -6,7 +6,7 @@
  * 导航请求走「网络优先」，保证更新能及时生效；断网时回落到缓存外壳。
  */
 
-const CACHE = 'rwc-shell-v13';
+const CACHE = 'rwc-shell-v14';
 
 const ASSETS = [
   './',

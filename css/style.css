@@ -1148,3 +1148,58 @@ body.home-active .topbar {
   box-shadow: 0 12px 26px rgba(0, 0, 0, .35);
 }
 .map-hint, .ht-legend, .leg-note, .cmp-note, .mode-desc, .hint, .small { color: var(--ink-3); }
+/* ============================================================
+ * 统一蓝色渐变主题：整页同一渐变，消除板块色差
+ * ============================================================ */
+html, body { background: #08234F; }
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: -1;
+  background: linear-gradient(165deg, #08234F 0%, #1257B8 48%, #2E8DE6 100%);
+}
+.topbar, body.home-active .topbar {
+  background: rgba(8, 35, 79, .42) !important;
+  border-bottom: 1px solid rgba(255,255,255,.12) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.topbar h1 { color: #fff; }
+.topbar::before { background: rgba(255,255,255,.92); box-shadow: none; }
+
+#view-home .home-hero { background: transparent !important; box-shadow: none !important; }
+
+.card, .summary, .advice, .leg-list, .boundary, .source, .empty, .empty-inline,
+.pt-row, .feat, .trips-toggle, .sheet-panel, .dx-item, .hs-col, .arr-reset,
+.leg, .rec-day, .trip, .cmp, .map-card {
+  background: rgba(255,255,255,.07) !important;
+  border-color: rgba(255,255,255,.14) !important;
+  box-shadow: none !important;
+}
+input, select, textarea {
+  background: rgba(255,255,255,.12) !important;
+  border: 1px solid rgba(255,255,255,.22) !important;
+  color: #fff !important;
+}
+.seg { background: rgba(255,255,255,.10); }
+.seg button.on { background: rgba(255,255,255,.24) !important; color: #fff !important; box-shadow: none !important; }
+.btn-ghost { background: rgba(255,255,255,.12) !important; color: #fff !important; border-color: rgba(255,255,255,.24) !important; }
+.map-toggle, .map-btn {
+  background: rgba(8, 35, 79, .62) !important; color: #fff !important;
+  border: 1px solid rgba(255,255,255,.24) !important;
+}
+.ded { background: rgba(255,255,255,.12); color: #E9F1F9; }
+.ded.up { background: rgba(18,183,106,.22); color: #A7F3C9; }
+.rec-hour, .shift-chip, .hour-cell {
+  background: rgba(255,255,255,.10) !important;
+  color: #fff !important;
+  border-color: rgba(255,255,255,.16) !important;
+}
+.rec-hour.on, .shift-chip.on, .hour-cell.on {
+  background: rgba(255,255,255,.26) !important;
+  border-color: rgba(255,255,255,.92) !important;
+  color: #fff !important;
+}
+.sheet { background: rgba(0,0,0,.35); }
+.sheet-panel { background: linear-gradient(180deg, rgba(12,40,80,.98), rgba(9,28,58,.98)) !important; }
+.map-fail { background: rgba(8,30,60,.92) !important; color: #fff; }
+.home-cta .btn-primary { background: #fff !important; color: #0b5fa5 !important; }
