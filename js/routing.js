@@ -76,9 +76,7 @@ const ROUTING = {
     if (!raw) {
       const url = `${this.BASE}/${profile}/${coordStr}?overview=full&geometries=geojson&steps=false`;
       try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const json = await res.json();
+        const json = await fetchJson(url, 15000);
         if (json.code !== 'Ok' || !json.routes || !json.routes.length) {
           throw new Error(json.message || ('路由失败: ' + json.code));
         }

@@ -481,7 +481,7 @@ body.large-text .ht-col { flex-basis: 48px; }
   font-size: 12px; color: var(--ink-3); line-height: 1.6; margin: 8px 2px 0;
 }
 .pc-arrive {
-  display: flex; justify-content: space-between; align-items: baseline;
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline;
   gap: 10px; padding: 0 14px 9px; font-size: 12px;
 }
 .arr-time { font-weight: 700; color: var(--brand-dark); }
@@ -850,3 +850,142 @@ body.map-immersive { overflow: hidden; }
   font-size: 11px; font-family: inherit; cursor: pointer; white-space: nowrap;
 }
 .arr-reset:active { transform: scale(.95); }
+
+/* ============================================================
+ * 出发时刻对比 / 分享导出 / 离线提示（本地开发新增）
+ * ============================================================ */
+
+.share-bar { display: flex; gap: 8px; margin: 12px 0 4px; }
+.share-bar .btn { flex: 1; padding: 9px 4px; font-size: 12.5px; white-space: nowrap; }
+
+.cmp { padding: 14px 14px 12px; }
+.cmp-note { font-size: 12.5px; color: var(--ink-3); line-height: 1.55; margin-bottom: 10px; }
+
+.hour-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+.hour-cell {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 6px 0 5px; border-radius: 10px; border: 1px solid transparent;
+  font-family: inherit; cursor: pointer; line-height: 1.15;
+  background: var(--field); color: var(--ink-2);
+}
+.hour-cell .hc-h { font-size: 10.5px; opacity: .75; font-variant-numeric: tabular-nums; }
+.hour-cell .hc-s { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hour-cell.good { background: var(--good-bg); color: var(--good); }
+.hour-cell.fair { background: var(--fair-bg); color: #8A6100; }
+.hour-cell.caution { background: var(--caution-bg); color: var(--caution); }
+.hour-cell.bad { background: var(--bad-bg); color: var(--bad); }
+.hour-cell.off { opacity: .38; cursor: not-allowed; }
+.hour-cell.on { border-color: currentColor; box-shadow: 0 0 0 2px rgba(0, 145, 255, .18); }
+.hour-cell:not(.off):active { transform: scale(.95); }
+
+.cmp-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; font-size: 11px; }
+.cmp-legend .lg { color: var(--ink-3); }
+.cmp-legend .lg::before {
+  content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 3px;
+  margin-right: 4px; background: currentColor; vertical-align: 1px;
+}
+.cmp-legend .lg.good { color: var(--good); }
+.cmp-legend .lg.fair { color: #8A6100; }
+.cmp-legend .lg.caution { color: var(--caution); }
+.cmp-legend .lg.bad { color: var(--bad); }
+
+/* 出发时刻对比：按天分组 */
+.cmp-day + .cmp-day { margin-top: 12px; }
+.cmp-day-head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--ink-3); margin-bottom: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.cmp-day-tag {
+  font-size: 10.5px; color: var(--brand-dark); background: var(--brand-soft);
+  border-radius: 6px; padding: 1px 6px;
+}
+
+/* 逐小时出发推荐（今天 / 明天 / 后天） */
+.rec-day + .rec-day { margin-top: 14px; }
+.rec-day-head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--ink-3); margin-bottom: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.rec-strip {
+  display: flex; gap: 6px; overflow-x: auto; padding: 8px 2px 6px;
+  -webkit-overflow-scrolling: touch; scrollbar-width: thin;
+}
+.rec-hour {
+  position: relative; flex: 0 0 58px;
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 7px 4px 6px; border-radius: 10px; border: 1px solid transparent;
+  background: var(--field); color: var(--ink-2); font-family: inherit;
+  cursor: pointer; line-height: 1.2;
+  transition: transform .12s ease, background .18s ease;
+}
+.rec-hour .rh-hour { font-size: 10.5px; opacity: .75; font-variant-numeric: tabular-nums; }
+.rec-hour .rh-icon { font-size: 16px; line-height: 1.1; }
+.rec-hour .rh-idx { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rec-hour .rh-temp { font-size: 10.5px; opacity: .7; }
+.rec-hour.good { background: var(--good-bg); color: var(--good); }
+.rec-hour.fair { background: var(--fair-bg); color: #8A6100; }
+.rec-hour.caution { background: var(--caution-bg); color: var(--caution); }
+.rec-hour.bad { background: var(--bad-bg); color: var(--bad); }
+.rec-hour.on { border-color: currentColor; box-shadow: 0 0 0 2px rgba(0, 145, 255, .18); }
+.rec-hour:active { transform: scale(.95); }
+.rec-hour .rh-best {
+  position: absolute; top: -7px; right: -4px;
+  background: var(--brand); color: #fff; font-size: 9px;
+  padding: 1px 5px; border-radius: 6px; white-space: nowrap;
+}
+
+.cmp-days { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.cmp-days .btn { width: 100%; padding: 10px; font-size: 13px; }
+.cmp-days-body { margin-top: 10px; }
+.cmp-table { display: flex; flex-direction: column; gap: 6px; }
+.cmp-row {
+  display: flex; align-items: center; gap: 8px; font-size: 13px;
+  padding: 8px 10px; border-radius: 10px; background: var(--field);
+}
+.cr-d { min-width: 106px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.cr-h { flex: 1; color: var(--ink-3); font-size: 12.5px; }
+.cr-x { flex: 1; color: var(--ink-3); font-size: 12.5px; }
+.cr-s { font-weight: 700; font-variant-numeric: tabular-nums; }
+.cr-s.good { color: var(--good); }
+.cr-s.fair { color: #8A6100; }
+.cr-s.caution { color: var(--caution); }
+.cr-s.bad { color: var(--bad); }
+.cmp-err { font-size: 12.5px; color: var(--ink-3); padding: 8px 2px; }
+.btn-xs { padding: 6px 10px; font-size: 12px; border-radius: 8px; }
+
+.shift-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.shift-chip {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 8px 2px; border-radius: 10px; border: 1px solid transparent;
+  background: var(--field); color: var(--ink-2); font-family: inherit;
+  cursor: pointer; line-height: 1.2;
+}
+.shift-chip .sc-t { font-size: 10.5px; opacity: .8; white-space: nowrap; }
+.shift-chip .sc-s { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.shift-chip.good { background: var(--good-bg); color: var(--good); }
+.shift-chip.fair { background: var(--fair-bg); color: #8A6100; }
+.shift-chip.caution { background: var(--caution-bg); color: var(--caution); }
+.shift-chip.bad { background: var(--bad-bg); color: var(--bad); }
+.shift-chip.off { opacity: .4; cursor: not-allowed; }
+.shift-chip.on { border-color: currentColor; box-shadow: 0 0 0 2px rgba(0, 145, 255, .18); }
+.shift-chip:not(.off):active { transform: scale(.96); }
+
+.netbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 9000;
+  padding: calc(8px + env(safe-area-inset-bottom)) 14px 8px;
+  background: #7A4B00; color: #fff; font-size: 12.5px; text-align: center;
+}
+
+/* 「打印 / 存 PDF」：只留报告正文 */
+@media print {
+  .topbar, .share-bar, .row-btns, .map-card, .map-hint, .netbar, .toast,
+  #toast, .bottom-space, .map-toggle, .map-tools, .sheet { display: none !important; }
+  body { background: #fff; }
+  #view-home, #view-create { display: none !important; }
+  #view-report { display: block !important; }
+  .card { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; }
+  .sec-title { break-after: avoid; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

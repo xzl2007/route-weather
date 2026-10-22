@@ -378,21 +378,39 @@ function scoreAtDeparture(samples, series, elevations, durationSec, departHour) 
   const entries = [];
   for (let i = 0; i < samples.length; i++) {
     const s = samples[i];
+    const ser = series[i];
+    if (!ser || !ser.hours || !ser.hours.length) return { entries: [], min: 0, avg: 0, valid: false };
     // 到达该点的时刻 = 出发时刻 + 行程进度 × 总时长
     const arriveAbs = departHour + (s.ratio * durationSec) / 3600;
     const idx = Math.round(arriveAbs);
-    const h = hourAt(series[i], idx);
-    if (!h) return { entries: [], min: 0, avg: 0, valid: false };
+    // 超出已取到的预报范围就判为无效，避免静默地用最后一条小时数据顶替
+    if (idx < 0 || idx >= ser.hours.length) return { entries: [], min: 0, avg: 0, valid: false };
+    const h = ser.hours[idx];
 
-    const sc = scoreHour(h, elevations[i]);
+    const elev = elevations ? elevations[i] : null;
+    const sc = scoreHour(h, elev);
+
+    // 该采样点「到达那一天」的 24 小时评分，报告卡片里铺成和规划模式一样的逐小时天气条
+    const dayStart = Math.floor(idx / 24) * 24;
+    const hourly = ser.hours.slice(dayStart, dayStart + 24).map(x => {
+      const s2 = scoreHour(x, elev);
+      return {
+        hour: x.hour, time: x.time, score: s2.score, level: s2.level, deductions: s2.deductions,
+        temp: x.temp, pp: x.pp, precip: x.precip, wind: x.wind, code: x.code,
+      };
+    });
+
     entries.push({
       name: s.name,
       lat: s.lat, lon: s.lon,
+      elev,
       cumKm: s.cumKm,
       ratio: s.ratio,
       arriveAbs,
       arriveIdx: idx,
-      hours: series[i].hours,
+      hours: ser.hours,
+      hourly,
+      dayStart,
       hour: ((idx % 24) + 24) % 24,
       dayOffset: Math.floor(idx / 24),
       score: sc.score,
@@ -404,6 +422,7 @@ function scoreAtDeparture(samples, series, elevations, durationSec, departHour) 
       precip: h.precip,
       wind: h.wind,
       weatherText: wmoText(h.code),
+      icon: wmoIcon(h.code),
     });
   }
   const scores = entries.map(e => e.score);
@@ -416,12 +435,14 @@ function scoreAtDeparture(samples, series, elevations, durationSec, departHour) 
 }
 
 /**
- * 推荐出发时刻：遍历 0–23 点出发，取「全程最低分」最高的那个。
- * 注意这是"最稳"的出发时刻，不一定全天分数最高——安全场景要保守。
+ * 推荐出发时刻：在给定的小时区间内取「全程最低分」最高的那个。
+ * 默认整天 0–23 点；若出行日期是今天，调用方应传入已过滤过去时刻的区间。
  */
-function findBestDeparture(samples, series, elevations, durationSec) {
+function findBestDeparture(samples, series, elevations, durationSec, fromIdx, toIdx) {
+  const from = Math.max(0, fromIdx == null ? 0 : fromIdx);
+  const to = toIdx == null ? 24 : toIdx;
   let best = null;
-  for (let h = 0; h < 24; h++) {
+  for (let h = from; h < to; h++) {
     const r = scoreAtDeparture(samples, series, elevations, durationSec, h);
     if (!r.valid) continue;
     if (!best || r.min > best.min || (r.min === best.min && h < best.hour)) {
@@ -429,6 +450,35 @@ function findBestDeparture(samples, series, elevations, durationSec) {
     }
   }
   return best;
+}
+
+/**
+ * 出发时刻矩阵：对 [fromIdx, toIdx) 的每个「绝对小时下标」算一次全程分。
+ * 下标以 series[0].hours 的起点为 0，跨天时 24 = 次日 00:00。
+ * 报告页「出发时刻对比」用它铺网格，点某一格就是换一个出发时刻。
+ */
+function departureMatrix(samples, series, elevations, durationSec, fromIdx, toIdx) {
+  const len = Math.min(...series.map(s => (s.hours || []).length));
+  const from = Math.max(0, fromIdx == null ? 0 : fromIdx);
+  const to = Math.min(len, toIdx == null ? 24 : toIdx);
+  const out = [];
+  for (let idx = from; idx < to; idx++) {
+    const r = scoreAtDeparture(samples, series, elevations, durationSec, idx);
+    // 起点那一个小时的天气，用于把"指数"画成一张看得懂的逐小时预报
+    const startH = series[0] && series[0].hours ? series[0].hours[idx] : null;
+    out.push({
+      idx,
+      hour: ((idx % 24) + 24) % 24,
+      dayOffset: Math.floor(idx / 24),
+      min: r.valid ? r.min : null,
+      avg: r.valid ? r.avg : null,
+      valid: r.valid,
+      code: startH ? startH.code : null,
+      temp: startH ? startH.temp : null,
+      pp: startH ? startH.pp : null,
+    });
+  }
+  return out;
 }
 
 /**
@@ -444,8 +494,17 @@ function analyzeNavigation(series, elevations, samples, route, departHour, dateS
   const durationSec = route.duration;
   const auto = departHour == null || departHour < 0;
 
-  const bestDep = findBestDeparture(samples, series, elevations, durationSec);
-  const useHour = auto && bestDep ? bestDep.hour : departHour;
+  // 出行日期是今天时，自动推荐只从「当前时刻之后」里挑
+  const isToday = dateStr === todayStr();
+  const nowH = new Date().getHours();
+  const fromIdx = isToday ? Math.min(24, nowH + 1) : 0;
+  let bestDep = findBestDeparture(samples, series, elevations, durationSec, fromIdx, 24);
+  // 今天已经没有剩余整点（23 点之后）时退回当天任意有效小时，避免整份报告为空；
+  // 正常路径由调用方把出行日期顺延到明天
+  if (!bestDep && fromIdx > 0) {
+    bestDep = findBestDeparture(samples, series, elevations, durationSec, 0, 24);
+  }
+  const useHour = auto && bestDep ? bestDep.hour : (departHour == null || departHour < 0 ? 0 : departHour);
 
   const res = scoreAtDeparture(samples, series, elevations, durationSec, useHour);
   if (!res.valid) return null;
@@ -498,8 +557,9 @@ function buildNavAdvice(points, route, departHour, mode) {
   const worst = points[argmin(points.map(p => p.score))];
 
   const pad2 = n => String(n).padStart(2, '0');
-  const arriveH = departHour + route.duration / 3600;
-  out.push(`建议 ${pad2(Math.floor(departHour))}:00 出发，预计 ${pad2(Math.floor(arriveH % 24))}:${pad2(Math.round((arriveH % 1) * 60))} 抵达终点`);
+  // 先取整到分钟再拆时/分，避免出现 13:60
+  const arriveMin = Math.round((departHour + route.duration / 3600) * 60);
+  out.push(`建议 ${pad2(departHour)}:00 出发，预计 ${minToLabel(arriveMin)} 抵达终点`);
 
   if (worst && worst.score < 60) {
     out.push(`风险最高路段在第 ${points.indexOf(worst) + 1} 个采样点附近（${worst.cumKm.toFixed(0)} km 处），预计 ${pad2(worst.hour)}:00 到达`);
@@ -513,6 +573,128 @@ function buildNavAdvice(points, route, departHour, mode) {
   if (route.duration / 3600 > 4) out.push('全程超过 4 小时，建议中途安排休息并复核后段天气');
   out.push('时长按路网限速估算，山区实际车速通常更慢，建议按抵达时间预留 20–30% 余量');
   return out;
+}
+
+/**
+ * 导航模式的行程诊断：与规划模式同一套数据结构（severity / title / evidence /
+ * impact / advice / actions，可选 apply），报告里复用同一个诊断卡片与弹层。
+ * @param {Array} points     评分后的采样点（按到达顺序）
+ * @param {object} route     {distance, duration, ...}
+ * @param {number} departHour 出发时刻 0–23
+ * @param {string} mode
+ * @param {number|null} recommendedHour 自动推荐的出发时刻（可选）
+ */
+function diagnoseNav(points, route, departHour, mode, recommendedHour) {
+  const items = [];
+  const pad2 = n => String(n).padStart(2, '0');
+  const hh = n => pad2(n) + ':00';
+  const moveApply = (recommendedHour != null && recommendedHour !== departHour)
+    ? { apply: { type: 'navDepart', hour: recommendedHour }, applyLabel: `改到 ${hh(recommendedHour)} 出发` }
+    : {};
+
+  // 1) 逐点天气：只挑最差的 1–2 个，避免淹没报告
+  const low = points
+    .map((p, i) => ({ p, i }))
+    .filter(x => x.p.score < 60)
+    .sort((a, b) => a.p.score - b.p.score)
+    .slice(0, 2);
+
+  low.forEach(({ p, i }) => {
+    const block = p.score < 40;
+    items.push(Object.assign({
+      severity: block ? 'block' : 'warn',
+      index: i,
+      tag: block ? '天气不适合' : '天气偏弱',
+      title: `${p.name}（${hh(p.hour)} 到达）${block ? '天气不适合通过' : '天气条件一般'}`,
+      evidence: `${wmoText(p.code)}，降水概率 ${p.pp == null ? '—' : Math.round(p.pp) + '%'}`
+        + `，风速 ${p.wind == null ? '—' : Math.round(p.wind) + ' km/h'}，评分 ${p.score}`,
+      impact: block
+        ? '这是全程最危险的一段，经过时体验差、风险高'
+        : '这一段会把全程评分拉低，但仍在可通过范围',
+      advice: recommendedHour != null && recommendedHour !== departHour
+        ? `避开这个时段：改到 ${hh(recommendedHour)} 出发（自动推荐）`
+        : '在出发时刻对比里换一个评分更高的时刻',
+      actions: [
+        '点报告上方的逐小时推荐，换到另一小时出发再看评分',
+        '无法调整时，缩短在这一段的停留并留意路面湿滑',
+      ],
+    }, moveApply));
+  });
+
+  // 2) 雷暴
+  const storm = points.find(p => wmoSev(p.code) >= 25);
+  if (storm) {
+    items.push(Object.assign({
+      severity: 'block',
+      tag: '雷暴',
+      title: '沿途有雷暴预报',
+      evidence: `${storm.name} 附近预计 ${hh(storm.hour)} 出现${wmoText(storm.code)}`,
+      impact: '山区雷暴来得快、范围小，靠边停车或临时避雨都很难，属于明确风险',
+      advice: '尽量避开午后通过；已经定了日期的话，优先把出发时刻提前到上午',
+      actions: ['把出发时刻提前，争取在 11:00 前通过高海拔路段', '当天早上再看一次预报，出现雷暴就改期'],
+    }, moveApply));
+  }
+
+  // 3) 高海拔
+  const high = points.filter(p => p.elev != null && p.elev > 3000).sort((a, b) => b.elev - a.elev)[0];
+  if (high) {
+    items.push({
+      severity: 'warn',
+      tag: '高海拔',
+      title: `途经海拔 ${Math.round(high.elev)} m 的路段`,
+      evidence: `${high.name} 附近海拔约 ${Math.round(high.elev)} m，气温 ${high.temp == null ? '—' : high.temp.toFixed(0) + '℃'}`,
+      impact: '海拔每升高 1000 m 气温约降 6℃，风大体感更低，路面也可能结冰',
+      advice: '备保暖层与防滑装备，高海拔段不要久留',
+      actions: ['带一件抓绒或羽绒在后备箱，翻垭口时再穿', '注意路面暗冰，弯道提前减速'],
+    });
+  }
+
+  // 4) 出发过早 / 抵达过晚
+  const arriveHour = departHour + route.duration / 3600;
+  if (departHour < 6) {
+    items.push({
+      severity: 'warn',
+      tag: '出发过早',
+      title: '出发时刻在清晨，视线与路面条件较差',
+      evidence: `建议 ${hh(departHour)} 出发，预计 ${minToLabel(Math.round(arriveHour * 60))} 抵达`,
+      impact: '天没亮时山路能见度低，动物与落石更不易发现',
+      advice: '尽量等天亮后再走；必须早走就放慢车速、常开近光灯',
+      actions: ['把出发时刻推到日出后半小时', '检查车灯、雨刮与轮胎'],
+    });
+  } else if (arriveHour >= 22 || arriveHour % 24 >= 22) {
+    items.push({
+      severity: 'warn',
+      tag: '抵达过晚',
+      title: '预计抵达时间偏晚',
+      evidence: `按 ${hh(departHour)} 出发，预计 ${minToLabel(Math.round(arriveHour * 60))} 抵达终点`,
+      impact: '夜间抵达意味着最后一段在黑暗中行驶，疲劳叠加视线差',
+      advice: '把出发时刻提前 1–2 小时，或中途安排住宿',
+      actions: ['在出发时刻对比里选一个更早的高分时段', '预留 20–30% 的时间余量'],
+    });
+  }
+
+  const blockCount = items.filter(x => x.severity === 'block').length;
+  const warnCount = items.filter(x => x.severity === 'warn').length;
+
+  // 5) 没有问题时补一条"合理项"，报告不至于空着
+  if (!items.length) {
+    items.push({
+      severity: 'ok',
+      tag: '安排合理',
+      title: '各时段的天气与行程安排匹配',
+      evidence: `全程 ${points.length} 个采样点，最低分 ${Math.min(...points.map(p => p.score))}`,
+      impact: '没有需要调整的地方',
+      advice: '按计划出发即可，出发前再确认一次天气',
+      actions: ['出发前 12 小时再刷新一次预报'],
+    });
+  }
+
+  return {
+    items,
+    blockCount,
+    warnCount,
+    summary: blockCount ? 'block' : (warnCount ? 'warn' : 'ok'),
+  };
 }
 
 
@@ -1257,6 +1439,6 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = { scoreHour, levelOf, analyze, analyzeNavigation, analyzePlan, analyzePlanRoute,
     buildPlanSamples, buildProfile, diagnosePlan, concretizeItem, bestHourOf,
     combineRouteScore, goodWindowsOf, fmtWindow,
-    findBestDeparture, planLeg, minToHM, minToLabel, hourAtMinute, hmToMin,
+    findBestDeparture, departureMatrix, scoreAtDeparture, diagnoseNav, planLeg, minToHM, minToLabel, hourAtMinute, hmToMin,
     wmoText, wmoIcon, WMO };
 }

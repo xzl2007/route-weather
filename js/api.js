@@ -24,6 +24,20 @@ const HOURLY_FIELDS = [
   'weather_code',
 ].join(',');
 
+/* ---------------- 请求封装（带超时，离线/弱网时不至于一直转圈） ---------------- */
+
+async function fetchJson(url, timeoutMs) {
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = ctl ? setTimeout(() => ctl.abort(), timeoutMs || 12000) : null;
+  try {
+    const res = await fetch(url, ctl ? { signal: ctl.signal } : undefined);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return await res.json();
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 /* ---------------- 缓存 ---------------- */
 
 function cacheKey(prefix, obj) {
@@ -66,9 +80,7 @@ async function fetchElevations(points) {
   if (hit) return hit.data;
 
   try {
-    const res = await fetch(`${API.ELEVATION}?latitude=${lat}&longitude=${lon}`);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
+    const json = await fetchJson(`${API.ELEVATION}?latitude=${lat}&longitude=${lon}`, 10000);
     let arr = json.elevation;
     if (!Array.isArray(arr)) arr = [arr];
     const out = arr.map(v => (typeof v === 'number' ? Math.round(v) : null));
@@ -107,9 +119,7 @@ async function fetchHourly(points, dateStr, days) {
     + `&timezone=Asia%2FShanghai`;
 
   try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
+    const json = await fetchJson(url, 15000);
     writeCache(key, json);
     return { ok: true, stale: false, at: Date.now(), series: normalizeSeries(json, points), sun: normalizeSun(json, points) };
   } catch (e) {

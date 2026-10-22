@@ -35,9 +35,7 @@ const Geocode = {
     const url = `https://api.tianditu.gov.cn/geocoder?ds=${ds}&tk=${TIANDITU_KEY}`;
 
     try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const json = await res.json();
+      const json = await fetchJson(url, 8000);
 
       // 天地图有时把结果放在 location，有时在 result.location
       const loc = json.location || (json.result && json.result.location);
