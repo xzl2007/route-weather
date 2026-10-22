@@ -1253,3 +1253,25 @@ html, body { background: transparent !important; }
 .trips-count { background: rgba(255,255,255,.22); color: #fff; }
 /* 首页不显示顶部标题栏（产品名已在 Hero 中） */
 body.home-active .topbar { display: none !important; }
+/* 首页内容整体居中（不再贴着顶部） */
+#view-home .home-hero {
+  min-height: 68vh;
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+  text-align: center;
+  padding: 28px 18px;
+}
+#view-home .home-cta { width: 100%; max-width: 340px; }
+#view-home .home-badge { margin: 0 auto; }
+/* 首页整组内容在视口中垂直居中 */
+#view-home {
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  justify-content: center;
+}
+#view-home .home-hero {
+  min-height: 0 !important;
+  padding: 28px 18px 20px;
+}
+/* 首页不再显示“还没有行程”占位，让主内容更居中 */
+#view-home #homeEmpty { display: none !important; }
