@@ -1082,3 +1082,69 @@ body.home-active .topbar::before { background: rgba(255,255,255,.92); box-shadow
 #view-home .trips-toggle,
 #view-home #homeList { margin-left: 12px; margin-right: 12px; }
 #view-home #homeEmpty { margin-top: 10px; }
+
+/* ============================================================
+ * 深色主题（整站）
+ * ============================================================ */
+:root {
+  --bg: #0A121B;
+  --card: #131F2B;
+  --field: #1A2A38;
+  --ink: #E9F1F9;
+  --ink-2: #B3C4D4;
+  --ink-3: #7E93A7;
+  --line: #223442;
+  --brand-soft: rgba(0, 145, 255, .16);
+  --good-bg: rgba(18, 183, 106, .16);
+  --fair-bg: rgba(255, 180, 0, .16);
+  --caution-bg: rgba(255, 107, 0, .16);
+  --bad-bg: rgba(255, 77, 79, .16);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .45);
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, .35);
+  --shadow-float: 0 6px 20px rgba(0, 0, 0, .5);
+}
+html, body { background: var(--bg); color: var(--ink); }
+.topbar { background: var(--bg); border-bottom: 1px solid var(--line); }
+.topbar h1 { color: var(--ink); }
+.btn-ghost { background: var(--card); color: var(--ink-2); border-color: var(--line); }
+.btn-ghost:active { background: var(--field); }
+input, select, textarea { background: var(--field); color: var(--ink); border-color: var(--line); }
+input[type="date"], input[type="time"] { color-scheme: dark; }
+.seg button.on { background: var(--brand-soft); color: var(--brand); box-shadow: none; }
+.pt-row, .feat, .trips-toggle, .sheet-panel, .dx-item, .hs-col,
+.arr-reset, .source, .empty-inline, .home-demo, .leg, .rec-day {
+  background: var(--card);
+}
+.pt-row, .trips-toggle, .dx-item, .hs-col, .arr-reset, .leg { border-color: var(--line); }
+.leg.bad { background: rgba(255, 107, 0, .14); border-color: rgba(255, 107, 0, .38); color: #FFC08A; }
+.boundary { background: rgba(255, 180, 0, .10); border-color: rgba(255, 180, 0, .28); }
+.source { background: var(--card); }
+.map-toggle, .map-btn { background: rgba(19, 31, 43, .92); color: var(--ink); border: 1px solid var(--line); }
+.map-fail { background: rgba(10, 18, 27, .95); color: var(--ink); }
+.mf-sub { color: var(--ink-3); }
+.sheet { background: rgba(0, 0, 0, .58); }
+.sheet-panel { background: var(--card); border-top: 1px solid var(--line); }
+.leg-head { border-color: var(--line); }
+.leg-row { border-color: var(--line); }
+.cmp-legend .lg.fair { color: #FFD166; }
+.lr-score.fair, .hs-score.fair, .ht-score.fair { color: #FFD166; }
+.ded { background: var(--field); color: var(--ink-2); }
+.ded.up { background: var(--good-bg); color: var(--good); }
+.advice-item { color: var(--ink-2); }
+.src-line, .bd-item { color: var(--ink-2); }
+.rec-hour { background: var(--field); color: var(--ink-2); border-color: var(--line); }
+.rec-hour.on { background: var(--brand-soft); border-color: var(--brand); color: var(--ink); }
+.shift-chip { background: var(--field); color: var(--ink-2); border-color: var(--line); }
+.shift-chip.on { background: var(--brand-soft); border-color: var(--brand); color: var(--ink); }
+.hour-cell { background: var(--field); }
+.hour-cell.on { background: var(--brand-soft); border-color: var(--brand); }
+.home-cta .btn-primary { background: #fff; color: #0b5fa5; }
+body.home-active .topbar {
+  background: linear-gradient(180deg, #0A121B 0%, #10243A 100%);
+  border-bottom: 0;
+}
+#view-home .home-hero {
+  background: linear-gradient(180deg, #10243A 0%, #1d6fb8 58%, #22a6ff 100%);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, .35);
+}
+.map-hint, .ht-legend, .leg-note, .cmp-note, .mode-desc, .hint, .small { color: var(--ink-3); }
