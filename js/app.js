@@ -10,6 +10,7 @@ const state = {
   departHour: -1,       // 首次进入时设为“现在”
   departOriginal: null, // 用户原始出发时刻，用于“恢复原时间”
   planOriginalTimes: null, // 规划模式：平移前的原始时间
+  tripsOpen: false,     // 首页“我的行程”是否展开
   points: [],           // [{name, lat, lon}]
   times: [],            // 规划模式：每个点位的到达时刻（分钟，0–1439）
   currentReport: null,
@@ -40,6 +41,7 @@ function showView(name) {
     });
   }
   if (name === 'report') MapCtl.refresh('report');
+  if (name === 'home') renderHome();
 }
 
 /* ---------------- Toast ---------------- */
@@ -67,14 +69,24 @@ function hideToast() {
 function renderHome() {
   const list = loadHistory();
   const listEl = $('#historyList');
+  const toggle = $('#tripsToggle');
+  const count = $('#tripsCount');
 
   if (!list.length) {
     $('#homeEmpty').classList.remove('hidden');
+    if (toggle) toggle.classList.add('hidden');
     $('#homeList').classList.add('hidden');
     return;
   }
   $('#homeEmpty').classList.add('hidden');
-  $('#homeList').classList.remove('hidden');
+  if (toggle) {
+    toggle.classList.remove('hidden');
+    toggle.setAttribute('aria-expanded', String(!!state.tripsOpen));
+  }
+  if (count) count.textContent = String(list.length);
+  $('#homeList').classList.toggle('hidden', !state.tripsOpen);
+  const arrow = $('#tripsArrow');
+  if (arrow) arrow.textContent = state.tripsOpen ? '▴' : '▾';
 
   listEl.innerHTML = list.map(t => {
     const lv = levelOf(t.routeScore ?? 0);
@@ -129,6 +141,15 @@ function initCreate() {
   });
 
   $('#btnAddPoint').addEventListener('click', () => openSheet());
+
+  // 首页：我的行程折叠
+  const tripsToggle = $('#tripsToggle');
+  if (tripsToggle) {
+    tripsToggle.addEventListener('click', () => {
+      state.tripsOpen = !state.tripsOpen;
+      renderHome();
+    });
+  }
 
   // 首页：载入示例路线
   const homeDemo = $('#btnHomeDemo');

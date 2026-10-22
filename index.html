@@ -58,8 +58,12 @@ window.addEventListener('error', function (e) {
       <p class="small">点「开始行程体检」，或先用示例路线试一条：雅安 → 天全 → 泸定</p>
     </div>
 
+    <button class="trips-toggle hidden" id="tripsToggle" type="button" aria-expanded="false">
+      <span class="trips-title">我的行程 <span class="trips-count" id="tripsCount">0</span></span>
+      <span class="trips-arrow" id="tripsArrow">▾</span>
+    </button>
+
     <div id="homeList" class="list hidden">
-      <h2 class="sec-title">我的行程</h2>
       <div id="historyList"></div>
     </div>
   </section>
