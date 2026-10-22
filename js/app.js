@@ -7,7 +7,8 @@ const state = {
   date: todayStr(),
   mode: 'drive',
   checkMode: 'point',   // point | nav
-  departHour: -1,       // -1 = 自动推荐
+  departHour: -1,       // 首次进入时设为“现在”
+  departOriginal: null, // 用户原始出发时刻，用于“恢复原时间”
   points: [],           // [{name, lat, lon}]
   times: [],            // 规划模式：每个点位的到达时刻（分钟，0–1439）
   currentReport: null,
@@ -142,10 +143,16 @@ function initCreate() {
       toast('请输入有效的纬度和经度'); return;
     }
     if (state.points.length >= 5) { toast('最多 5 个点位'); return; }
-    state.points.push({ name: name || `点位${state.points.length + 1}`, lat, lon });
+    const pt = { name: name || `点位${state.points.length + 1}`, lat, lon };
+    state.points.push(pt);
     $('#inpLat').value = ''; $('#inpLon').value = ''; $('#inpName').value = '';
     renderPointList();
-    toast('已添加');
+    toast(name ? '已添加' : '已添加，正在识别地名…');
+    if (!name) {
+      Geocode.reverse(lat, lon).then(nm => {
+        if (nm && state.points.indexOf(pt) >= 0) { pt.name = nm; renderPointList(); }
+      });
+    }
   });
 
   $('#btnCheckup').addEventListener('click', runCheckup);
@@ -160,12 +167,21 @@ function initCreate() {
     });
   });
 
-  // 出发时刻下拉
+  // 出发时刻：默认“现在”，不再用自动推荐
+  const nowD = new Date();
+  const nowH = nowD.getHours() + nowD.getMinutes() / 60;
+  if (state.departHour < 0) state.departHour = nowH;
+  state.departOriginal = state.departHour;
+  const nowLabel = String(nowD.getHours()).padStart(2, '0') + ':' + String(nowD.getMinutes()).padStart(2, '0');
   const sel = $('#selDepart');
-  sel.innerHTML = '<option value="-1">自动推荐</option>'
+  sel.innerHTML = `<option value="${nowH}">现在（${nowLabel}）</option>`
     + Array.from({ length: 24 }, (_, h) =>
         `<option value="${h}">${String(h).padStart(2, '0')}:00</option>`).join('');
-  sel.addEventListener('change', () => { state.departHour = Number(sel.value); });
+  sel.value = String(nowH);
+  sel.addEventListener('change', () => {
+    state.departHour = Number(sel.value);
+    state.departOriginal = state.departHour;   // 手动选择视为新的“原时间”
+  });
 
   // 新建页地图：底图切换 + 全屏
   const layerBtn = $('#btnCreateLayer');
@@ -263,9 +279,17 @@ function ensureCreateMap() {
 
   MapCtl.renderCreate('createMap', state.points.map(p => ({ name: p.name, lat: p.lat, lon: p.lon })), (lat, lon) => {
     if (state.points.length >= 5) { toast('最多 5 个点位'); return; }
-    state.points.push({ name: `点位${state.points.length + 1}`, lat, lon });
+    const pt = { name: `点位${state.points.length + 1}`, lat, lon };
+    state.points.push(pt);
     renderPointList();
-    toast('已在地图上添加点位');
+    toast('已添加，正在识别地名…');
+    Geocode.reverse(lat, lon).then(nm => {
+      if (nm && state.points.indexOf(pt) >= 0) {
+        pt.name = nm;
+        renderPointList();
+        toast('已识别地名：' + nm);
+      }
+    });
   });
 }
 
@@ -686,8 +710,11 @@ async function checkupPoints() {
 
     report.stale = series.stale;
     report.fetchedAt = series.at;
-    // 整体提前/推迟 2 小时内的全程分，用于「出发时刻对比」
-    report.shiftOptions = buildShiftOptions(state.points, state.times, state.mode, series, elevations, state.date);
+    // 逐小时出发指数（起点未来 3 天），用于「出发时刻对比」
+    const hs = await buildPlanHourScores(state.points[0], state.date);
+    report.hourScores = hs.rows;
+    report.departureHour = state.times[0] / 60;
+    state.planCtx = { baseDate: hs.baseDate };
     state.currentReport = report;
     state.expandIdx = -1;
     state.hourSel = {};
@@ -835,6 +862,12 @@ async function checkupNavigation() {
     const matrix = departureMatrix(samples, series.series, elevations, route.duration, win.startIdx, win.endIdx)
       .map(x => Object.assign({}, x, { date: addDays(baseDate, x.dayOffset) }));
     report.hourScores = matrix;
+    // 出发时刻前后 2 小时的全程分对比（导航模式）
+    report.shiftOptions = [-120, -60, 0, 60, 120].map(d => {
+      const rep2 = analyzeNavigation(tripSeries, elevations, samples, route,
+        state.departHour + d / 60, state.date, state.mode);
+      return { delta: d, score: rep2 ? rep2.routeScore : null };
+    });
     state.navCtx = {
       samples, series: series.series, elevations, route,
       stale: series.stale, at: series.at, baseDate, hourScores: matrix,
@@ -935,40 +968,31 @@ function renderNavReport(r, stale) {
       <div class="kv"><span class="kv-k">预计时长${r.route.speedKmh ? `（按 ${r.route.speedKmh} km/h）` : ''}</span>
         <span class="kv-v">${fmtDuration(r.route.durationMin)}</span></div>
       <div class="kv"><span class="kv-k">出发时刻</span>
-        <span class="kv-v strong">${p2(r.departureHour)}:00${r.autoDeparture ? '（自动推荐）' : ''}</span></div>
+        <span class="kv-v strong">${minToHM(Math.round(r.departureHour * 60))}${r.autoDeparture ? '（自动推荐）' : ''}</span></div>
       <div class="kv"><span class="kv-k">预计抵达</span>
         <span class="kv-v">${arriveText}</span></div>
       <div class="kv"><span class="kv-k">风险采样点</span>
         <span class="kv-v">${r.riskyCount} / ${r.points.length} 个低于 60 分</span></div>
-      <div class="kv"><span class="kv-k">最差路段</span>
-        <span class="kv-v">${escapeHtml(worst.name)} · ${p2(worst.hour)}:00 到达 · ${worst.score} 分</span></div>
       <div class="kv"><span class="kv-k">行程诊断</span>
         <span class="kv-v strong ${dz.summary}">${dzText}</span></div>
       <div class="kv-note">${dzNote}</div>
 
-      <div class="explain">
-        路线得分取<b>各采样点中的最低分</b>——整条行程的安全性由最差的那一段决定。<br>
-        每个采样点用的是<b>预计到达该点的那一刻</b>的天气，而不是出发时刻的天气。
-      </div>
-
-      ${r.autoDeparture && r.recommendedHour != null && r.recommendedHour !== r.departureHour
-        ? `<div class="kv-note neutral">推荐出发时刻 ${p2(r.recommendedHour)}:00（全程最低分 ${r.recommendedMin}）</div>` : ''}
+      ${r.recommendedHour != null ? `<div class="kv-note neutral" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        推荐出发时刻 ${minToHM(Math.round(r.recommendedHour * 60))}（全程最低分 ${r.recommendedMin}）
+        <button class="btn btn-ghost" id="btnUseRec" type="button">采用</button>
+        ${state.departOriginal != null && Math.abs(r.departureHour - state.departOriginal) > 0.01
+          ? `<button class="btn btn-ghost" id="btnRestoreDepart" type="button">恢复原时间 ${minToHM(Math.round(state.departOriginal * 60))}</button>` : ''}
+      </div>` : ''}
       ${stale ? `<div class="warn">⚠️ 数据可能已过期（离线缓存），请联网后重试</div>` : ''}
       ${r.route.approx ? `<div class="warn">⚠️ 本版路径按<b>公路网</b>规划。徒步/骑行路线与真实步道、绿道不同，时长按 <b>${r.route.speedKmh} km/h</b> 估算，仅供参考。</div>` : ''}
     </div>
 
     ${shareBarHtml()}
 
-    <h2 class="sec-title">出发时刻对比 · 逐小时</h2>
+    <h2 class="sec-title">出发时刻对比</h2>
     <div class="card cmp">
-      <div class="cmp-note">从现在的下一个整点起，按今天 / 明天 / 后天分段，逐小时给出出发指数（越绿越稳）和该时刻起点的天气。点任意一格即可换成那个时刻出发。</div>
-      ${todayEmpty ? '<div class="cmp-err">今天已经没有可出发的整点了，推荐从明天开始。</div>' : ''}
-      ${outOfWindow ? `<div class="warn">所选出行日期不在推荐窗口内：推荐只覆盖今天到后天，报告仍按 ${r.date} 评估。</div>` : ''}
-      <div id="navHours">${renderNavHours(r)}</div>
-      <div class="cmp-legend">
-        <span class="lg good">80+ 适宜</span><span class="lg fair">60–79 一般</span>
-        <span class="lg caution">40–59 谨慎</span><span class="lg bad">&lt;40 不建议</span>
-      </div>
+      <div class="cmp-note">在当前出发时刻基础上整体提前 / 推迟，看全程分怎么变。点一下即可采用并重新评估。</div>
+      <div class="shift-row">${renderShiftChips(r)}</div>
     </div>
 
     <h2 class="sec-title">行程诊断</h2>
@@ -1028,6 +1052,29 @@ function renderNavReport(r, stale) {
 
   // 展开/收起 + 小时切换
   $$('#pointCards .pt-card').forEach(card => bindCard(card, r, 'nav'));
+
+  // 出发时刻对比：整体平移
+  $$('.shift-chip[data-delta]').forEach(b => {
+    b.addEventListener('click', () => {
+      const d = Number(b.dataset.delta);
+      if (!d) return;
+      state.departHour = Math.max(0, state.departHour + d / 60);
+      toast(d < 0 ? `已提前 ${-d / 60} 小时，重新评估…` : `已推迟 ${d / 60} 小时，重新评估…`);
+      checkupNavigation();
+    });
+  });
+
+  // 采用推荐 / 恢复原时间
+  const useRec = $('#btnUseRec');
+  if (useRec) useRec.addEventListener('click', () => {
+    state.departHour = r.recommendedHour;
+    checkupNavigation();
+  });
+  const restore = $('#btnRestoreDepart');
+  if (restore) restore.addEventListener('click', () => {
+    state.departHour = state.departOriginal;
+    checkupNavigation();
+  });
 
   // 诊断条目：点击弹出具体措施（与点位模式同一个弹层）
   $$('.dx-item[data-idx]').forEach(el => {
@@ -1225,6 +1272,37 @@ function renderNavPointCard(p, i, expanded) {
  * 点位模式报告渲染
  * ============================================================ */
 
+/** 规划模式：起点未来 3 天的逐小时出发指数 */
+async function buildPlanHourScores(startPoint, dateStr) {
+  const today = todayStr();
+  const diff = Math.round((new Date(dateStr + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
+  const baseDate = diff <= 13 ? today : dateStr;
+  const [res, elevs] = await Promise.all([
+    fetchHourly([startPoint], baseDate, 3),
+    fetchElevations([startPoint]),
+  ]);
+  if (!res.ok || !res.series.length) return { rows: [], baseDate };
+  const hours = res.series[0].hours;
+  const now = new Date();
+  const startAbs = baseDate === today ? now.getHours() : 0;
+  const rows = [];
+  for (let k = 0; k < 72; k++) {
+    const idx = startAbs + k;
+    const h = hours[idx];
+    if (!h) break;
+    const hh = idx % 24;
+    if (hh < 8 || hh > 20) continue;   // 只给 08:00–20:00 的合理出发时段
+    const sc = scoreHour(h, elevs[0]);
+    const d = new Date(baseDate + 'T00:00:00');
+    d.setDate(d.getDate() + Math.floor(idx / 24));
+    rows.push({
+      idx, date: fmtDate(d), hour: hh, dayOffset: Math.floor(idx / 24),
+      min: sc.score, valid: true, code: h.code, temp: h.temp,
+    });
+  }
+  return { rows, baseDate };
+}
+
 /** 规划模式：整体平移出发时刻（±2 小时），看全程分怎么变 */
 function buildShiftOptions(points, times, mode, weather, elevations, dateStr) {
   const deltas = [-120, -60, 0, 60, 120];
@@ -1335,10 +1413,14 @@ function renderReport(r, stale) {
 
     ${shareBarHtml()}
 
-    <h2 class="sec-title">出发时刻对比</h2>
+    <h2 class="sec-title">出发时刻对比 · 逐小时</h2>
     <div class="card cmp">
-      <div class="cmp-note">把整份安排整体提前或推迟，看「全程最低分」怎么变（点一下即可套用并重新体检）。</div>
-      <div class="shift-row">${renderShiftChips(r)}</div>
+      <div class="cmp-note">按今天 / 明天 / 后天分段，逐小时给出「从起点出发」的适宜度。点任意一格，把整份行程平移到该时刻出发。</div>
+      <div id="planHours">${renderNavHours(r)}</div>
+      <div class="cmp-legend">
+        <span class="lg good">80+ 适宜</span><span class="lg fair">60–79 一般</span>
+        <span class="lg caution">40–59 谨慎</span><span class="lg bad">&lt;40 不建议</span>
+      </div>
     </div>
 
     <h2 class="sec-title">行程诊断</h2>
@@ -1401,6 +1483,23 @@ function renderReport(r, stale) {
 
   // 绑定卡片：展开/收起 + 点击小时切换
   $$('#pointCards .pt-card').forEach(card => bindCard(card, r));
+
+  // 逐小时出发格：点击后整体平移行程
+  $$('#planHours .rec-hour').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const date = btn.dataset.date;
+      const hour = Number(btn.dataset.hour);
+      const ctx = state.planCtx;
+      if (!ctx) return;
+      const diff = Math.round((new Date(date + 'T00:00:00') - new Date(ctx.baseDate + 'T00:00:00')) / 86400000);
+      const targetMin = diff * 1440 + hour * 60;
+      ensureTimes();
+      const delta = targetMin - state.times[0];
+      state.times = state.times.map(t => Math.max(0, t + delta));
+      toast(`已平移到 ${date} ${pad(hour)}:00 出发，重新体检…`);
+      runCheckup();
+    });
+  });
 
   // 地图：路线可视化 + 点击点位联动卡片（地图失败绝不能影响整页）
   try {

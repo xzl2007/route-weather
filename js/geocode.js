@@ -21,6 +21,26 @@ const Geocode = {
     return typeof TIANDITU_KEY === 'string' && TIANDITU_KEY.length > 0;
   },
 
+  /** 逆地理编码：坐标 → 地名（天地图，浏览器端 Key） */
+  async reverse(lat, lon) {
+    if (!isFinite(lat) || !isFinite(lon) || !this.enabled) return null;
+    const key = 'rev:' + Number(lat).toFixed(4) + ',' + Number(lon).toFixed(4);
+    if (this.cache.has(key)) return this.cache.get(key);
+    try {
+      const postStr = encodeURIComponent(JSON.stringify({ lon: Number(lon), lat: Number(lat), ver: 1 }));
+      const url = `https://api.tianditu.gov.cn/geocoder?postStr=${postStr}&type=geocode&tk=${TIANDITU_KEY}`;
+      const json = await fetchJson(url, 8000);
+      const a = (json.result && json.result.addressComponent) || {};
+      const name = a.town || a.poi || a.county || a.city || a.province || null;
+      if (this.cache.size >= this.MAX_CACHE) this.cache.clear();
+      this.cache.set(key, name);
+      return name;
+    } catch (e) {
+      console.warn('[geocode] 逆地理编码失败：', e);
+      return null;
+    }
+  },
+
   /**
    * @param {string} keyword 地名
    * @returns {Promise<Array<{name,lat,lon}>|null>} null = 出错
