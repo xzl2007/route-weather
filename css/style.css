@@ -1275,3 +1275,89 @@ body.home-active .topbar { display: none !important; }
 }
 /* 首页不再显示“还没有行程”占位，让主内容更居中 */
 #view-home #homeEmpty { display: none !important; }
+/* ============================================================
+ * 修正：蓝色渐变只用于首页；其他页面恢复白底
+ * ============================================================ */
+/* 1) 修复首页不隐藏导致“往下滑”的问题 */
+#view-home:not(.active) { display: none !important; }
+#view-home.view.active { display: flex; flex-direction: column; justify-content: center; }
+
+/* 2) 渐变只作用于首页 */
+body:not(.home-active)::before { display: none !important; }
+body:not(.home-active) {
+  --bg: #F2F4F7;
+  --card: #FFFFFF;
+  --field: #F2F3F5;
+  --ink: #1A1A1A;
+  --ink-2: #4E5969;
+  --ink-3: #86909C;
+  --line: #E5E6EB;
+  --brand-soft: #E8F3FF;
+  --good-bg: #E7F8EF;
+  --fair-bg: #FFF6E0;
+  --caution-bg: #FFF0E5;
+  --bad-bg: #FFECEC;
+  --shadow-card: 0 2px 10px rgba(26, 26, 26, .06);
+  background: #F2F4F7 !important;
+  color: #1A1A1A !important;
+}
+body:not(.home-active) .topbar {
+  background: #fff !important;
+  border-bottom: 1px solid var(--line) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+body:not(.home-active) .topbar h1 { color: var(--ink) !important; }
+body:not(.home-active) .topbar::before { background: var(--brand-grad) !important; }
+
+/* 3) 非首页的卡片/控件恢复白底 */
+body:not(.home-active) .card,
+body:not(.home-active) .summary,
+body:not(.home-active) .advice,
+body:not(.home-active) .leg-list,
+body:not(.home-active) .boundary,
+body:not(.home-active) .source,
+body:not(.home-active) .empty,
+body:not(.home-active) .empty-inline,
+body:not(.home-active) .pt-row,
+body:not(.home-active) .feat,
+body:not(.home-active) .trips-toggle,
+body:not(.home-active) .dx-item,
+body:not(.home-active) .hs-col,
+body:not(.home-active) .arr-reset,
+body:not(.home-active) .leg,
+body:not(.home-active) .rec-day,
+body:not(.home-active) .trip,
+body:not(.home-active) .cmp,
+body:not(.home-active) .map-card {
+  background: var(--card) !important;
+  border-color: var(--line) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+body:not(.home-active) .boundary {
+  background: #FFFBF0 !important;
+  border-color: #FFE7B8 !important;
+}
+body:not(.home-active) input,
+body:not(.home-active) select,
+body:not(.home-active) textarea {
+  background: #fff !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--line) !important;
+}
+body:not(.home-active) .seg { background: var(--field); }
+body:not(.home-active) .seg button.on { background: #fff !important; color: var(--brand) !important; box-shadow: 0 1px 4px rgba(26,26,26,.12) !important; }
+body:not(.home-active) .btn-ghost { background: #fff !important; color: var(--ink-2) !important; border-color: var(--line) !important; }
+body:not(.home-active) .map-toggle,
+body:not(.home-active) .map-btn { background: rgba(255,255,255,.96) !important; color: var(--ink) !important; border: 0 !important; }
+body:not(.home-active) .ded { background: var(--field); color: var(--ink-2); }
+body:not(.home-active) .rec-hour,
+body:not(.home-active) .shift-chip,
+body:not(.home-active) .hour-cell { background: #fff !important; color: var(--ink-2) !important; border-color: var(--line) !important; }
+body:not(.home-active) .rec-hour.on,
+body:not(.home-active) .shift-chip.on,
+body:not(.home-active) .hour-cell.on { background: var(--brand-soft) !important; border-color: var(--brand) !important; color: var(--brand) !important; }
+body:not(.home-active) .sheet-panel { background: #fff !important; }
+body:not(.home-active) .map-fail { background: rgba(233,238,243,.96) !important; color: var(--ink); }
+body:not(.home-active) .cmp-legend .lg.fair { color: #8A6100; }
