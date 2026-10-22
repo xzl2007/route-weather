@@ -1241,3 +1241,13 @@ body::before {
 }
 /* 让固定的渐变层成为唯一背景（避免 body 实色盖住上半部分） */
 html, body { background: transparent !important; }
+/* 我的行程：给一点对比度（控件感，不破坏整体渐变） */
+.trips-toggle {
+  background: rgba(255,255,255,.13) !important;
+  border: 1px solid rgba(255,255,255,.24) !important;
+  box-shadow: 0 2px 8px rgba(0, 20, 50, .18) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.trips-toggle:active { background: rgba(255,255,255,.20) !important; }
+.trips-count { background: rgba(255,255,255,.22); color: #fff; }
