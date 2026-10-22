@@ -26,6 +26,7 @@ const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
 function showView(name) {
   state.view = name;
+  document.body.classList.toggle('home-active', name === 'home');
   $$('.view').forEach(v => v.classList.remove('active'));
   $('#view-' + name).classList.add('active');
   if (name !== 'report') toggleReportFullscreen(false);
