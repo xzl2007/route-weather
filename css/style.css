@@ -1251,3 +1251,5 @@ html, body { background: transparent !important; }
 }
 .trips-toggle:active { background: rgba(255,255,255,.20) !important; }
 .trips-count { background: rgba(255,255,255,.22); color: #fff; }
+/* 首页不显示顶部标题栏（产品名已在 Hero 中） */
+body.home-active .topbar { display: none !important; }
