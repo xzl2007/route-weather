@@ -938,7 +938,7 @@ function renderNavReport(r, stale) {
 
   // 关键点位 = 起点与终点；中间为沿途采样（与点位模式的结构一致）
   const keyIdx = r.points.length > 1 ? [0, r.points.length - 1] : [0];
-  const legIdx = r.points.map((p, i) => i).filter(i => keyIdx.indexOf(i) < 0);
+  const legIdx = r.points.map((p, i) => i);   // 关键点位 + 沿途采样
 
   $('#reportBody').innerHTML = `
     <div class="card map-card">
@@ -1000,7 +1000,7 @@ function renderNavReport(r, stale) {
     </div>
 
     ${legIdx.length ? `
-    <h2 class="sec-title">沿途采样 · ${legIdx.length} 个</h2>
+    <h2 class="sec-title">采样点 · ${legIdx.length} 个</h2>
     <div class="card leg-list">
       <div class="leg-head"><span>位置</span><span>到达</span><span>天气</span><span>评分</span><span>原因</span></div>
       ${legIdx.map(i => {
@@ -1279,7 +1279,7 @@ async function buildPlanHourScores(startPoint, dateStr) {
   if (!res.ok || !res.series.length) return { rows: [], baseDate };
   const hours = res.series[0].hours;
   const now = new Date();
-  const startAbs = baseDate === today ? now.getHours() : 0;
+  const startAbs = baseDate === today ? Math.ceil(now.getHours() + now.getMinutes() / 60) : 0;
   const rows = [];
   for (let k = 0; k < 72; k++) {
     const idx = startAbs + k;
@@ -1372,7 +1372,7 @@ function renderReport(r, stale) {
   const keyRows = r.points.map((p, i) => ({ p, i })).filter(x => x.p.kind !== 'leg');
   const totalKm = (r.legs || []).reduce((s2, L) => s2 + L.km * 1.25, 0);
   const totalMin = r.points.length > 1 ? (r.points[r.points.length - 1].minute - r.points[0].minute) : 0;
-  const legRows = r.points.map((p, i) => ({ p, i })).filter(x => x.p.kind === 'leg');
+  const legRows = r.points.map((p, i) => ({ p, i }));   // 关键点位 + 沿途采样，按行程顺序
   const lv = r.level;
 
   const dz = r.diagnosis || { items: [], blockCount: 0, warnCount: 0, summary: 'ok' };
@@ -1437,7 +1437,7 @@ function renderReport(r, stale) {
     </div>
 
     ${legRows.length ? `
-    <h2 class="sec-title">沿途采样 · ${legRows.length} 个</h2>
+    <h2 class="sec-title">采样点 · ${legRows.length} 个</h2>
     <div class="card leg-list">
       <div class="leg-head"><span>位置</span><span>到达</span><span>天气</span><span>评分</span><span>原因</span></div>
       ${legRows.map(x => `
@@ -1448,7 +1448,7 @@ function renderReport(r, stale) {
           <span class="lr-score ${x.p.level.key}">${x.p.score}</span>
           <span class="lr-why">${escapeHtml(legReason(x.p))}</span>
         </div>`).join('')}
-      <div class="leg-note">沿途采样标准：在相邻点位之间按直线等距插值，约每 8 km 一个；单段最多 12 个、全线含关键点位不超过 30 个，长路段间隔会更大。每个采样点取「预计到达该点那一刻」的天气，跨天时自动取次日预报。路线总分取所有采样点中的最低分。</div>
+      <div class="leg-note">采样说明：关键点位与沿途采样点按行程顺序列出；「K6」表示距该段起点约 6 km 处。沿途点在相邻点位之间按直线等距插值，约每 8 km 一个（单段最多 12 个、全线不超过 30 个，长路段间隔会更大）；每个点取「预计到达该点那一刻」的天气，跨天时取次日预报。</div>
     </div>` : ''}
 
     <h2 class="sec-title">出行建议</h2>

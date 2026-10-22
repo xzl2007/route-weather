@@ -494,15 +494,16 @@ function analyzeNavigation(series, elevations, samples, route, departHour, dateS
   const durationSec = route.duration;
   const auto = departHour == null || departHour < 0;
 
-  // 出行日期是今天时，自动推荐只从「当前时刻之后」里挑
+  // 出行日期是今天时，推荐窗口 = 现在 → 现在 + 4 小时，不能从过去出发
   const isToday = dateStr === todayStr();
-  const nowH = new Date().getHours();
-  const fromIdx = isToday ? Math.min(24, nowH + 1) : 0;
-  let bestDep = findBestDeparture(samples, series, elevations, durationSec, fromIdx, 24);
-  // 今天已经没有剩余整点（23 点之后）时退回当天任意有效小时，避免整份报告为空；
-  // 正常路径由调用方把出行日期顺延到明天
-  if (!bestDep && fromIdx > 0) {
-    bestDep = findBestDeparture(samples, series, elevations, durationSec, 0, 24);
+  const now = new Date();
+  const nowH = now.getHours() + now.getMinutes() / 60;
+  const fromIdx = isToday ? Math.max(0, Math.ceil(nowH)) : 0;
+  const toIdx = isToday ? Math.min(24, Math.floor(nowH) + 5) : 24;
+  let bestDep = findBestDeparture(samples, series, elevations, durationSec, fromIdx, toIdx);
+  // 未来 4 小时内都不可用时，退到「今天剩余时间」再找一次（仍然不选过去）
+  if (!bestDep && isToday) {
+    bestDep = findBestDeparture(samples, series, elevations, durationSec, fromIdx, 24);
   }
   const useHour = auto && bestDep ? bestDep.hour : (departHour == null || departHour < 0 ? 0 : departHour);
 
