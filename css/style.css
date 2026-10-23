@@ -834,7 +834,10 @@ body.map-immersive { overflow: hidden; }
 
 
 /* 加分项（绿色） */
-.ded.up { background: var(--good-bg); color: var(--good); font-weight: 600; }
+.ded.up, .ded.good { background: var(--good-bg); color: var(--good); font-weight: 600; }
+.ded.fair { background: var(--fair-bg); color: #8A5A00; }
+.ded.caution { background: var(--caution-bg); color: var(--caution); }
+.ded.bad { background: var(--bad-bg); color: var(--bad); }
 
 /* 多个应用按钮 */
 .dx-applies { display: flex; flex-direction: column; gap: 8px; padding: 8px 14px 16px; }
@@ -1357,6 +1360,11 @@ body:not(.home-active) .btn-ghost { background: #fff !important; color: var(--in
 body:not(.home-active) .map-toggle,
 body:not(.home-active) .map-btn { background: rgba(255,255,255,.96) !important; color: var(--ink) !important; border: 0 !important; }
 body:not(.home-active) .ded { background: var(--field); color: var(--ink-2); }
+body:not(.home-active) .ded.up,
+body:not(.home-active) .ded.good { background: var(--good-bg) !important; color: var(--good) !important; }
+body:not(.home-active) .ded.fair { background: var(--fair-bg) !important; color: #8A5A00 !important; }
+body:not(.home-active) .ded.caution { background: var(--caution-bg) !important; color: var(--caution) !important; }
+body:not(.home-active) .ded.bad { background: var(--bad-bg) !important; color: var(--bad) !important; }
 body:not(.home-active) .rec-hour,
 body:not(.home-active) .shift-chip,
 body:not(.home-active) .hour-cell { background: #fff !important; color: var(--ink-2) !important; border-color: var(--line) !important; }

@@ -1271,7 +1271,7 @@ function renderNavPointCard(p, i, expanded) {
   const good = cur.score >= 80;
   const chips = good ? buildHighlights(cur) : (cur.deductions || []).slice(0, 3).map(d => d.label);
   const dedHtml = chips.length
-    ? chips.map(c => `<span class="ded${good ? ' up' : ''}">${good ? '✓ ' : ''}${escapeHtml(c)}</span>`).join('')
+    ? chips.map(c => `<span class="ded ${good ? 'up' : lv.key}">${good ? '✓ ' : ''}${escapeHtml(c)}</span>`).join('')
     : `<span class="ded none">${good ? '天气条件良好' : '—'}</span>`;
 
   return `
@@ -1748,7 +1748,7 @@ function renderPointCard(p, i, expanded) {
   const good = cur.score >= 80;
   const chips = good ? buildHighlights(cur) : (cur.deductions || []).slice(0, 3).map(d => d.label);
   const dedHtml = chips.length
-    ? chips.map(c => `<span class="ded${good ? ' up' : ''}">${good ? '✓ ' : ''}${escapeHtml(c)}</span>`).join('')
+    ? chips.map(c => `<span class="ded ${good ? 'up' : lv.key}">${good ? '✓ ' : ''}${escapeHtml(c)}</span>`).join('')
     : `<span class="ded none">${good ? '天气条件良好' : '—'}</span>`;
 
   const isArrival = selHour === p.hour;
