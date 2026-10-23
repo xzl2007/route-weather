@@ -6,7 +6,7 @@
  * 导航请求走「网络优先」，保证更新能及时生效；断网时回落到缓存外壳。
  */
 
-const CACHE = 'rwc-shell-v22';
+const CACHE = 'rwc-shell-v23';
 
 const ASSETS = [
   './',
@@ -70,14 +70,14 @@ self.addEventListener('fetch', (e) => {
 
   // 静态资源：先给缓存（快），后台顺便更新
   e.respondWith(
-    caches.match(req, { ignoreSearch: true }).then(hit => {
+    caches.match(req).then(hit => {
       const network = fetch(req).then(res => {
         if (res && res.ok) {
           const copy = res.clone();
           caches.open(CACHE).then(c => c.put(req, copy));
         }
         return res;
-      }).catch(() => hit);
+      }).catch(async () => hit || (await caches.match(req, { ignoreSearch: true })) || Response.error());
       return hit || network;
     })
   );
