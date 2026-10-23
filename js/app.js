@@ -1039,7 +1039,7 @@ function renderNavReport(r, stale) {
     ${legIdx.length ? `
     <h2 class="sec-title">采样点 · ${legIdx.length} 个</h2>
     <div class="card leg-list">
-      <div class="leg-head"><span>位置</span><span>到达</span><span>天气</span><span>评分</span><span>原因</span></div>
+      <div class="leg-head"><span>位置</span><span>到达</span><span>天气</span><span>评分</span><span>原因</span><span>影响</span></div>
       ${legIdx.map(i => {
         const p = r.points[i];
         const day = p.dayOffset > 0 ? ' <sup>次日</sup>' : '';
@@ -1049,6 +1049,7 @@ function renderNavReport(r, stale) {
           <span class="lr-wx">${p.icon || ''} ${escapeHtml(p.weatherText)}</span>
           <span class="lr-score ${p.level.key}">${p.score}</span>
           <span class="lr-why">${escapeHtml(legReason(p))}</span>
+          <span class="lr-impact">${escapeHtml(legImpact(p))}</span>
         </div>`;
       }).join('')}
       <div class="leg-note">沿途采样点按里程等距取，天气取「预计到达该点那一刻」的那一小时。点上方关键点位卡片可展开逐小时天气。</div>
@@ -1386,18 +1387,93 @@ function bindShiftChips(r) {
   });
 }
 
-/** 沿途采样：评分低给原因，评分高提示天气良好 */
+/** 沿途采样：原因说明为什么扣分，影响说明对通行意味着什么 */
 function legReason(p) {
   if (p.score >= 80) return '天气良好';
   const ds = (p.deductions || []).slice(0, 2).map(d => d.label);
   return ds.length ? ds.join('；') : '综合条件一般';
 }
 
-/** 出行建议：只列行程中不合理的地方 + 对应措施 */
+function legImpact(p) {
+  const code = Number(p.code);
+  const precip = p.precip == null ? 0 : Number(p.precip);
+  const pp = p.pp == null ? 0 : Number(p.pp);
+  const wind = p.wind == null ? 0 : Number(p.wind);
+  const temp = p.temp == null ? null : Number(p.temp);
+  const out = [];
+
+  if (code >= 95) out.push('雷暴、落石风险');
+  else if ([56, 57, 66, 67].includes(code) || (temp != null && temp < 0)) out.push('路面可能结冰');
+  else if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) out.push('积雪、路面湿滑');
+  else if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82) || precip > 0.5) {
+    out.push('路面湿滑、视线受影响');
+  }
+
+  if (code === 45 || code === 48) out.push('能见度低');
+  if (wind >= 40) out.push('强侧风');
+  else if (wind >= 29) out.push('侧风明显');
+  if (temp != null && temp >= 32) out.push('高温、体力消耗大');
+  if (p.elev != null && p.elev > 3000 && temp != null && temp < 5) out.push('高海拔低温');
+
+  const uniq = [...new Set(out)].slice(0, 2);
+  if (uniq.length) return uniq.join('；');
+  if (p.score >= 80) return '影响较小';
+  if (pp >= 60) return '降水可能性高';
+  return '天气对通行有轻度影响';
+}
+
+function currentDepartureMinute(r) {
+  if (!r) return null;
+  if (r.mode === 'nav' && r.departureHour != null) return Math.round(r.departureHour * 60);
+  const first = r.points && r.points[0];
+  return first && first.minute != null ? first.minute : null;
+}
+
+function recommendedDepartureMinute(r, it) {
+  if (!r || !it) return null;
+  const cur = currentDepartureMinute(r);
+
+  if (it.apply && it.apply.type === 'navDepart' && it.apply.hour != null) {
+    return Math.round(it.apply.hour * 60);
+  }
+  if (r.mode === 'nav' && r.recommendedHour != null) {
+    return Math.round(r.recommendedHour * 60);
+  }
+
+  const shift = (it.applies || []).find(a => a.type === 'shiftAll' && Number.isFinite(a.delta));
+  if (shift && cur != null) return Math.round(cur + shift.delta);
+
+  const acts = it.actions || [];
+  if (acts.some(a => a.includes('改期') || a.includes('缩短行程'))) return null;
+  return cur;
+}
+
+function departureChangeText(cur, rec) {
+  if (cur == null || rec == null) return '';
+  const diff = Math.round(rec - cur);
+  if (Math.abs(diff) < 5) return '保持当前时间';
+  return (diff > 0 ? '推迟 ' : '提前 ') + fmtDuration(Math.abs(diff));
+}
+
+/** 出行建议：先给推荐出发时间，再说明这一段为什么不合适 */
 function buildTripAdvice(r) {
   const items = ((r.diagnosis && r.diagnosis.items) || []).filter(x => x.severity !== 'ok');
-  if (!items.length) return ['行程安排整体合理，按计划出发即可。'];
+  const cur = currentDepartureMinute(r);
+  if (!items.length) {
+    return [cur == null ? '行程安排整体合理，按计划出发即可。'
+      : `推荐保持 ${minToLabel(cur)} 出发；行程安排整体合理。`];
+  }
+
   return items.slice(0, 5).map(it => {
+    const rec = recommendedDepartureMinute(r, it);
+    if (rec != null) {
+      const change = departureChangeText(cur, rec);
+      const p = r.points && r.points[it.index];
+      const where = p && p.name ? p.name + '：' : '';
+      const evidence = (it.evidence || '').split('，').slice(0, 2).join('，');
+      return `推荐 ${minToLabel(rec)} 出发${change ? '（' + change + '）' : ''}；`
+        + where + (it.tag || '行程调整') + (evidence ? '；' + evidence : '');
+    }
     const act = (it.actions && it.actions.length) ? it.actions[0] : (it.advice || '');
     return it.title + (act ? '：' + act : '');
   });
@@ -1459,12 +1535,7 @@ function renderReport(r, stale) {
 
     <h2 class="sec-title">出发时刻对比 · 逐小时</h2>
     <div class="card cmp">
-      <div class="cmp-note">按今天 / 明天 / 后天分段，逐小时给出「从起点出发」的适宜度。点任意一格，把整份行程平移到该时刻出发。</div>
       <div id="planHours">${renderNavHours(r)}</div>
-      <div class="cmp-legend">
-        <span class="lg good">80+ 适宜</span><span class="lg fair">60–79 一般</span>
-        <span class="lg caution">40–59 谨慎</span><span class="lg bad">&lt;40 不建议</span>
-      </div>
       ${state.planOriginalTimes ? `<div style="margin-top:10px"><button class="btn btn-ghost" id="btnRestorePlan" type="button">恢复原时间</button></div>` : ''}
     </div>
 
@@ -1476,7 +1547,7 @@ function renderReport(r, stale) {
     ${legRows.length ? `
     <h2 class="sec-title">采样点 · ${legRows.length} 个</h2>
     <div class="card leg-list">
-      <div class="leg-head"><span>位置</span><span>到达</span><span>天气</span><span>评分</span><span>原因</span></div>
+      <div class="leg-head"><span>位置</span><span>到达</span><span>天气</span><span>评分</span><span>原因</span><span>影响</span></div>
       ${legRows.map(x => `
         <div class="leg-row">
           <span class="lr-name">${escapeHtml(x.p.name)}</span>
@@ -1484,8 +1555,9 @@ function renderReport(r, stale) {
           <span class="lr-wx">${x.p.icon || ''} ${escapeHtml(x.p.weatherText)}</span>
           <span class="lr-score ${x.p.level.key}">${x.p.score}</span>
           <span class="lr-why">${escapeHtml(legReason(x.p))}</span>
+          <span class="lr-impact">${escapeHtml(legImpact(x.p))}</span>
         </div>`).join('')}
-      <div class="leg-note">采样说明：关键点位与沿途采样点按行程顺序列出；「K6」表示距该段起点约 6 km 处。沿途点在相邻点位之间按直线等距插值，约每 8 km 一个（单段最多 12 个、全线不超过 30 个，长路段间隔会更大）；每个点取「预计到达该点那一刻」的天气，跨天时取次日预报。</div>
+      <div class="leg-note">采样说明：关键点位与沿途采样点按行程顺序列出；「K6」表示距该段起点约 6 km 处。沿途点在相邻点位之间按直线等距插值，约每 8 km 一个（单段最多 12 个、全线不超过 20 个，长路段间隔会更大）；每个点取「预计到达该点那一刻」的天气，跨天时取次日预报。</div>
     </div>` : ''}
 
     <h2 class="sec-title">出行建议</h2>
@@ -1718,14 +1790,14 @@ function renderHourlyStrip(p, i, selHour) {
     <div class="hourly-strip-wrap">
       <div class="hourly-strip">
         ${hours.map(h => `
-          <div class="hs-col${h.hour === selHour ? ' hs-now' : ''}" data-i="${i}" data-hour="${h.hour}" title="点击查看 ${pad(h.hour)}:00 ${wmoText(h.code)} ${h.score} 分">
+          <div class="hs-col hs-${levelOf(h.score).key}${h.hour === selHour ? ' hs-now' : ''}" data-i="${i}" data-hour="${h.hour}" title="点击查看 ${pad(h.hour)}:00 ${wmoText(h.code)} ${h.score} 分">
             <div class="hs-hour">${pad(h.hour)}</div>
             <div class="hs-icon">${wmoIcon(h.code)}</div>
             <div class="hs-temp">${h.temp != null ? Math.round(h.temp) + '°' : '—'}</div>
             <div class="hs-pp">${h.pp != null ? Math.round(h.pp) + '%' : '—'}</div>
           </div>`).join('')}
       </div>
-      <div class="ht-legend">行程日逐小时：时刻 / 天气 / 气温 / 降水概率（点击任意小时可切换查看）</div>
+      <div class="ht-legend">行程日逐小时：时刻 / 天气 / 气温 / 降水概率；底色表示该小时适宜度（点击任意小时可切换查看）</div>
     </div>`;
 }
 
