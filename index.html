@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="css/style.css?v=11">
+<link rel="stylesheet" href="css/style.css?v=12">
 <link rel="icon" href="icons/icon-192.png">
 <script>
 /* 早期错误捕获：把 JS 错误显示在页面上，避免"白屏无提示" */
@@ -93,7 +93,7 @@ window.addEventListener('error', function (e) {
     <div class="field hidden" id="fieldDepart">
       <label>出发时刻</label>
       <select id="selDepart"></select>
-      <p class="mode-desc">自动推荐 = 遍历 0–23 点出发，取「全程最低分」最高的那个时刻。</p>
+      <p class="mode-desc">手动选择出发时刻，系统展示预计到达各采样点时的天气状况。</p>
     </div>
 
     <div class="field">
@@ -147,7 +147,7 @@ window.addEventListener('error', function (e) {
     </div>
 
     <button class="btn btn-primary btn-lg" id="btnCheckup">开始体检</button>
-    <p class="hint">规划模式：你自己定时间，系统指出不合理处；导航模式：只给起终点，系统帮你排时间。<br>两种模式都会在关键点位之间加入沿途采样点，但采样点之间不逐米评估。</p>
+    <p class="hint">规划模式：你自己定时间，系统指出不合理处；导航模式：只给起终点，展示到达各采样点时的天气。<br>两种模式都会在关键点位之间加入沿途采样点，但采样点之间不逐米评估。</p>
   </section>
 
   <!-- ========== 体检报告 ========== -->
@@ -184,15 +184,15 @@ window.addEventListener('error', function (e) {
 
 <div id="toast" class="toast hidden"></div>
 
-<script src="js/config.js?v=11"></script>
+<script src="js/config.js?v=12"></script>
 <script src="vendor/leaflet/leaflet.js"></script>
-<script src="js/points.js?v=11"></script>
-<script src="js/api.js?v=11"></script>
-<script src="js/routing.js?v=11"></script>
-<script src="js/scoring.js?v=11"></script>
-<script src="js/storage.js?v=11"></script>
-<script src="js/geocode.js?v=11"></script>
-<script src="js/map.js?v=11"></script>
-<script src="js/app.js?v=11"></script>
+<script src="js/points.js?v=12"></script>
+<script src="js/api.js?v=12"></script>
+<script src="js/routing.js?v=12"></script>
+<script src="js/scoring.js?v=12"></script>
+<script src="js/storage.js?v=12"></script>
+<script src="js/geocode.js?v=12"></script>
+<script src="js/map.js?v=12"></script>
+<script src="js/app.js?v=12"></script>
 </body>
 </html>

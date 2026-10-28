@@ -414,10 +414,11 @@ const MapCtl = {
         keyboard: false,
       }).addTo(map);
 
-      const p2 = n => String(Math.floor(n)).padStart(2, '0');
+      const arriveMin = p.arriveAbs != null ? Math.round(p.arriveAbs * 60) : (p.hour != null ? p.hour * 60 : null);
+      const arriveClock = arriveMin != null ? minToHM(arriveMin) : null;
       mk.bindTooltip(
-        `${i + 1}. ${p.name}${p.score != null ? ' · ' + p.score + '分' : ''}`
-        + (p.hour != null ? ` · 约 ${p2(p.hour)}:00 到达` : '')
+        `${i + 1}. ${p.name}${p.weatherText ? ' · ' + p.weatherText : ''}${p.score != null ? ' · ' + p.score + '分' : ''}`
+        + (arriveClock != null ? ` · 约 ${arriveClock} 到达` : '')
         + (p.cumKm != null ? ` · ${p.cumKm.toFixed(0)}km` : ''),
         { direction: 'top', offset: [0, -14], opacity: 1, className: 'route-tip' }
       );

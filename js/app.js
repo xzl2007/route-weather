@@ -91,6 +91,7 @@ function renderHome() {
   if (arrow) arrow.textContent = state.tripsOpen ? '▴' : '▾';
 
   listEl.innerHTML = list.map(t => {
+    const isNav = t.checkMode === 'nav';
     const lv = levelOf(t.routeScore ?? 0);
     return `
       <div class="card trip" data-id="${t.id}">
@@ -99,8 +100,8 @@ function renderHome() {
           <div class="trip-meta">${t.date} · ${modeText(t.mode)}</div>
         </div>
         <div class="trip-score">
-          <div class="score-num ${lv.key}">${t.routeScore}</div>
-          <div class="score-lv ${lv.key}">${lv.text}</div>
+          ${isNav ? '<div class="trip-nav-label">导航天气</div>' : `<div class="score-num ${lv.key}">${t.routeScore}</div>
+          <div class="score-lv ${lv.key}">${lv.text}</div>`}
         </div>
       </div>`;
   }).join('');
@@ -288,9 +289,9 @@ function applyCheckModeUI() {
   const nav = state.checkMode === 'nav';
   $('#fieldDepart').classList.toggle('hidden', !nav);
   $('#modeDesc').textContent = nav
-    ? '只给起点和终点：系统规划真实路径、按「到达该点的那一刻」评估，并推荐出发时刻。'
+    ? '只给起点和终点：系统规划真实路径，并展示预计到达每个采样点时的天气状况。'
     : '你自己安排每个点位的到达时间：系统逐点核对，指出不合理的地方并给出调整建议。';
-  $('#btnCheckup').textContent = nav ? '导航并体检' : '开始诊断';
+  $('#btnCheckup').textContent = nav ? '查看沿途天气' : '开始诊断';
   const lbl = document.querySelector('#pointList')?.closest('.field')?.querySelector('label');
   if (lbl) {
     lbl.innerHTML = nav
@@ -906,23 +907,6 @@ async function checkupNavigation() {
     report.stale = series.stale;
     report.fetchedAt = series.at;
     report.routeCoords = route.coords;
-    // 行程诊断：与规划模式同构，报告里复用同一套诊断卡片
-    report.diagnosis = diagnoseNav(report.points, route, report.departureHour, state.mode, report.recommendedHour);
-    // 5) 逐小时指数：从现在的下一个整点起，到今天/明天/后天三段（后天 24:00 止）
-    const win = recWindow(baseDate);
-    const matrix = departureMatrix(samples, series.series, elevations, route.duration, win.startIdx, win.endIdx)
-      .map(x => Object.assign({}, x, { date: addDays(baseDate, x.dayOffset) }));
-    report.hourScores = matrix;
-    // 出发时刻前后 2 小时的全程分对比（导航模式）
-    report.shiftOptions = [-120, -60, 0, 60, 120].map(d => {
-      const rep2 = analyzeNavigation(tripSeries, elevations, samples, route,
-        state.departHour + d / 60, state.date, state.mode);
-      return { delta: d, score: rep2 ? rep2.routeScore : null };
-    });
-    state.navCtx = {
-      samples, series: series.series, elevations, route,
-      stale: series.stale, at: series.at, baseDate, hourScores: matrix,
-    };
     state.currentReport = report;
     state.expandIdx = -1;
     renderNavReport(report, series.stale);
@@ -934,7 +918,6 @@ async function checkupNavigation() {
       mode: state.mode,
       points: state.points.slice(),
       routeName: state.points.map(p => p.name).join(' → '),
-      routeScore: report.routeScore,
       distanceKm: report.route.distanceKm,
       departureHour: report.departureHour,
       savedAt: Date.now(),
@@ -1073,78 +1056,133 @@ function decisionLeadHtml(r, stale) {
  * 导航模式报告渲染
  * ============================================================ */
 
+function navWeatherKey(p) {
+  const code = Number(p.code);
+  const pp = Number(p.pp ?? 0);
+  const precip = Number(p.precip ?? 0);
+  const wind = Number(p.wind ?? 0);
+  const temp = p.temp == null ? null : Number(p.temp);
+  if (code >= 95 || [65, 67, 75, 82, 86].includes(code) || wind >= 50) return 'bad';
+  if ([45, 48, 63, 66, 73, 81, 85].includes(code) || pp >= 70 || precip >= 2.5 || wind >= 40 || (temp != null && temp < 0)) return 'caution';
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82) || pp >= 40 || precip > 0 || wind >= 29) return 'fair';
+  return 'good';
+}
+
+function navWeatherOverviewHtml(r, stale) {
+  const points = r.points || [];
+  const counts = { good: 0, fair: 0, caution: 0, bad: 0 };
+  points.forEach(p => { counts[navWeatherKey(p)] += 1; });
+  const key = counts.bad ? 'bad' : counts.caution ? 'caution' : counts.fair ? 'fair' : 'good';
+  const title = key === 'bad' ? '沿途有较强天气影响'
+    : key === 'caution' ? '部分路段天气条件较差'
+    : key === 'fair' ? '沿途有降水或风'
+    : '沿途天气整体平稳';
+  const texts = [...new Set(points.map(p => p.weatherText || wmoText(p.code)).filter(Boolean))].slice(0, 4);
+  const rainCount = points.filter(p => (p.pp != null && p.pp >= 40) || (p.precip != null && p.precip > 0)).length;
+  const maxPP = Math.max(...points.map(p => p.pp == null ? 0 : p.pp));
+  const maxWind = Math.max(...points.map(p => p.wind == null ? 0 : p.wind));
+  const maxElev = Math.max(...points.filter(p => p.elev != null).map(p => p.elev));
+  const minTemp = Math.min(...points.filter(p => p.temp != null).map(p => p.temp));
+  const reminders = [];
+  if (points.some(p => Number(p.code) >= 95)) reminders.push('沿途有雷暴预报');
+  if (maxPP >= 50) reminders.push(`最高降水概率 ${Math.round(maxPP)}%`);
+  if (points.some(p => Number(p.code) === 45 || Number(p.code) === 48)) reminders.push('部分路段有雾');
+  if (maxWind >= 29) reminders.push(`最大风速约 ${Math.round(maxWind)} km/h`);
+  if (isFinite(maxElev) && maxElev > 3000 && isFinite(minTemp) && minTemp < 5) reminders.push('高海拔路段气温较低');
+  const overview = `${points.length} 个沿路采样点${texts.length ? '，天气包括 ' + texts.join('、') : ''}；${rainCount} 个点预计有降水。`;
+
+  return `
+    <div class="decision-lead decision-${key}">
+      <div class="decision-kicker">沿途天气</div>
+      <div class="decision-title">${escapeHtml(title)}</div>
+      <div class="decision-copy">${escapeHtml(overview)}</div>
+      <div class="decision-risk"><span>天气提醒</span>${escapeHtml(reminders.slice(0, 2).join('；') || '暂无突出天气风险')}</div>
+      <div class="decision-fresh">${escapeHtml(dataAgeText(r.fetchedAt, !!stale))}</div>
+    </div>`;
+}
+
+function navWeatherChips(p) {
+  const out = [];
+  const code = Number(p.code);
+  const pp = p.pp == null ? null : Number(p.pp);
+  const precip = p.precip == null ? 0 : Number(p.precip);
+  const wind = p.wind == null ? null : Number(p.wind);
+  const temp = p.temp == null ? null : Number(p.temp);
+  if (pp != null) out.push({ text: `降水概率 ${Math.round(pp)}%`, key: pp >= 50 ? 'caution' : 'good' });
+  if (precip > 0) out.push({ text: `小时降水 ${precip.toFixed(1)} mm`, key: precip >= 2.5 ? 'caution' : 'fair' });
+  if (wind != null && wind >= 29) out.push({ text: `风速 ${Math.round(wind)} km/h`, key: wind >= 50 ? 'bad' : 'caution' });
+  if (code === 45 || code === 48) out.push({ text: '能见度低', key: 'caution' });
+  if (temp != null && temp <= 0) out.push({ text: `低温 ${Math.round(temp)}℃`, key: 'bad' });
+  if (p.elev != null && p.elev > 3000 && temp != null && temp < 5) out.push({ text: `高海拔 ${p.elev} m`, key: 'fair' });
+  return out.slice(0, 4);
+}
+
+function buildNavWeatherNotes(r) {
+  const points = r.points || [];
+  const out = [];
+  const departLabel = minToHM(Math.round(r.departureHour * 60));
+  const arriveMin = Math.round((r.departureHour + r.route.durationMin / 60) * 60);
+  out.push(`预计 ${departLabel} 出发，${minToLabel(arriveMin)} 抵达终点`);
+  const maxPP = Math.max(...points.map(p => p.pp == null ? 0 : p.pp));
+  const maxWind = Math.max(...points.map(p => p.wind == null ? 0 : p.wind));
+  const maxElev = Math.max(...points.filter(p => p.elev != null).map(p => p.elev));
+  const minTemp = Math.min(...points.filter(p => p.temp != null).map(p => p.temp));
+  if (points.some(p => Number(p.code) >= 95)) out.push('沿途有雷暴预报，山区避免在午后通过高海拔路段');
+  if (maxPP >= 50) out.push(`部分路段降水概率较高，最高约 ${Math.round(maxPP)}%`);
+  if (points.some(p => Number(p.code) === 45 || Number(p.code) === 48)) out.push('部分路段预计有雾，注意能见度');
+  if (maxWind >= 29) out.push(`部分路段风速较大，最大约 ${Math.round(maxWind)} km/h`);
+  if (isFinite(maxElev) && maxElev > 3000) out.push(`途经海拔约 ${Math.round(maxElev)} m 的路段，注意保暖`);
+  if (isFinite(minTemp) && minTemp < 0) out.push('部分路段气温低于 0℃，注意路面结冰');
+  if (r.route.approx) out.push('徒步/骑行路线和时长按公路网估算，与真实步道、绿道可能存在差异');
+  if (r.route.durationMin > 240) out.push('全程超过 4 小时，建议中途安排休息并复核后段天气');
+  out.push('以上为逐小时天气预报，出发前请再次确认最新天气');
+  return out;
+}
+
 function renderNavReport(r, stale) {
-  const lv = r.level;
   const p2 = n => String(Math.floor(n)).padStart(2, '0');
   const routeName = state.points.map(p => p.name).join(' → ');
-  const worst = r.points[r.worstIndex];
-  // 出行日是否落在推荐窗口内（今天 / 明天 / 后天）
-  const recDates = new Set((r.hourScores || []).map(x => x.date));
-  const outOfWindow = recDates.size > 0 && !recDates.has(r.date);
-  // 23 点之后：今天已没有可出发的整点，推荐从明天开始
-  const todayEmpty = recDates.size > 0 && !recDates.has(todayStr()) &&
-    r.date === addDays(todayStr(), 1);
-
   const arriveH = r.route.arriveHour;
-  // 先把总分钟数取整，再拆成时/分，避免出现 13:60 这种非法时间
   const arriveTotalMin = Math.round(arriveH * 60);
   const arriveHM = Math.floor(arriveTotalMin / 60);
   const arriveClock = `${p2(arriveHM % 24)}:${p2(arriveTotalMin % 60)}`;
-  // 具体日期：出发日为基准，加上跨过的天数
   const arriveDayOffset = Math.floor(arriveHM / 24);
   const arriveDate = addDays(r.date, arriveDayOffset);
   const arriveWeek = weekOf(arriveDate);
   const dayTag = arriveDayOffset === 0 ? '' : (arriveDayOffset === 1 ? ' · 次日' : ` · 第 ${arriveDayOffset + 1} 天`);
   const arriveText = `${arriveDate.replace(/-/g, '/')} ${arriveWeek} ${arriveClock}${dayTag}`;
-
-  // 与点位模式同构的行程诊断摘要
-  const dz = r.diagnosis || { items: [], blockCount: 0, warnCount: 0, summary: 'ok' };
-  const dzText = dz.summary === 'block' ? `发现 ${dz.blockCount} 处需要调整`
-    : dz.summary === 'warn' ? `${dz.warnCount} 处建议微调`
-    : (r.routeScore < 80 ? `全程最低 ${r.routeScore} 分` : '行程安排合理');
-  const dzNote = dz.summary === 'block' ? '按下面的建议调整后再出发'
-    : dz.summary === 'warn' ? '整体可行，把时间微调一下会更稳'
-    : (r.routeScore < 80 ? '没有明显问题，但有一处把总分拉低了' : '各点位的天气与行程安排都匹配');
-
-  // 关键点位 = 起点与终点；中间为沿途采样（与点位模式的结构一致）
   const keyIdx = r.points.length > 1 ? [0, r.points.length - 1] : [0];
-  const legIdx = r.points.map((p, i) => i);   // 关键点位 + 沿途采样
-
-  const decisionLead = decisionLeadHtml(r, stale);
+  const legIdx = r.points.map((p, i) => i);
+  const weatherLead = navWeatherOverviewHtml(r, stale);
+  const rainCount = r.points.filter(p => (p.pp != null && p.pp >= 40) || (p.precip != null && p.precip > 0)).length;
+  const mapPoints = r.points.map(p => {
+    const out = Object.assign({}, p, {
+      level: { key: navWeatherKey(p) },
+      weatherText: p.weatherText || wmoText(p.code),
+      pinLabel: p.pinLabel,
+    });
+    delete out.score;
+    return out;
+  });
 
   $('#reportBody').innerHTML = `
-    <div class="card summary ${lv.key}">
+    <div class="card summary weather-summary">
       <div class="sum-date">${r.date} · ${modeText(r.travelMode)} · 导航模式</div>
       <div class="sum-route">${escapeHtml(routeName)}</div>
 
-      ${decisionLead}
-
-      <div class="sum-hero">
-        <div class="sum-score ${lv.key}">${r.routeScore}</div>
-        <div class="sum-lv">
-          <div class="sum-lv-icon">${lv.icon}</div>
-          <div class="sum-lv-text ${lv.key}">${lv.text}</div>
-          <div class="sum-lv-short">${lv.short}</div>
-        </div>
-      </div>
+      ${weatherLead}
 
       <div class="kv"><span class="kv-k">路网距离</span>
         <span class="kv-v strong">${r.route.distanceKm.toFixed(0)} km</span></div>
       <div class="kv"><span class="kv-k">预计时长${r.route.speedKmh ? `（按 ${r.route.speedKmh} km/h）` : ''}</span>
         <span class="kv-v">${fmtDuration(r.route.durationMin)}</span></div>
       <div class="kv"><span class="kv-k">出发时刻</span>
-        <span class="kv-v strong">${minToHM(Math.round(r.departureHour * 60))}${r.autoDeparture ? '（自动推荐）' : ''}</span></div>
+        <span class="kv-v strong">${minToHM(Math.round(r.departureHour * 60))}</span></div>
       <div class="kv"><span class="kv-k">预计抵达</span>
         <span class="kv-v">${arriveText}</span></div>
-      <div class="kv"><span class="kv-k">风险采样点</span>
-        <span class="kv-v">${r.riskyCount} / ${r.points.length} 个低于 60 分</span></div>
+      <div class="kv"><span class="kv-k">沿途天气采样</span>
+        <span class="kv-v">${r.points.length} 处 · 降水 ${rainCount} 处</span></div>
 
-      ${r.recommendedHour != null ? `<div class="kv-note neutral" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        推荐出发时刻 ${minToHM(Math.round(r.recommendedHour * 60))}（全程最低分 ${r.recommendedMin}）
-        <button class="btn btn-ghost" id="btnUseRec" type="button">采用</button>
-        ${state.departOriginal != null && Math.abs(r.departureHour - state.departOriginal) > 0.01
-          ? `<button class="btn btn-ghost" id="btnRestoreDepart" type="button">恢复原时间 ${minToHM(Math.round(state.departOriginal * 60))}</button>` : ''}
-      </div>` : ''}
       ${stale ? `<div class="warn">⚠️ 数据可能已过期（离线缓存），请联网后重试</div>` : ''}
       ${r.route.approx ? `<div class="warn">⚠️ 本版路径按<b>公路网</b>规划。徒步/骑行路线与真实步道、绿道不同，时长按 <b>${r.route.speedKmh} km/h</b> 估算，仅供参考。</div>` : ''}
     </div>
@@ -1159,18 +1197,12 @@ function renderNavReport(r, stale) {
           <button class="map-btn" id="mapFull" type="button">⛶ 全屏</button>
         </div>
       </div>
-      <div class="map-hint">连线为规划路径；圆点为沿路等距采样点，颜色 = 预计到达那一刻的适宜度 · 底图 © OpenStreetMap contributors</div>
+      <div class="map-hint">连线为规划路径；圆点颜色表示预计到达时的天气状况 · 底图 © OpenStreetMap contributors</div>
     </div>
 
-    <h2 class="sec-title">出行建议</h2>
+    <h2 class="sec-title">沿途天气提醒</h2>
     <div class="card advice">
-      ${buildTripAdvice(r).map(a => `<div class="advice-item">· ${escapeHtml(a)}</div>`).join('')}
-    </div>
-
-    <h2 class="sec-title">出发时刻对比</h2>
-    <div class="card cmp">
-      <div class="cmp-note">在当前出发时刻基础上整体提前 / 推迟，看全程分怎么变。点一下即可采用并重新评估。</div>
-      <div class="shift-row">${renderShiftChips(r)}</div>
+      ${buildNavWeatherNotes(r).map(a => `<div class="advice-item">· ${escapeHtml(a)}</div>`).join('')}
     </div>
 
     <h2 class="sec-title">关键点位 · 起点与终点</h2>
@@ -1180,83 +1212,51 @@ function renderNavReport(r, stale) {
 
     ${legIdx.length ? `
     <details class="sample-details">
-      <summary class="sec-title sample-summary">采样点 · ${legIdx.length} 个 <span class="detail-hint">展开查看</span></summary>
-      <div class="card leg-list">
-      <div class="leg-head"><span>位置</span><span>到达</span><span>天气</span><span>评分</span><span>原因</span><span>影响</span></div>
-      ${legIdx.map(i => {
-        const p = r.points[i];
-        const day = p.dayOffset > 0 ? ' <sup>次日</sup>' : '';
-        return `<div class="leg-row">
-          <span class="lr-name">${escapeHtml(p.name)}</span>
-          <span class="lr-time">${p2(p.hour)}:00${day}</span>
-          <span class="lr-wx">${p.icon || ''} ${escapeHtml(p.weatherText)}</span>
-          <span class="lr-score ${p.level.key}">${p.score}</span>
-          <span class="lr-why">${escapeHtml(legReason(p))}</span>
-          <span class="lr-impact">${escapeHtml(legImpact(p))}</span>
-        </div>`;
-      }).join('')}
-      <div class="leg-note">沿途采样点按里程等距取，天气取「预计到达该点那一刻」的那一小时。点上方关键点位卡片可展开逐小时天气。</div>
+      <summary class="sec-title sample-summary">沿途天气采样 · ${legIdx.length} 个 <span class="detail-hint">展开查看</span></summary>
+      <div class="card leg-list nav-leg-list">
+        <div class="leg-head"><span>位置</span><span>到达</span><span>天气</span><span>温度</span><span>降水</span><span>影响</span></div>
+        ${legIdx.map(i => {
+          const p = r.points[i];
+          const arriveTotalMin = Math.round(p.arriveAbs * 60);
+          const dayOff = Math.floor(arriveTotalMin / 1440);
+          const day = dayOff > 0 ? ' <sup>次日</sup>' : '';
+          const pop = p.pp != null ? Math.round(p.pp) + '%' : '—';
+          const mm = p.precip != null && p.precip > 0 ? ` / ${p.precip.toFixed(1)}mm` : '';
+          return `<div class="leg-row">
+            <span class="lr-name">${escapeHtml(p.name)}</span>
+            <span class="lr-time">${minToHM(arriveTotalMin)}${day}</span>
+            <span class="lr-wx">${p.icon || ''} ${escapeHtml(p.weatherText)}</span>
+            <span class="lr-temp">${p.temp != null ? Math.round(p.temp) + '°' : '—'}</span>
+            <span class="lr-precip">${pop}${mm}</span>
+            <span class="lr-impact">${escapeHtml(legImpact(p))}</span>
+          </div>`;
+        }).join('')}
+        <div class="leg-note">沿途天气采样按里程等距取，天气取「预计到达该点那一刻」的逐小时预报；这里只展示天气状况，不进行路线评分。</div>
       </div>
     </details>` : ''}
 
     <div class="card boundary">
       <div class="bd-title">⚠️ 使用边界</div>
-      <div class="bd-item">路径由公开路网服务规划，<b>天气评估仅针对沿路等距采样点</b>，采样点之间的小段不在评估范围内。</div>
+      <div class="bd-item">路径由公开路网服务规划，<b>沿途天气仅针对等距采样点展示</b>，采样点之间的小段不在展示范围内。</div>
       <div class="bd-item">到达时刻按<b>平均速度估算</b>，未考虑堵车、休息、封路等实际情况。</div>
-      <div class="bd-item">路网限速估算偏乐观，<b>山区实际车速通常更慢</b>，建议按抵达时刻预留 20–30% 余量。</div>
-      <div class="bd-item">结果为基于公开气象预报的<b>参考性评估</b>，<b>不构成安全保证</b>，不替代官方预警与现场判断。</div>
-      <div class="bd-item">预报来自全球模型，<b>山区局地精度有限</b>。</div>
+      <div class="bd-item">天气来自公开气象预报，<b>不构成安全保证</b>，不替代官方预警与现场判断。</div>
     </div>
 
     <div class="card source">
       <div class="src-line">天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（CC BY 4.0）</div>
       <div class="src-line">路径规划：<a href="https://project-osrm.org/" target="_blank" rel="noopener">OSRM</a>（公共 demo 服务，路网数据 © OpenStreetMap contributors）</div>
-      <div class="src-line">适宜度评分与行程结论由本作品计算生成</div>
       <div class="src-line">更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</div>
     </div>
 
     <div class="row-btns end">
       <button class="btn btn-ghost" onclick="showView('home')">回到首页</button>
-      <button class="btn btn-ghost" onclick="showView('create')">再体检一条</button>
+      <button class="btn btn-ghost" onclick="showView('create')">再查一条</button>
     </div>
     <div class="bottom-space"></div>
   `;
 
-  // 展开/收起 + 小时切换
   $$('#pointCards .pt-card').forEach(card => bindCard(card, r, 'nav'));
 
-  // 出发时刻对比：整体平移
-  $$('.shift-chip[data-delta]').forEach(b => {
-    b.addEventListener('click', () => {
-      const d = Number(b.dataset.delta);
-      if (!d) return;
-      state.departHour = Math.max(0, state.departHour + d / 60);
-      toast(d < 0 ? `已提前 ${-d / 60} 小时，重新评估…` : `已推迟 ${d / 60} 小时，重新评估…`);
-      checkupNavigation();
-    });
-  });
-
-  // 采用推荐 / 恢复原时间
-  const useRec = $('#btnUseRec');
-  if (useRec) useRec.addEventListener('click', () => {
-    state.departHour = r.recommendedHour;
-    checkupNavigation();
-  });
-  const restore = $('#btnRestoreDepart');
-  if (restore) restore.addEventListener('click', () => {
-    state.departHour = state.departOriginal;
-    checkupNavigation();
-  });
-
-  // 诊断条目：点击弹出具体措施（与点位模式同一个弹层）
-  $$('.dx-item[data-idx]').forEach(el => {
-    el.addEventListener('click', () => openDx(Number(el.dataset.idx)));
-    el.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDx(Number(el.dataset.idx)); }
-    });
-  });
-
-  // 底图切换
   const mapToggle = $('#mapToggle');
   if (mapToggle) {
     mapToggle.addEventListener('click', () => {
@@ -1270,9 +1270,8 @@ function renderNavReport(r, stale) {
   const mapFullBtn = $('#mapFull');
   if (mapFullBtn) mapFullBtn.addEventListener('click', () => toggleReportFullscreen());
 
-  // 地图：绘制规划路径 + 采样点（地图失败绝不能影响整页）
   try {
-    MapCtl.renderNavigation('navMap', r.routeCoords, r.points, (i) => {
+    MapCtl.renderNavigation('navMap', r.routeCoords, mapPoints, (i) => {
       MapCtl.highlight(i);
       const card = document.querySelector(`#pointCards .pt-card[data-i="${i}"]`);
       if (card) {
@@ -1286,14 +1285,11 @@ function renderNavReport(r, stale) {
     console.warn('[map] 导航地图渲染失败：', e);
     const wrap = document.querySelector('#navMap')?.parentElement;
     if (wrap) wrap.innerHTML = '<div class="map-fail"><div class="mf-title">地图渲染失败</div>'
-      + '<div class="mf-sub">浏览器可能不支持某些地图特性。天气数据与评分不受影响。</div></div>';
+      + '<div class="mf-sub">浏览器可能不支持某些地图特性。天气数据不受影响。</div></div>';
   }
 
   bindShareBar(r);
-  bindNavCompare(r);
   syncReportFullscreen();
-
-  runDiag();
 }
 
 /**
@@ -1392,26 +1388,29 @@ function bindNavCompare(r) {
 }
 
 function renderNavPointCard(p, i, expanded) {
-  // 和规划模式一致：以「到达小时」为默认选中，可点小时条切到该点当天的其他小时
   const selHour = state.hourSel[i] != null ? state.hourSel[i] : p.hour;
   const sel = (p.hourly || []).find(h => h.hour === selHour) || null;
   const cur = sel ? Object.assign({ elev: p.elev }, sel) : p;
-
-  const lv = cur.level;
+  const tone = navWeatherKey(cur);
   const p2 = n => String(Math.floor(n)).padStart(2, '0');
-  const arriveLabel = `${p2(p.hour)}:00` + (p.dayOffset > 0 ? '<sup>次日</sup>' : '');
+  const arriveTotalMin = Math.round(p.arriveAbs * 60);
+  const arriveDayOffset = Math.floor(arriveTotalMin / 1440);
+  const arriveLabel = minToHM(arriveTotalMin) + (arriveDayOffset > 0 ? '<sup>次日</sup>' : '');
   const isArrival = selHour === p.hour;
   const isStart = p.ratio === 0;
   const timeLine = isArrival
     ? (isStart ? `出发时刻 ${arriveLabel}` : `预计 ${arriveLabel} 到达`)
     : `正在查看 ${p2(selHour)}:00 · ${isStart ? '出发' : '到达'} ${arriveLabel}`;
   const resetBtn = isArrival ? '' : `<button class="arr-reset" data-back="${i}">回到${isStart ? '出发' : '到达'}时刻</button>`;
-
-  const good = cur.score >= 80;
-  const chips = good ? buildHighlights(cur) : (cur.deductions || []).slice(0, 3).map(d => d.label);
-  const dedHtml = chips.length
-    ? chips.map(c => `<span class="ded ${good ? 'up' : lv.key}">${good ? '✓ ' : ''}${escapeHtml(c)}</span>`).join('')
-    : `<span class="ded none">${good ? '天气条件良好' : '—'}</span>`;
+  const chips = navWeatherChips(cur);
+  const chipHtml = chips.length
+    ? chips.map(c => `<span class="ded ${c.key}">${escapeHtml(c.text)}</span>`).join('')
+    : '<span class="ded none">天气平稳</span>';
+  const meta = [
+    cur.temp != null ? `${cur.temp.toFixed(1)}℃` : null,
+    cur.wind != null ? `风速 ${Math.round(cur.wind)} km/h` : null,
+    p.elev != null ? `${p.elev} m` : null,
+  ].filter(Boolean).join(' · ');
 
   return `
     <div class="card pt-card" data-i="${i}" data-kind="nav">
@@ -1419,12 +1418,11 @@ function renderNavPointCard(p, i, expanded) {
         <div class="pc-left">
           <div>
             <div class="pc-name">${escapeHtml(p.name)}</div>
-            <div class="pc-meta">${wmoText(cur.code)}${cur.temp != null ? ' · ' + cur.temp.toFixed(1) + '℃' : ''}${p.elev != null ? ' · ' + p.elev + 'm' : ''}</div>
+            <div class="pc-meta">${meta || '—'}</div>
           </div>
         </div>
         <div class="pc-right">
-          <span class="pc-score ${lv.key}">${cur.score}</span>
-          <span class="pc-lv ${lv.key}">${lv.text}</span>
+          <span class="pc-weather ${tone}">${wmoIcon(cur.code)} ${escapeHtml(wmoText(cur.code))}</span>
         </div>
       </div>
 
@@ -1434,9 +1432,9 @@ function renderNavPointCard(p, i, expanded) {
         <span class="arr-km">${isStart ? '起点' : '距起点 ' + p.cumKm.toFixed(0) + ' km'}</span>
       </div>
 
-      <div class="pc-deds">${dedHtml}</div>
+      <div class="pc-deds">${chipHtml}</div>
 
-      ${expanded ? renderHourly(p, i, selHour) : renderHourlyStrip(p, i, selHour)}
+      ${expanded ? renderHourly(p, i, selHour) : renderHourlyStrip(p, i, selHour, true)}
     </div>`;
 }
 
@@ -1944,21 +1942,21 @@ function renderPointCard(p, i, expanded) {
     </div>`;
 }
 
-/** 始终可见的「行程日 24 小时」天气条：时刻 / 天气 / 气温 / 降水概率 / 评分 */
-function renderHourlyStrip(p, i, selHour) {
+/** 始终可见的「行程日 24 小时」天气条；weatherOnly 模式不展示评分 */
+function renderHourlyStrip(p, i, selHour, weatherOnly) {
   const hours = p.hourly || [];
   return `
     <div class="hourly-strip-wrap">
       <div class="hourly-strip">
         ${hours.map(h => `
-          <div class="hs-col hs-${levelOf(h.score).key}${h.hour === selHour ? ' hs-now' : ''}" data-i="${i}" data-hour="${h.hour}" title="点击查看 ${pad(h.hour)}:00 ${wmoText(h.code)} ${h.score} 分">
+          <div class="hs-col ${weatherOnly ? 'hs-weather' : 'hs-' + levelOf(h.score).key}${h.hour === selHour ? ' hs-now' : ''}" data-i="${i}" data-hour="${h.hour}" title="点击查看 ${pad(h.hour)}:00 ${wmoText(h.code)}">
             <div class="hs-hour">${pad(h.hour)}</div>
             <div class="hs-icon">${wmoIcon(h.code)}</div>
             <div class="hs-temp">${h.temp != null ? Math.round(h.temp) + '°' : '—'}</div>
             <div class="hs-pp">${h.pp != null ? Math.round(h.pp) + '%' : '—'}</div>
           </div>`).join('')}
       </div>
-      <div class="ht-legend">行程日逐小时：时刻 / 天气 / 气温 / 降水概率；底色表示该小时适宜度（点击任意小时可切换查看）</div>
+      <div class="ht-legend">${weatherOnly ? '时刻 / 天气 / 气温 / 降水概率（点击任意小时可切换查看）' : '行程日逐小时：时刻 / 天气 / 气温 / 降水概率；底色表示该小时适宜度（点击任意小时可切换查看）'}</div>
     </div>`;
 }
 
@@ -2120,17 +2118,23 @@ async function copyText(text) {
 }
 
 function reportSummaryText(r) {
-  const lv = levelOf(r.routeScore);
   const lines = [
     `【路线天气体检】${state.points.map(p => p.name).join(' → ')}`,
-    `${r.date} · ${modeText(r.travelMode || state.mode)} · ${lv.text}（${r.routeScore} 分）`,
+    `${r.date} · ${modeText(r.travelMode || state.mode)}${r.mode === 'nav' ? ' · 导航天气' : ' · ' + levelOf(r.routeScore).text + '（' + r.routeScore + ' 分）'}`,
   ];
   if (r.route && r.route.distanceKm) {
     lines.push(`路网距离约 ${Math.round(r.route.distanceKm)} km，预计 ${fmtDuration(r.route.durationMin)}`);
   }
-  const worst = r.points && r.points[r.worstIndex];
-  if (worst) lines.push(`最差时段：${worst.name} · ${worst.score} 分 · ${worst.weatherText || ''}`);
-  (r.advice || []).slice(0, 3).forEach(a => lines.push('· ' + a));
+  if (r.mode === 'nav') {
+    const texts = [...new Set((r.points || []).map(p => p.weatherText).filter(Boolean))].slice(0, 4);
+    const maxPP = Math.max(...(r.points || []).map(p => p.pp == null ? 0 : p.pp));
+    lines.push(`沿途天气：${texts.join('、') || '—'}；最高降水概率 ${Math.round(maxPP)}%`);
+    buildNavWeatherNotes(r).slice(0, 3).forEach(a => lines.push('· ' + a));
+  } else {
+    const worst = r.points && r.points[r.worstIndex];
+    if (worst) lines.push(`最差时段：${worst.name} · ${worst.score} 分 · ${worst.weatherText || ''}`);
+    (r.advice || []).slice(0, 3).forEach(a => lines.push('· ' + a));
+  }
   lines.push('', buildShareUrl());
   return lines.join('\n');
 }

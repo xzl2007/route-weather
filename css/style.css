@@ -1485,3 +1485,39 @@ body:not(.home-active) .hs-col.hs-now     { background: var(--brand-soft) !impor
   padding: 8px 13px;
   font-size: 13px;
 }
+
+
+/* 导航模式：纯天气展示，不使用数字评分 */
+.trip-nav-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  font-size: 12px;
+  font-weight: 700;
+}
+.pc-weather {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.pc-weather.good { background: var(--good-bg); color: var(--good); }
+.pc-weather.fair { background: var(--fair-bg); color: #8a6100; }
+.pc-weather.caution { background: var(--caution-bg); color: var(--caution); }
+.pc-weather.bad { background: var(--bad-bg); color: var(--bad); }
+.hs-col.hs-weather { background: var(--field); border-color: var(--line); }
+.hs-col.hs-weather.hs-now { background: var(--brand-soft); border-color: var(--brand); }
+.lr-temp, .lr-precip {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.weather-summary .decision-lead { margin-top: 4px; }
