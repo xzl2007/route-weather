@@ -271,7 +271,7 @@ const MapCtl = {
     box.className = 'map-fail';
     box.innerHTML = `
       <div class="mf-title">地图瓦片没能加载出来</div>
-      <div class="mf-sub">可能是当前网络无法访问瓦片服务。天气数据、评分和列表都不受影响。</div>
+      <div class="mf-sub">地图瓦片服务不可用；天气数据、评分和列表正常。</div>
       <button class="mf-btn" type="button">重试</button>`;
     box.querySelector('.mf-btn').addEventListener('click', () => {
       box.remove();

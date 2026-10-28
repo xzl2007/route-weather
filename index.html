@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="css/style.css?v=12">
+<link rel="stylesheet" href="css/style.css?v=13">
 <link rel="icon" href="icons/icon-192.png">
 <script>
 /* 早期错误捕获：把 JS 错误显示在页面上，避免"白屏无提示" */
@@ -55,7 +55,6 @@ window.addEventListener('error', function (e) {
 
     <div id="homeEmpty" class="empty home-empty">
       <p>还没有行程</p>
-      <p class="small">点「开始行程体检」，或先用示例路线试一条：雅安 → 天全 → 泸定</p>
     </div>
 
     <button class="trips-toggle hidden" id="tripsToggle" type="button" aria-expanded="false">
@@ -147,7 +146,7 @@ window.addEventListener('error', function (e) {
     </div>
 
     <button class="btn btn-primary btn-lg" id="btnCheckup">开始体检</button>
-    <p class="hint">规划模式：你自己定时间，系统指出不合理处；导航模式：只给起终点，展示到达各采样点时的天气。<br>两种模式都会在关键点位之间加入沿途采样点，但采样点之间不逐米评估。</p>
+    <p class="hint">两种模式均加入沿途采样点；采样点之间不逐米评估。</p>
   </section>
 
   <!-- ========== 体检报告 ========== -->
@@ -184,15 +183,15 @@ window.addEventListener('error', function (e) {
 
 <div id="toast" class="toast hidden"></div>
 
-<script src="js/config.js?v=12"></script>
+<script src="js/config.js?v=13"></script>
 <script src="vendor/leaflet/leaflet.js"></script>
-<script src="js/points.js?v=12"></script>
-<script src="js/api.js?v=12"></script>
-<script src="js/routing.js?v=12"></script>
-<script src="js/scoring.js?v=12"></script>
-<script src="js/storage.js?v=12"></script>
-<script src="js/geocode.js?v=12"></script>
-<script src="js/map.js?v=12"></script>
-<script src="js/app.js?v=12"></script>
+<script src="js/points.js?v=13"></script>
+<script src="js/api.js?v=13"></script>
+<script src="js/routing.js?v=13"></script>
+<script src="js/scoring.js?v=13"></script>
+<script src="js/storage.js?v=13"></script>
+<script src="js/geocode.js?v=13"></script>
+<script src="js/map.js?v=13"></script>
+<script src="js/app.js?v=13"></script>
 </body>
 </html>
