@@ -170,12 +170,13 @@ const GEO = {
   },
 
   /**
-   * 采样点数：大约每 45 分钟一个点（天气在 45 分钟内变化有限），限 3–8 个。
+   * 采样点数：按行程时长加密，至少 8 个、最多 12 个。
+   * 山区天气变化快，只有 3 个点会让“沿途体检”失去意义。
    * @param {number} durationSec 总时长
    */
   sampleCountFor(durationSec) {
     const minutes = durationSec / 60;
-    return Math.max(3, Math.min(8, Math.round(minutes / 45) || 3));
+    return Math.max(8, Math.min(12, Math.ceil(minutes / 30) || 8));
   },
 };
 

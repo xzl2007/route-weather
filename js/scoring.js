@@ -511,8 +511,9 @@ function analyzeNavigation(series, elevations, samples, route, departHour, dateS
   if (!res.valid) return null;
 
   const points = res.entries;
-  const routeScore = res.min;
-  const avgScore = res.avg;
+  const combined = combineRouteScore(points.map(p => p.score));
+  const routeScore = combined.score;
+  const avgScore = combined.avg;
   const worstIndex = argmin(points.map(p => p.score), points.map(p => p.elev));
   const routeLevel = levelOf(routeScore);
 
@@ -540,6 +541,7 @@ function analyzeNavigation(series, elevations, samples, route, departHour, dateS
     points,
     routeScore,
     avgScore,
+    minScore: res.min,
     level: routeLevel,
     worstIndex,
     riskyCount: risky.length,
@@ -557,13 +559,13 @@ function buildNavAdvice(points, route, departHour, mode) {
   const minTemp = Math.min(...points.filter(p => p.temp != null).map(p => p.temp));
   const worst = points[argmin(points.map(p => p.score))];
 
-  const pad2 = n => String(n).padStart(2, '0');
-  // 先取整到分钟再拆时/分，避免出现 13:60
+  // 统一分钟口径，避免 23.95:00 这类非法时间
+  const departLabel = minToHM(Math.round(departHour * 60));
   const arriveMin = Math.round((departHour + route.duration / 3600) * 60);
-  out.push(`建议 ${pad2(departHour)}:00 出发，预计 ${minToLabel(arriveMin)} 抵达终点`);
+  out.push(`建议 ${departLabel} 出发，预计 ${minToLabel(arriveMin)} 抵达终点`);
 
   if (worst && worst.score < 60) {
-    out.push(`风险最高路段在第 ${points.indexOf(worst) + 1} 个采样点附近（${worst.cumKm.toFixed(0)} km 处），预计 ${pad2(worst.hour)}:00 到达`);
+    out.push(`风险最高路段在第 ${points.indexOf(worst) + 1} 个采样点附近（${worst.cumKm.toFixed(0)} km 处），预计 ${minToHM(worst.hour * 60)} 到达`);
   }
   if (maxPP >= 50) out.push('沿途有较高降水概率，注意山路湿滑');
   if (hasStorm) out.push('⚠️ 沿途有雷暴预报，山区避免午后通过');
@@ -587,8 +589,8 @@ function buildNavAdvice(points, route, departHour, mode) {
  */
 function diagnoseNav(points, route, departHour, mode, recommendedHour) {
   const items = [];
-  const pad2 = n => String(n).padStart(2, '0');
-  const hh = n => pad2(n) + ':00';
+  // 统一把小时值转成合法 HH:MM，支持小数小时
+  const hh = n => minToHM(Math.round(Number(n) * 60));
   const moveApply = (recommendedHour != null && recommendedHour !== departHour)
     ? { apply: { type: 'navDepart', hour: recommendedHour }, applyLabel: `改到 ${hh(recommendedHour)} 出发` }
     : {};

@@ -4,8 +4,13 @@
  * ============================================================ */
 
 const path = require('path');
+global.todayStr = () => {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
 const { GEO } = require(path.join(__dirname, '..', 'js', 'routing.js'));
-const { analyzeNavigation, findBestDeparture } = require(path.join(__dirname, '..', 'js', 'scoring.js'));
+const { analyzeNavigation, findBestDeparture, combineRouteScore, diagnoseNav } = require(path.join(__dirname, '..', 'js', 'scoring.js'));
 
 let pass = 0, fail = 0;
 function check(name, cond, extra) {
@@ -84,7 +89,8 @@ console.log('\n【用例2】每个采样点应按「到达时刻」取天气，�
   check('末个采样点（8h 后）分数很高', r.points[5].score > 80, r.points[5].score);
   check('末点到达小时 = 8', r.points[5].hour === 8, r.points[5].hour);
   check('末点 dayOffset = 0', r.points[5].dayOffset === 0, r.points[5].dayOffset);
-  check('路线分 = 各点最低分', r.routeScore === Math.min(...r.points.map(p => p.score)));
+  const expectedRouteScore = combineRouteScore(r.points.map(p => p.score)).score;
+  check('路线分 = 统一综合分', r.routeScore === expectedRouteScore, `${r.routeScore} vs ${expectedRouteScore}`);
   check('大部分采样点分数应高于首点', r.points.filter(p => p.score > 80).length >= 3,
     r.points.filter(p => p.score > 80).length);
 }
@@ -118,10 +124,18 @@ console.log('\n【用例4】推荐出发时刻应避开雷暴窗口');
   console.log(`  自动模式选用 ${PAD(auto.departureHour)}:00（推荐 ${PAD(auto.recommendedHour)}:00）`);
   check('传 -1 时自动采用推荐时刻', auto.departureHour === best.hour, `${auto.departureHour} vs ${best.hour}`);
   check('标记为自动', auto.autoDeparture === true);
+
+  const diag = diagnoseNav(auto.points, ROUTE_8H, 23.95, 'drive', 8);
+  const diagText = JSON.stringify(diag);
+  check('小数小时不会生成 23.95:00 等非法时间', !/\d+\.\d+:00/.test(diagText), diagText.slice(0, 120));
 }
 
-/* ---------- 用例5：徒步/骑行需标注为近似 ---------- */
-console.log('\n【用例5】徒步/骑行的路径为近似');
+/* ---------- 用例5：采样密度与徒步/骑行近似 ---------- */
+console.log('\n【用例5】采样密度与徒步/骑行近似');
+{
+  check('80 分钟路线至少 8 个采样点', GEO.sampleCountFor(80 * 60) >= 8, GEO.sampleCountFor(80 * 60));
+  check('长路线采样点不超过 12 个', GEO.sampleCountFor(12 * 3600) <= 12, GEO.sampleCountFor(12 * 3600));
+}
 {
   const series = makeSeries(6, () => ({ pp: 0, precip: 0, wind: 5, code: 0, temp: 18 }));
   const approxRoute = { distance: 120000, duration: 8 * 3600, approx: true, profile: 'foot' };

@@ -10,6 +10,7 @@ const state = {
   departHour: -1,       // 首次进入时设为“现在”
   departOriginal: null, // 用户原始出发时刻，用于“恢复原时间”
   planOriginalTimes: null, // 规划模式：平移前的原始时间
+  planOriginalDate: null,  // 规划模式：平移前的原始日期
   tripsOpen: false,     // 首页“我的行程”是否展开
   points: [],           // [{name, lat, lon}]
   times: [],            // 规划模式：每个点位的到达时刻（分钟，0–1439）
@@ -717,7 +718,7 @@ async function checkupPoints() {
 
   try {
     const maxMin = built.samples.reduce((m, s2) => Math.max(m, s2.minute), 0);
-    const days = Math.max(1, Math.min(5, Math.ceil((maxMin + 60) / 1440)));
+    const days = Math.max(3, Math.min(5, Math.ceil((maxMin + 60) / 1440)));
     const [series, elevations] = await Promise.all([
       fetchHourly(pts, state.date, days),
       fetchElevations(pts),
@@ -749,11 +750,18 @@ async function checkupPoints() {
 
     report.stale = series.stale;
     report.fetchedAt = series.at;
-    // 逐小时出发指数（起点未来 3 天），用于「出发时刻对比」
-    const hs = await buildPlanHourScores(state.points[0], state.date);
-    report.hourScores = hs.rows;
+    // 全程逐小时出发评分：每个格子都重新计算整条路线，而不是只看起点
+    const hourScores = buildPlanHourScoresFromSeries({
+      series: series.series, elevations, points: state.points, times: state.times,
+      mode: state.mode, baseDate: state.date, sun: series.sun,
+    });
+    const bestHour = pickBestHourRow(hourScores.rows);
+    report.hourScores = hourScores.rows;
     report.departureHour = state.times[0] / 60;
-    state.planCtx = { baseDate: hs.baseDate };
+    report.recommendedDate = bestHour ? bestHour.date : null;
+    report.recommendedHour = bestHour ? bestHour.hour : null;
+    report.recommendedMin = bestHour ? bestHour.score : null;
+    state.planCtx = { baseDate: state.date };
     state.currentReport = report;
     state.expandIdx = -1;
     state.hourSel = {};
@@ -797,9 +805,13 @@ async function checkupNavigation() {
   // 今天已经没有可出发的整点（23 点之后），自动按明天 0 点体检
   if (state.date === todayStr() && new Date().getHours() >= 23) {
     state.date = addDays(todayStr(), 1);
+    state.departHour = 0;
+    state.departOriginal = 0;
     const inp = $('#inpDate');
     if (inp) inp.value = state.date;
-    toast(`今天已没有可出发的整点，已按 ${state.date} 体检`, 3200);
+    const sel = $('#selDepart');
+    if (sel) sel.value = '0';
+    toast(`今天已没有可出发的整点，已按 ${state.date} 00:00 体检`, 3200);
   }
   const btn = $('#btnCheckup');
   btn.disabled = true;
@@ -936,6 +948,127 @@ async function checkupNavigation() {
   }
 }
 
+
+/* ============================================================
+ * 报告决策摘要与规划模式全程时段评分
+ * ============================================================ */
+
+function pickBestHourRow(rows) {
+  const valid = (rows || []).filter(x => x && x.valid && Number.isFinite(x.min));
+  if (!valid.length) return null;
+  return valid.reduce((best, cur) => (cur.min > best.min ? cur : best));
+}
+
+/**
+ * 规划模式的每个候选出发小时都重新计算整条路线。
+ * 这样顶部数字代表“这个时刻出发的全程评分”，而不是起点单点天气。
+ */
+function buildPlanHourScoresFromSeries({ series, elevations, points, times, mode, baseDate, sun }) {
+  if (!series || !series.length || !series[0].hours || !times || !times.length) return { rows: [] };
+  const dayCount = Math.min(3, Math.floor(series[0].hours.length / 24));
+  const startMinute = times[0] == null ? 8 * 60 : times[0];
+  const rows = [];
+
+  for (let dayOffset = 0; dayOffset < dayCount; dayOffset++) {
+    for (let hour = 8; hour <= 20; hour++) {
+      const targetMinute = dayOffset * 1440 + hour * 60;
+      const delta = targetMinute - startMinute;
+      const shiftedTimes = times.map(t => (t == null ? startMinute : t) + delta);
+      const built = buildPlanSamples(points, shiftedTimes, mode, 20);
+      let report = null;
+      try {
+        report = analyzePlanRoute({
+          series, elevations, samples: built.samples, legs: built.legs,
+          sun, dateStr: baseDate, mode,
+        });
+      } catch (e) {
+        report = null;
+      }
+      if (!report) continue;
+
+      const wh = series[0].hours[dayOffset * 24 + hour];
+      rows.push({
+        idx: dayOffset * 24 + hour,
+        date: addDays(baseDate, dayOffset),
+        dayOffset,
+        hour,
+        min: report.routeScore,
+        score: report.routeScore,
+        avg: report.avgScore,
+        valid: true,
+        code: wh ? wh.code : null,
+        temp: wh ? wh.temp : null,
+      });
+    }
+  }
+  return { rows };
+}
+
+function dataAgeText(at, stale) {
+  if (!at) return stale ? '缓存数据 · 更新时间未知' : '数据更新时间未知';
+  const mins = Math.max(0, Math.round((Date.now() - at) / 60000));
+  const age = mins < 1 ? '刚刚更新' : `${mins} 分钟前更新`;
+  return stale ? `缓存数据 · ${age}` : age;
+}
+
+function recommendationForReport(r) {
+  if (!r) return null;
+  if (r.recommendedHour != null) {
+    return {
+      date: r.recommendedDate || r.date,
+      hour: Math.round(Number(r.recommendedHour)),
+      score: r.recommendedMin,
+    };
+  }
+  const best = pickBestHourRow(r.hourScores || []);
+  return best ? { date: best.date, hour: best.hour, score: best.score } : null;
+}
+
+function applyPlanDeparture(date, hour) {
+  ensureTimes();
+  if (!state.planOriginalTimes) {
+    state.planOriginalTimes = state.times.slice();
+    state.planOriginalDate = state.date;
+  }
+  const diffDays = Math.round((new Date(date + 'T00:00:00') - new Date(state.date + 'T00:00:00')) / 86400000);
+  const delta = diffDays * 1440 + hour * 60 - state.times[0];
+  const shifted = state.times.map(t => t + delta);
+  state.date = date;
+  state.times = shifted.map(t => t - diffDays * 1440);
+  const inp = $('#inpDate');
+  if (inp) inp.value = date;
+  runCheckup();
+}
+
+function decisionLeadHtml(r, stale) {
+  const rec = recommendationForReport(r);
+  const curMin = currentDepartureMinute(r);
+  const curClock = curMin == null ? '—' : minToHM(curMin);
+  const recClock = rec ? minToHM(rec.hour * 60) : null;
+  const recDateDiff = rec && rec.date !== r.date;
+  const recLabel = rec ? `${recDateDiff ? rec.date.slice(5).replace('-', '/') + ' ' : ''}${recClock}` : null;
+  const same = rec && !recDateDiff && curMin != null && Math.abs(rec.hour * 60 - (((curMin % 1440) + 1440) % 1440)) < 5;
+  const title = rec
+    ? (same ? `建议保持 ${curClock} 出发` : `建议 ${recLabel} 出发`)
+    : '当前安排需要调整';
+  const risk = ((r.diagnosis && r.diagnosis.items) || []).find(x => x.severity !== 'ok');
+  const riskText = risk ? risk.title : '未发现明显风险';
+  const scoreText = rec && Number.isFinite(rec.score)
+    ? `当前 ${curClock} 出发评分 ${r.routeScore}；推荐时段评分 ${rec.score}。`
+    : `当前 ${curClock} 出发评分 ${r.routeScore}。`;
+  const canApply = r.mode === 'plan' && rec && !same;
+
+  return `
+    <div class="decision-lead decision-${r.level.key}">
+      <div class="decision-kicker">出行结论</div>
+      <div class="decision-title">${escapeHtml(title)}</div>
+      <div class="decision-copy">${escapeHtml(scoreText)}</div>
+      <div class="decision-risk"><span>最大风险</span>${escapeHtml(riskText)}</div>
+      <div class="decision-fresh">${escapeHtml(dataAgeText(r.fetchedAt, !!stale))}</div>
+      ${canApply ? `<button class="btn btn-primary decision-btn" id="btnUsePlanRec" type="button">采用推荐时间</button>` : ''}
+    </div>`;
+}
+
 /* ============================================================
  * 导航模式报告渲染
  * ============================================================ */
@@ -977,21 +1110,14 @@ function renderNavReport(r, stale) {
   const keyIdx = r.points.length > 1 ? [0, r.points.length - 1] : [0];
   const legIdx = r.points.map((p, i) => i);   // 关键点位 + 沿途采样
 
-  $('#reportBody').innerHTML = `
-    <div class="card map-card">
-      <div class="map-wrap">
-        <div id="navMap" class="map map-report"></div>
-        <div class="map-tools">
-          <button class="map-btn" id="mapToggle" type="button">地形</button>
-          <button class="map-btn" id="mapFull" type="button">⛶ 全屏</button>
-        </div>
-      </div>
-      <div class="map-hint">连线为规划路径；圆点为沿路等距采样点，颜色 = 预计到达那一刻的适宜度 · 底图 © OpenStreetMap contributors</div>
-    </div>
+  const decisionLead = decisionLeadHtml(r, stale);
 
+  $('#reportBody').innerHTML = `
     <div class="card summary ${lv.key}">
       <div class="sum-date">${r.date} · ${modeText(r.travelMode)} · 导航模式</div>
       <div class="sum-route">${escapeHtml(routeName)}</div>
+
+      ${decisionLead}
 
       <div class="sum-hero">
         <div class="sum-score ${lv.key}">${r.routeScore}</div>
@@ -1025,6 +1151,22 @@ function renderNavReport(r, stale) {
 
     ${shareBarHtml()}
 
+    <div class="card map-card">
+      <div class="map-wrap">
+        <div id="navMap" class="map map-report"></div>
+        <div class="map-tools">
+          <button class="map-btn" id="mapToggle" type="button">地形</button>
+          <button class="map-btn" id="mapFull" type="button">⛶ 全屏</button>
+        </div>
+      </div>
+      <div class="map-hint">连线为规划路径；圆点为沿路等距采样点，颜色 = 预计到达那一刻的适宜度 · 底图 © OpenStreetMap contributors</div>
+    </div>
+
+    <h2 class="sec-title">出行建议</h2>
+    <div class="card advice">
+      ${buildTripAdvice(r).map(a => `<div class="advice-item">· ${escapeHtml(a)}</div>`).join('')}
+    </div>
+
     <h2 class="sec-title">出发时刻对比</h2>
     <div class="card cmp">
       <div class="cmp-note">在当前出发时刻基础上整体提前 / 推迟，看全程分怎么变。点一下即可采用并重新评估。</div>
@@ -1037,8 +1179,9 @@ function renderNavReport(r, stale) {
     </div>
 
     ${legIdx.length ? `
-    <h2 class="sec-title">采样点 · ${legIdx.length} 个</h2>
-    <div class="card leg-list">
+    <details class="sample-details">
+      <summary class="sec-title sample-summary">采样点 · ${legIdx.length} 个 <span class="detail-hint">展开查看</span></summary>
+      <div class="card leg-list">
       <div class="leg-head"><span>位置</span><span>到达</span><span>天气</span><span>评分</span><span>原因</span><span>影响</span></div>
       ${legIdx.map(i => {
         const p = r.points[i];
@@ -1053,12 +1196,8 @@ function renderNavReport(r, stale) {
         </div>`;
       }).join('')}
       <div class="leg-note">沿途采样点按里程等距取，天气取「预计到达该点那一刻」的那一小时。点上方关键点位卡片可展开逐小时天气。</div>
-    </div>` : ''}
-
-    <h2 class="sec-title">出行建议</h2>
-    <div class="card advice">
-      ${buildTripAdvice(r).map(a => `<div class="advice-item">· ${escapeHtml(a)}</div>`).join('')}
-    </div>
+      </div>
+    </details>` : ''}
 
     <div class="card boundary">
       <div class="bd-title">⚠️ 使用边界</div>
@@ -1459,12 +1598,20 @@ function departureChangeText(cur, rec) {
 function buildTripAdvice(r) {
   const items = ((r.diagnosis && r.diagnosis.items) || []).filter(x => x.severity !== 'ok');
   const cur = currentDepartureMinute(r);
+  const rec = recommendationForReport(r);
+  const recMinute = rec ? rec.hour * 60 : null;
+  const recDiffers = rec && cur != null && Math.abs(recMinute - (((cur % 1440) + 1440) % 1440)) >= 5;
+  const recWhen = rec ? (rec.date === r.date ? minToHM(recMinute) : `${rec.date.slice(5).replace('-', '/')} ${minToHM(recMinute)}`) : null;
+  const recommendationLine = recDiffers && Number.isFinite(rec.score) && rec.score > r.routeScore
+    ? `推荐 ${recWhen} 出发；全程评分可由 ${r.routeScore} 提升到 ${rec.score}。`
+    : null;
+
   if (!items.length) {
-    return [cur == null ? '行程安排整体合理，按计划出发即可。'
-      : `推荐保持 ${minToLabel(cur)} 出发；行程安排整体合理。`];
+    return [recommendationLine || (cur == null ? '行程安排整体合理，按计划出发即可。'
+      : `推荐保持 ${minToLabel(cur)} 出发；行程安排整体合理。`)];
   }
 
-  return items.slice(0, 5).map(it => {
+  const lines = items.slice(0, 5).map(it => {
     const rec = recommendedDepartureMinute(r, it);
     if (rec != null) {
       const change = departureChangeText(cur, rec);
@@ -1477,10 +1624,13 @@ function buildTripAdvice(r) {
     const act = (it.actions && it.actions.length) ? it.actions[0] : (it.advice || '');
     return it.title + (act ? '：' + act : '');
   });
+  if (recommendationLine) lines.unshift(recommendationLine);
+  return lines.slice(0, 5);
 }
 
 function renderReport(r, stale) {
   const routeName = state.points.map(p => p.name).join(' → ');
+  const decisionLead = decisionLeadHtml(r, stale);
   const worst = r.points[r.worstIndex];
   const keyRows = r.points.map((p, i) => ({ p, i })).filter(x => x.p.kind !== 'leg');
   const totalKm = (r.legs || []).reduce((s2, L) => s2 + L.km * 1.25, 0);
@@ -1497,20 +1647,11 @@ function renderReport(r, stale) {
     : (r.routeScore < 80 ? '没有明显问题，但有一处把总分拉低了' : '各点位的时间安排与天气都匹配');
 
   $('#reportBody').innerHTML = `
-    <div class="card map-card">
-      <div class="map-wrap">
-        <div id="reportMap" class="map map-report"></div>
-        <div class="map-tools">
-          <button class="map-btn" id="mapToggle" type="button">地形</button>
-          <button class="map-btn" id="mapFull" type="button">⛶ 全屏</button>
-        </div>
-      </div>
-      <div class="map-hint">点击地图上的点位可跳转到对应卡片 · 点「全屏」可放大查看 · 底图 © OpenStreetMap contributors</div>
-    </div>
-
     <div class="card summary ${lv.key}">
       <div class="sum-date">${r.date} · ${modeText(r.mode)}</div>
       <div class="sum-route">${escapeHtml(routeName)}</div>
+
+      ${decisionLead}
 
       <div class="sum-hero">
         <div class="sum-score ${lv.key}">${r.routeScore}</div>
@@ -1533,7 +1674,23 @@ function renderReport(r, stale) {
 
     ${shareBarHtml()}
 
-    <h2 class="sec-title">出发时刻对比 · 逐小时</h2>
+    <div class="card map-card">
+      <div class="map-wrap">
+        <div id="reportMap" class="map map-report"></div>
+        <div class="map-tools">
+          <button class="map-btn" id="mapToggle" type="button">地形</button>
+          <button class="map-btn" id="mapFull" type="button">⛶ 全屏</button>
+        </div>
+      </div>
+      <div class="map-hint">点击地图上的点位可跳转到对应卡片 · 点「全屏」可放大查看 · 底图 © OpenStreetMap contributors</div>
+    </div>
+
+    <h2 class="sec-title">出行建议</h2>
+    <div class="card advice">
+      ${buildTripAdvice(r).map(a => `<div class="advice-item">· ${escapeHtml(a)}</div>`).join('')}
+    </div>
+
+    <h2 class="sec-title">出发窗口 · 全程评分</h2>
     <div class="card cmp">
       <div id="planHours">${renderNavHours(r)}</div>
       ${state.planOriginalTimes ? `<div style="margin-top:10px"><button class="btn btn-ghost" id="btnRestorePlan" type="button">恢复原时间</button></div>` : ''}
@@ -1545,8 +1702,9 @@ function renderReport(r, stale) {
     </div>
 
     ${legRows.length ? `
-    <h2 class="sec-title">采样点 · ${legRows.length} 个</h2>
-    <div class="card leg-list">
+    <details class="sample-details">
+      <summary class="sec-title sample-summary">采样点 · ${legRows.length} 个 <span class="detail-hint">展开查看</span></summary>
+      <div class="card leg-list">
       <div class="leg-head"><span>位置</span><span>到达</span><span>天气</span><span>评分</span><span>原因</span><span>影响</span></div>
       ${legRows.map(x => `
         <div class="leg-row">
@@ -1558,12 +1716,8 @@ function renderReport(r, stale) {
           <span class="lr-impact">${escapeHtml(legImpact(x.p))}</span>
         </div>`).join('')}
       <div class="leg-note">采样说明：关键点位与沿途采样点按行程顺序列出；「K6」表示距该段起点约 6 km 处。沿途点在相邻点位之间按直线等距插值，约每 8 km 一个（单段最多 12 个、全线不超过 20 个，长路段间隔会更大）；每个点取「预计到达该点那一刻」的天气，跨天时取次日预报。</div>
-    </div>` : ''}
-
-    <h2 class="sec-title">出行建议</h2>
-    <div class="card advice">
-      ${buildTripAdvice(r).map(a => `<div class="advice-item">· ${escapeHtml(a)}</div>`).join('')}
-    </div>
+      </div>
+    </details>` : ''}
 
     <div class="card boundary">
       <div class="bd-title">⚠️ 使用边界</div>
@@ -1602,7 +1756,13 @@ function renderReport(r, stale) {
   if (rp) rp.addEventListener('click', () => {
     if (!state.planOriginalTimes) return;
     state.times = state.planOriginalTimes.slice();
+    if (state.planOriginalDate) {
+      state.date = state.planOriginalDate;
+      const inp = $('#inpDate');
+      if (inp) inp.value = state.date;
+    }
     state.planOriginalTimes = null;
+    state.planOriginalDate = null;
     toast('已恢复原时间，重新体检…');
     runCheckup();
   });
@@ -1614,14 +1774,8 @@ function renderReport(r, stale) {
       const hour = Number(btn.dataset.hour);
       const ctx = state.planCtx;
       if (!ctx) return;
-      const diff = Math.round((new Date(date + 'T00:00:00') - new Date(ctx.baseDate + 'T00:00:00')) / 86400000);
-      const targetMin = diff * 1440 + hour * 60;
-      ensureTimes();
-      if (!state.planOriginalTimes) state.planOriginalTimes = state.times.slice();
-      const delta = targetMin - state.times[0];
-      state.times = state.times.map(t => Math.max(0, t + delta));
       toast(`已平移到 ${date} ${pad(hour)}:00 出发，重新体检…`);
-      runCheckup();
+      applyPlanDeparture(date, hour);
     });
   });
 
@@ -1664,6 +1818,13 @@ function renderReport(r, stale) {
 
   bindShareBar(r);
   bindShiftChips(r);
+  const usePlanRec = $('#btnUsePlanRec');
+  if (usePlanRec) usePlanRec.addEventListener('click', () => {
+    const rec = recommendationForReport(r);
+    if (!rec) return;
+    toast(`已采用 ${rec.date} ${pad(rec.hour)}:00 出发，重新体检…`);
+    applyPlanDeparture(rec.date, rec.hour);
+  });
   syncReportFullscreen();
 
   runDiag();
