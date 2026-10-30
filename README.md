@@ -1,6 +1,8 @@
 # RouteWeather 2.0 · 山途智行
 
-**在线预览（手机可直接打开）：** [RouteWeather 2.0](https://xzl2007.github.io/route-weather/)
+**在线预览（GitHub Pages，手机可直接打开）：** [RouteWeather 2.0](https://tter1boom.github.io/route-weather/?demo=1)
+
+预览部署来源：Fork 仓库的 `codex/refresh-routeweather-2.0` 分支根目录；打开后从探索首页进入，并预置示例路线。
 
 > 面向山区自驾的路线气象分析与出行决策辅助工具。出发前输入路线，查看沿途天气变化、需要重点关注的区段和更合适的出发时间：
 > 明天这条路适不适合走、几点出发更稳、每个关键点与沿途采样点是什么天气、行程中哪里需要调整。
