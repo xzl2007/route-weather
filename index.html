@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="css/style.css?v=14">
 <link rel="stylesheet" href="css/redesign.css?v=1">
 <link rel="stylesheet" href="css/product-ui.css?v=4">
-<link rel="stylesheet" href="css/immersive-ui.css?v=19">
+<link rel="stylesheet" href="css/immersive-ui.css?v=21">
 <link rel="icon" href="icons/routeweather.svg" type="image/svg+xml">
 <script>
 /* 早期错误捕获：把 JS 错误显示在页面上，避免"白屏无提示" */
@@ -129,7 +129,7 @@ window.addEventListener('error', function (e) {
           <button class="map-btn" id="btnCreateFull" type="button">⛶ 全屏</button>
         </div>
       </div>
-      <div class="map-hint">底图 © OpenStreetMap contributors · 点击地图添加沿途点</div>
+      <div class="map-hint">拖动地图浏览 · 点击地图添加点位</div>
     </div>
 
     <div class="planning-heading">
@@ -146,7 +146,12 @@ window.addEventListener('error', function (e) {
       </div>
     </div>
     <div class="planner-sheet">
-      <div class="planner-sheet-handle" aria-hidden="true"></div>
+      <button class="planner-sheet-handle" id="plannerSheetHandle" type="button" aria-expanded="true" aria-label="收起行程设置">
+        <span class="handle-grip" aria-hidden="true"></span>
+        <strong>行程设置</strong>
+        <small id="plannerPointCount">0 个点位</small>
+        <i aria-hidden="true">⌄</i>
+      </button>
       <div class="planner-controls">
     <div class="field" id="fieldDate">
       <label>出行日期</label>
@@ -266,10 +271,10 @@ window.addEventListener('error', function (e) {
 </main>
 
 <nav class="mobile-nav" aria-label="主导航">
-  <button class="on" type="button" data-view="home"><span>⌂</span><small>探索</small></button>
-  <button type="button" data-view="create"><span>＋</span><small>规划</small></button>
-  <button type="button" data-view="report"><span>⌁</span><small>分析</small></button>
-  <button type="button" data-view="saved"><span>♡</span><small>收藏</small></button>
+  <button class="on" type="button" data-view="home" aria-current="page"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg></span><small>探索</small></button>
+  <button type="button" data-view="create" aria-current="false"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><small>规划</small></button>
+  <button type="button" data-view="report" aria-current="false"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h16M8 15l3-4 3 2 5-7"/><circle cx="19" cy="6" r="1"/></svg></span><small>分析</small></button>
+  <button type="button" data-view="saved" aria-current="false"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.8 8.7c0 5.1-8.8 10.3-8.8 10.3S3.2 13.8 3.2 8.7A4.7 4.7 0 0 1 12 6a4.7 4.7 0 0 1 8.8 2.7Z"/></svg></span><small>收藏</small></button>
 </nav>
 
 <!-- 点位选择弹层 -->
@@ -308,7 +313,7 @@ window.addEventListener('error', function (e) {
 <script src="js/storage.js?v=14"></script>
 <script src="js/geocode.js?v=14"></script>
 <script src="js/route-segments.js?v=1"></script>
-<script src="js/map.js?v=18"></script>
-<script src="js/app.js?v=26"></script>
+<script src="js/map.js?v=21"></script>
+<script src="js/app.js?v=29"></script>
 </body>
 </html>

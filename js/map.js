@@ -74,6 +74,15 @@ function buildTileLayers() {
         extras: [{ url: tdtUrl('cia'), opts: { subdomains: '01234567', maxZoom: 18, attribution: '' } }],
         gcj: true,
       },
+      {
+        name: '开放地图',
+        url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        opts: {
+          maxZoom: 19,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        },
+        gcj: false,
+      },
     ];
   }
 
@@ -115,7 +124,9 @@ function buildTileLayers() {
 const TILE_LAYERS = buildTileLayers();
 
 /** 全局偏好的底图序号（切换后重建时沿用） */
-let preferredTileIdx = TILE_LAYERS.findIndex(layer => layer.name === '卫星');
+const prefersTouchMap = (navigator.maxTouchPoints || 0) > 0
+  || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+let preferredTileIdx = TILE_LAYERS.findIndex(layer => layer.name === (prefersTouchMap ? '普通' : '卫星'));
 if (preferredTileIdx < 0) preferredTileIdx = 0;
 
 /* ---------------- WGS-84 → GCJ-02 坐标纠偏 ---------------- */
@@ -296,23 +307,45 @@ const MapCtl = {
     const conf = TILE_LAYERS[idx] || TILE_LAYERS[0];
     tried[idx] = true;
 
+    if (map.__tileRetryTimer) {
+      clearTimeout(map.__tileRetryTimer);
+      map.__tileRetryTimer = null;
+    }
+    map.__tileIdx = idx;
+    map.__gcj = !!conf.gcj;
     const layer = L.tileLayer(conf.url, conf.opts);
     let handled = false;
+    let loadedAnyTile = false;
+
+    layer.on('tileload', () => {
+      if (map.__tileIdx !== idx) return;
+      loadedAnyTile = true;
+      preferredTileIdx = idx;
+      if (map.__tileRetryTimer) {
+        clearTimeout(map.__tileRetryTimer);
+        map.__tileRetryTimer = null;
+      }
+    });
 
     layer.on('tileerror', () => {
-      if (handled) return;
-      handled = true;
-      // 找一个还没试过的源
-      const nextIdx = TILE_LAYERS.findIndex((_, i) => i !== idx && !tried[i]);
-      if (nextIdx >= 0) {
-        console.warn('[map] 瓦片源「' + conf.name + '」加载失败，自动切换到「' + TILE_LAYERS[nextIdx].name + '」');
-        try { map.removeLayer(layer); } catch (e) {}
-        this._addTiles(map, nextIdx, tried);
-        this._notifyLayer(map);
-      } else {
-        // 全部失败：明确告诉用户，而不是留一块灰
-        this._showTileFail(map);
-      }
+      if (handled || loadedAnyTile || map.__tileIdx !== idx || map.__tileRetryTimer) return;
+      // 单张瓦片偶发超时不代表整张底图不可用，先留出移动网络加载时间。
+      map.__tileRetryTimer = window.setTimeout(() => {
+        map.__tileRetryTimer = null;
+        if (handled || loadedAnyTile || map.__tileIdx !== idx || !map._container || !document.body.contains(map._container)) return;
+        handled = true;
+        const nextIdx = TILE_LAYERS.findIndex((_, i) => i !== idx && !tried[i]);
+        if (nextIdx >= 0) {
+          console.warn('[map] 瓦片源「' + conf.name + '」持续无瓦片加载，自动切换到「' + TILE_LAYERS[nextIdx].name + '」');
+          try { map.removeLayer(layer); } catch (e) {}
+          (map.__extraLayers || []).forEach(extra => { try { map.removeLayer(extra); } catch (e) {} });
+          map.__extraLayers = [];
+          this._addTiles(map, nextIdx, tried);
+          this._notifyLayer(map, true);
+        } else {
+          this._showTileFail(map);
+        }
+      }, 4200);
     });
 
     layer.addTo(map);
@@ -336,7 +369,7 @@ const MapCtl = {
   },
 
   /** 通知外部（按钮文字 / toast）底图已变化 */
-  _notifyLayer(map) {
+  _notifyLayer(map, automatic = false) {
     const idx = map.__tileIdx || 0;
     const name = (TILE_LAYERS[idx] || {}).name || '';
     const nextIdx = (idx + 1) % TILE_LAYERS.length;
@@ -344,7 +377,7 @@ const MapCtl = {
     if (btn) btn.textContent = TILE_LAYERS[nextIdx].name;
     const btn2 = document.getElementById('btnCreateLayer');
     if (btn2) btn2.textContent = TILE_LAYERS[nextIdx].name;
-    if (typeof window.__onMapLayerChange === 'function') {
+    if (automatic && typeof window.__onMapLayerChange === 'function') {
       window.__onMapLayerChange(name);
     }
   },
@@ -770,6 +803,7 @@ const MapCtl = {
   _destroy(which) {
     const map = this[which];
     if (map) {
+      if (map.__tileRetryTimer) { clearTimeout(map.__tileRetryTimer); map.__tileRetryTimer = null; }
       if (map.__ro) { try { map.__ro.disconnect(); } catch (e) {} }
       try { map.remove(); } catch (e) {}
       this[which] = null;

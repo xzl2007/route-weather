@@ -49,10 +49,15 @@ function showView(name) {
   window.scrollTo({ top: 0 });
   // 地图容器刚显示时尺寸为 0，必须等布局完成后再初始化/重算
   if (name === 'create') {
+    setPlannerSheetCollapsed(false);
     requestAnimationFrame(() => {
       ensureCreateMap();
       MapCtl.refresh('create');
     });
+    // 移动端地址栏收缩和安全区布局稳定后再测一次，避免首屏地图只绘出空白块。
+    window.setTimeout(() => {
+      if (state.view === 'create') MapCtl.refresh('create');
+    }, 180);
   }
   if (name === 'report') MapCtl.refresh('report');
   if (name === 'home') renderHome();
@@ -274,10 +279,13 @@ function bindProductNavigation() {
       const sheet = target?.closest('.planner-sheet');
       if (target && sheet) {
         $$('.planner-steps [data-plan-target]').forEach(button => button.classList.toggle('is-current', button === planStep));
-        const sheetRect = sheet.getBoundingClientRect();
-        const targetRect = target.getBoundingClientRect();
-        const delta = targetRect.top - sheetRect.top - Math.max(18, sheet.clientHeight * .34);
-        sheet.scrollBy({ top: delta, behavior: 'smooth' });
+        setPlannerSheetCollapsed(false);
+        requestAnimationFrame(() => {
+          const sheetRect = sheet.getBoundingClientRect();
+          const targetRect = target.getBoundingClientRect();
+          const delta = targetRect.top - sheetRect.top - Math.max(18, sheet.clientHeight * .34);
+          sheet.scrollBy({ top: delta, behavior: 'smooth' });
+        });
       }
     }
   });
@@ -430,6 +438,8 @@ function initCreate() {
     fsBtn.addEventListener('click', () => toggleCreateFullscreen());
   }
 
+  bindPlannerSheet();
+
   applyCheckModeUI();
   renderPointList();
 }
@@ -506,7 +516,8 @@ function ensureCreateMap() {
   createMapDirty = false;
   lastCreateSig = sig;
 
-  MapCtl.renderCreate('createMap', state.points.map(p => ({ name: p.name, lat: p.lat, lon: p.lon })), (lat, lon) => {
+  const map = MapCtl.renderCreate('createMap', state.points.map(p => ({ name: p.name, lat: p.lat, lon: p.lon })), (lat, lon) => {
+    setPlannerSheetCollapsed(true);
     if (state.points.length >= 5) { toast('最多 5 个点位'); return; }
     const pt = { name: `点位${state.points.length + 1}`, lat, lon };
     state.points.push(pt);
@@ -520,10 +531,13 @@ function ensureCreateMap() {
       }
     });
   });
+  if (map) map.on('dragstart', () => setPlannerSheetCollapsed(true));
 }
 
 function renderPointList() {
   const el = $('#pointList');
+  const pointCount = $('#plannerPointCount');
+  if (pointCount) pointCount.textContent = `${state.points.length} 个点位`;
   if (!state.points.length) {
     el.innerHTML = `<div class="empty-inline">还没有点位，点「载入示例路线」或「添加点位」</div>`;
     const lg0 = $('#planLegs'); if (lg0) lg0.innerHTML = '';
@@ -571,6 +585,43 @@ function renderPointList() {
 
   bindDragReorder(el);
   markCreateMapDirty();
+}
+
+function setPlannerSheetCollapsed(collapsed) {
+  const sheet = $('.planner-sheet');
+  const handle = $('#plannerSheetHandle');
+  if (!sheet || !handle) return;
+  sheet.classList.toggle('is-collapsed', !!collapsed);
+  document.body.classList.toggle('planner-sheet-collapsed', !!collapsed);
+  handle.setAttribute('aria-expanded', String(!collapsed));
+  handle.setAttribute('aria-label', collapsed ? '展开行程设置' : '收起行程设置');
+}
+
+function bindPlannerSheet() {
+  const handle = $('#plannerSheetHandle');
+  if (!handle || handle.dataset.bound === 'true') return;
+  handle.dataset.bound = 'true';
+  let startY = null;
+  let suppressClick = false;
+
+  handle.addEventListener('click', () => {
+    if (suppressClick) return;
+    setPlannerSheetCollapsed(!$('.planner-sheet')?.classList.contains('is-collapsed'));
+  });
+  handle.addEventListener('pointerdown', event => {
+    startY = event.clientY;
+    try { handle.setPointerCapture(event.pointerId); } catch (error) { /* older Safari */ }
+  });
+  handle.addEventListener('pointerup', event => {
+    if (startY == null) return;
+    const deltaY = event.clientY - startY;
+    startY = null;
+    if (Math.abs(deltaY) < 25) return;
+    suppressClick = true;
+    setPlannerSheetCollapsed(deltaY > 0);
+    window.setTimeout(() => { suppressClick = false; }, 350);
+  });
+  handle.addEventListener('pointercancel', () => { startY = null; });
 }
 
 /* ---------------- 规划模式：时间预填与点间核对 ---------------- */
