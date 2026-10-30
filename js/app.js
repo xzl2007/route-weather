@@ -12,12 +12,16 @@ const state = {
   planOriginalTimes: null, // 规划模式：平移前的原始时间
   planOriginalDate: null,  // 规划模式：平移前的原始日期
   tripsOpen: false,     // 首页“我的行程”是否展开
+  libraryFilter: 'all',
+  libraryQuery: '',
+  reportTab: 'routeAnalysis',
   points: [],           // [{name, lat, lon}]
   times: [],            // 规划模式：每个点位的到达时刻（分钟，0–1439）
   currentReport: null,
   expandIdx: -1,
   dxIdx: -1,
   hourSel: {},          // 每个点位当前查看的小时（默认到达时刻）
+  navCtx: null,
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -26,14 +30,22 @@ const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 /* ---------------- 视图切换 ---------------- */
 
 function showView(name) {
+  const nextView = $('#view-' + name);
+  if (!nextView) return;
   state.view = name;
   document.body.classList.toggle('home-active', name === 'home');
+  document.body.classList.toggle('immersive-view', name === 'create' || name === 'report');
   $$('.view').forEach(v => v.classList.remove('active'));
-  $('#view-' + name).classList.add('active');
+  nextView.classList.add('active');
   if (name !== 'report') toggleReportFullscreen(false);
   if (name !== 'create') toggleCreateFullscreen(false);
-  const titles = { home: '路线天气体检', create: '新建行程', report: '体检报告' };
-  $('#topTitle').textContent = titles[name] || '路线天气体检';
+  const titles = { home: '探索', create: '路线规划', report: '天气分析', saved: '行程收藏' };
+  $('#topTitle').textContent = titles[name] || '探索';
+  $$('[data-view]').forEach(button => {
+    const active = button.dataset.view === name;
+    button.classList.toggle('on', active);
+    if (button.closest('.app-nav, .mobile-nav')) button.setAttribute('aria-current', active ? 'page' : 'false');
+  });
   window.scrollTo({ top: 0 });
   // 地图容器刚显示时尺寸为 0，必须等布局完成后再初始化/重算
   if (name === 'create') {
@@ -44,6 +56,7 @@ function showView(name) {
   }
   if (name === 'report') MapCtl.refresh('report');
   if (name === 'home') renderHome();
+  if (name === 'saved') renderSavedTrips();
 }
 
 /* ---------------- Toast ---------------- */
@@ -111,6 +124,177 @@ function renderHome() {
   });
 }
 
+const FAVORITE_KEY = 'rwc:favorites';
+
+function loadFavoriteIds() {
+  try {
+    const ids = JSON.parse(localStorage.getItem(FAVORITE_KEY) || '[]');
+    return new Set(Array.isArray(ids) ? ids.filter(x => typeof x === 'string') : []);
+  } catch { return new Set(); }
+}
+
+function currentTripSignature() {
+  return tripSignature({ date: state.date, points: state.points });
+}
+
+function toggleFavoriteSignature(signature) {
+  const ids = loadFavoriteIds();
+  if (ids.has(signature)) ids.delete(signature);
+  else ids.add(signature);
+  try { localStorage.setItem(FAVORITE_KEY, JSON.stringify([...ids])); }
+  catch (e) { console.warn('收藏保存失败：', e); }
+  renderSavedTrips();
+  return ids.has(signature);
+}
+
+function renderSavedTrips() {
+  const host = $('#savedTripsGrid');
+  if (!host) return;
+  const trips = loadHistory();
+  const favorites = loadFavoriteIds();
+  const count = $('#libraryCount');
+  const favoriteCount = $('#libraryFavoriteCount');
+  const updated = $('#libraryUpdated');
+  if (count) count.textContent = String(trips.length);
+  if (favoriteCount) favoriteCount.textContent = String(trips.filter(t => favorites.has(tripSignature(t))).length);
+  if (updated) updated.textContent = trips.length && trips[0].savedAt
+    ? new Date(trips[0].savedAt).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
+    : '—';
+
+  const query = state.libraryQuery.trim().toLocaleLowerCase();
+  const visible = trips.filter(t => {
+    const signature = tripSignature(t);
+    const modeMatch = state.libraryFilter === 'all'
+      || (state.libraryFilter === 'favorite' ? favorites.has(signature) : t.mode === state.libraryFilter);
+    const text = `${t.routeName || ''} ${t.date || ''} ${modeText(t.mode)}`.toLocaleLowerCase();
+    return modeMatch && (!query || text.includes(query));
+  });
+
+  if (!trips.length) {
+    host.innerHTML = `<div class="library-empty">
+      <span class="library-empty-icon">⌁</span>
+      <h2>你的山地行程会收录在这里</h2>
+      <p>完成一次路线分析后，可以在这里回看天气、路线和出发时段。记录只保存在当前设备。</p>
+      <button class="btn btn-primary" type="button" data-view="create">规划第一段路线 <span>↗</span></button>
+    </div>`;
+    return;
+  }
+  if (!visible.length) {
+    host.innerHTML = '<div class="saved-filter-empty">没有找到符合条件的行程，试试其他关键词或筛选。</div>';
+    return;
+  }
+
+  host.innerHTML = visible.map((t, index) => {
+    const signature = tripSignature(t);
+    const isFavorite = favorites.has(signature);
+    const isNav = t.checkMode === 'nav';
+    const score = Number.isFinite(Number(t.routeScore)) ? Math.round(Number(t.routeScore)) : null;
+    return `<article class="saved-route-card" style="--card-order:${index}" data-trip-id="${escapeHtml(t.id)}">
+      <div class="saved-card-cover">
+        <div class="saved-card-topline">
+          <span class="saved-card-mode">${modeText(t.mode)} · ${isNav ? '沿途导航' : '点位规划'}</span>
+          <button type="button" class="saved-card-favorite${isFavorite ? ' on' : ''}" data-favorite-signature="${escapeHtml(signature)}" aria-label="${isFavorite ? '取消收藏' : '收藏路线'}" aria-pressed="${isFavorite}">${isFavorite ? '♥' : '♡'}</button>
+        </div>
+        <div class="saved-card-cover-bottom">
+          <span><small>${escapeHtml(t.date || '日期未设置')} · 山地行程</small><strong>${isNav && t.distanceKm ? Math.round(t.distanceKm) + ' km 路网' : '路线天气分析'}</strong></span>
+          <span class="saved-card-score${isNav ? ' nav' : ''}">${score == null ? '天气' : score + ' 分'}</span>
+        </div>
+      </div>
+      <div class="saved-card-body">
+        <div class="saved-card-meta"><span>${escapeHtml(modeText(t.mode))}</span><span>${t.savedAt ? new Date(t.savedAt).toLocaleDateString('zh-CN') + ' 保存' : '本机记录'}</span></div>
+        <div class="saved-card-route">${escapeHtml(t.routeName || '未命名路线')}</div>
+        <div class="saved-card-foot"><span>${isNav ? '沿途天气 · 真实路网' : (t.worstName ? '重点关注 · ' + escapeHtml(t.worstName) : '逐点天气评估')}</span><button class="saved-card-open" type="button" data-open-trip="${escapeHtml(t.id)}">打开分析 <span>↗</span></button></div>
+      </div>
+    </article>`;
+  }).join('');
+
+  $$('#savedTripsGrid [data-favorite-signature]').forEach(button => button.addEventListener('click', event => {
+    event.stopPropagation();
+    const isFavorite = toggleFavoriteSignature(button.dataset.favoriteSignature);
+    const reportButton = $('#btnReportFavorite');
+    if (reportButton && button.dataset.favoriteSignature === currentTripSignature()) setReportFavoriteState(reportButton, isFavorite);
+    toast(isFavorite ? '已加入收藏' : '已取消收藏');
+  }));
+  $$('#savedTripsGrid [data-open-trip]').forEach(button => button.addEventListener('click', () => openTrip(button.dataset.openTrip)));
+  $$('#savedTripsGrid .saved-route-card').forEach(card => card.addEventListener('click', event => {
+    if (event.target.closest('button')) return;
+    openTrip(card.dataset.tripId);
+  }));
+}
+
+function setReportFavoriteState(button, active) {
+  button.classList.toggle('on', active);
+  button.setAttribute('aria-pressed', String(active));
+  button.innerHTML = `${active ? '♥' : '♡'} <span>${active ? '已收藏行程' : '收藏这条行程'}</span>`;
+}
+
+function bindReportFavorite() {
+  const buttons = $$('#btnReportFavorite, #btnReportFavoriteOverview, #btnReportFavoriteDetails');
+  if (!buttons.length) return;
+  const signature = currentTripSignature();
+  const setAll = active => buttons.forEach(button => setReportFavoriteState(button, active));
+  setAll(loadFavoriteIds().has(signature));
+  buttons.forEach(button => button.addEventListener('click', () => {
+    const active = toggleFavoriteSignature(signature);
+    setAll(active);
+    toast(active ? '路线已加入行程收藏' : '已从收藏中移除');
+  }));
+}
+
+function bindProductNavigation() {
+  document.addEventListener('click', event => {
+    const viewButton = event.target.closest('[data-view]');
+    if (viewButton) {
+      event.preventDefault();
+      showView(viewButton.dataset.view);
+      return;
+    }
+
+    const demoButton = event.target.closest('[data-home-demo]');
+    if (demoButton) {
+      $('#btnHomeDemo')?.click();
+      return;
+    }
+
+    const filterButton = event.target.closest('[data-trip-filter]');
+    if (filterButton) {
+      state.libraryFilter = filterButton.dataset.tripFilter;
+      $$('.library-filters [data-trip-filter]').forEach(button => {
+        const active = button === filterButton;
+        button.classList.toggle('on', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
+      renderSavedTrips();
+      return;
+    }
+
+    const planStep = event.target.closest('[data-plan-target]');
+    if (planStep) {
+      const target = document.getElementById(planStep.dataset.planTarget);
+      const sheet = target?.closest('.planner-sheet');
+      if (target && sheet) {
+        $$('.planner-steps [data-plan-target]').forEach(button => button.classList.toggle('is-current', button === planStep));
+        const sheetRect = sheet.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        const delta = targetRect.top - sheetRect.top - Math.max(18, sheet.clientHeight * .34);
+        sheet.scrollBy({ top: delta, behavior: 'smooth' });
+      }
+    }
+  });
+
+  const search = $('#tripSearch');
+  if (search) search.addEventListener('input', () => {
+    state.libraryQuery = search.value;
+    renderSavedTrips();
+  });
+  window.addEventListener('keydown', event => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k' && state.view === 'saved') {
+      event.preventDefault();
+      $('#tripSearch')?.focus();
+    }
+  });
+}
+
 function modeText(m) {
   return ({ drive: '自驾', hike: '徒步', bike: '骑行' })[m] || '自驾';
 }
@@ -158,6 +342,7 @@ function initCreate() {
   const homeDemo = $('#btnHomeDemo');
   if (homeDemo) {
     homeDemo.addEventListener('click', () => {
+      state.reportTab = 'routeAnalysis';
       state.points = DEMO_ROUTE.map(n => findPointByName(n)).filter(Boolean)
         .map(p => ({ name: p.name, lat: p.lat, lon: p.lon }));
       state.checkMode = 'point';
@@ -169,6 +354,7 @@ function initCreate() {
     });
   }
   $('#btnDemo').addEventListener('click', () => {
+    state.reportTab = 'routeAnalysis';
     state.points = DEMO_ROUTE.map(n => findPointByName(n)).filter(Boolean)
       .map(p => ({ name: p.name, lat: p.lat, lon: p.lon }));
     renderPointList();
@@ -195,7 +381,10 @@ function initCreate() {
     }
   });
 
-  $('#btnCheckup').addEventListener('click', runCheckup);
+  $('#btnCheckup').addEventListener('click', () => {
+    state.reportTab = 'routeAnalysis';
+    runCheckup();
+  });
 
   // 体检模式切换
   $$('#segCheckMode button').forEach(b => {
@@ -291,7 +480,7 @@ function applyCheckModeUI() {
   $('#modeDesc').textContent = nav
     ? '只给起点和终点：规划真实路径，展示预计到达各采样点时的天气；不进行路线评分。'
     : '你自己安排每个点位的到达时间：系统逐点核对，指出不合理的地方并给出调整建议。';
-  $('#btnCheckup').textContent = nav ? '查看沿途天气' : '开始诊断';
+  $('#btnCheckup').innerHTML = `<span>${nav ? '查看沿途天气' : '生成路线天气分析'}</span><span class="btn-arrow" aria-hidden="true">↗</span>`;
   const lbl = document.querySelector('#pointList')?.closest('.field')?.querySelector('label');
   if (lbl) {
     lbl.innerHTML = nav
@@ -357,7 +546,7 @@ function renderPointList() {
       <div class="pt-row" data-i="${i}">
         <span class="pt-drag" data-i="${i}" role="button" tabindex="0"
               aria-label="拖动调整顺序" title="拖动调整顺序">⋮⋮</span>
-        <span class="pt-role ${roleCls}">${role}</span>
+        <span class="pt-role ${roleCls}" aria-label="${role}">${role === '起点' ? '起' : role === '终点' ? '终' : '途'}</span>
         <span class="pt-name">${escapeHtml(p.name)}</span>
         ${tail}
         <button class="pt-del" data-i="${i}" aria-label="删除">✕</button>
@@ -906,6 +1095,20 @@ async function checkupNavigation() {
     report.stale = series.stale;
     report.fetchedAt = series.at;
     report.routeCoords = route.coords;
+    const compareWindow = recWindow(state.date);
+    const forecastHours = Math.min(72, ...tripSeries.map(point => (point.hours || []).length));
+    const hourScores = departureMatrix(samples, tripSeries, elevations, route.duration, compareWindow.startIdx, Math.min(compareWindow.endIdx, forecastHours));
+    report.hourScores = hourScores.map(row => Object.assign({}, row, { date: addDays(state.date, row.dayOffset) }));
+    state.navCtx = {
+      baseDate: state.date,
+      series: tripSeries,
+      elevations,
+      samples,
+      route,
+      hourScores: report.hourScores,
+      stale: series.stale,
+      at: series.at,
+    };
     state.currentReport = report;
     state.expandIdx = -1;
     renderNavReport(report, series.stale);
@@ -1039,15 +1242,22 @@ function decisionLeadHtml(r, stale) {
     ? `当前 ${curClock} 出发评分 ${r.routeScore}；推荐时段评分 ${rec.score}。`
     : `当前 ${curClock} 出发评分 ${r.routeScore}。`;
   const canApply = r.mode === 'plan' && rec && !same;
+  const score = r.routeScore == null ? 0 : Math.max(0, Math.min(100, Math.round(Number(r.routeScore) || 0)));
 
   return `
     <div class="decision-lead decision-${r.level.key}">
-      <div class="decision-kicker">出行结论</div>
-      <div class="decision-title">${escapeHtml(title)}</div>
-      <div class="decision-copy">${escapeHtml(scoreText)}</div>
-      <div class="decision-risk"><span>最大风险</span>${escapeHtml(riskText)}</div>
-      <div class="decision-fresh">${escapeHtml(dataAgeText(r.fetchedAt, !!stale))}</div>
-      ${canApply ? `<button class="btn btn-primary decision-btn" id="btnUsePlanRec" type="button">采用推荐时间</button>` : ''}
+      <div class="decision-orbit route-score-orbit" style="--score:${score}" aria-label="路线天气评分 ${score} 分">
+        <div class="decision-orbit-value">${score}<small>分</small></div>
+        <div class="decision-orbit-label">整体适宜出行</div>
+      </div>
+      <div class="decision-content">
+        <div class="decision-kicker">出行结论</div>
+        <div class="decision-title">${escapeHtml(title)}</div>
+        <div class="decision-copy">${escapeHtml(scoreText)}</div>
+        <div class="decision-risk"><span>最大风险</span>${escapeHtml(riskText)}</div>
+        <div class="decision-fresh">${escapeHtml(dataAgeText(r.fetchedAt, !!stale))}</div>
+        ${canApply ? `<button class="btn btn-primary decision-btn" id="btnUsePlanRecHero" type="button">采用推荐时间</button>` : ''}
+      </div>
     </div>`;
 }
 
@@ -1056,6 +1266,8 @@ function decisionLeadHtml(r, stale) {
  * ============================================================ */
 
 function navWeatherKey(p) {
+  const hasWeather = ['code', 'pp', 'precip', 'wind', 'temp'].some(k => p && p[k] != null && Number.isFinite(Number(p[k])));
+  if (!hasWeather) return 'neutral';
   const code = Number(p.code);
   const pp = Number(p.pp ?? 0);
   const precip = Number(p.precip ?? 0);
@@ -1067,25 +1279,118 @@ function navWeatherKey(p) {
   return 'good';
 }
 
+function bindReportNav() {
+  $$('#reportBody [data-report-target]').forEach(button => {
+    button.addEventListener('click', () => {
+      activateReportScreen(button.dataset.reportTarget, true);
+    });
+  });
+}
+
+function activateReportScreen(id, scroll = false) {
+  const screens = $$('#reportBody .report-screen');
+  if (!screens.some(screen => screen.id === id)) return false;
+  state.reportTab = id;
+  screens.forEach(screen => screen.classList.toggle('is-active', screen.id === id));
+  $$('.report-local-nav [data-report-target]').forEach(button => {
+    const active = button.dataset.reportTarget === id;
+    button.classList.toggle('on', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+  if (id === 'routeAnalysis') requestAnimationFrame(() => MapCtl.refresh('report'));
+  if (scroll) {
+    const screen = document.getElementById(id);
+    if (screen) screen.scrollIntoView({ behavior: 'instant', block: 'start' });
+  }
+  return true;
+}
+
+function elevationProfileHtml(points) {
+  const values = (points || []).map((point, index) => ({
+    index,
+    name: point.name || `采样点 ${index + 1}`,
+    km: Number(point.cumKm),
+    elev: Number(point.elev),
+  })).filter(point => Number.isFinite(point.elev));
+  if (values.length < 2) return '';
+  const min = Math.min(...values.map(point => point.elev));
+  const max = Math.max(...values.map(point => point.elev));
+  const range = Math.max(1, max - min);
+  const left = 34, right = 786, top = 20, bottom = 132;
+  const coords = values.map((point, index) => ({
+    ...point,
+    x: left + index * (right - left) / (values.length - 1),
+    y: bottom - (point.elev - min) / range * (bottom - top),
+  }));
+  const line = coords.map((point, index) => `${index ? 'L' : 'M'}${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ');
+  const area = `${line} L${right} ${bottom} L${left} ${bottom} Z`;
+  const first = values[0], last = values[values.length - 1];
+  return `<section class="elevation-card" aria-label="沿线海拔剖面">
+    <div class="elevation-head"><div><h3>沿线海拔变化</h3><p>按沿途采样点展示 · 悬停图表节点可查看海拔</p></div>
+      <div class="elevation-range"><span>最高<b>${Math.round(max)} m</b></span><span>最低<b>${Math.round(min)} m</b></span></div></div>
+    <svg class="elevation-chart" viewBox="0 0 820 164" role="img" aria-label="海拔从 ${Math.round(min)} 米到 ${Math.round(max)} 米">
+      <defs><linearGradient id="elevationFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#4d9bd0" stop-opacity=".26"/><stop offset="100%" stop-color="#4d9bd0" stop-opacity=".015"/></linearGradient></defs>
+      <path class="elevation-grid" d="M${left} 42H${right} M${left} 87H${right} M${left} ${bottom}H${right}"/>
+      <path class="elevation-area" d="${area}"/><path class="elevation-line" d="${line}"/>
+      ${coords.map(point => `<circle class="elevation-point" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="3.5" tabindex="0" aria-label="${escapeHtml(point.name)}，海拔 ${Math.round(point.elev)} 米"><title>${escapeHtml(point.name)} · ${Math.round(point.elev)} m${Number.isFinite(point.km) ? ` · ${point.km.toFixed(0)} km` : ''}</title></circle>`).join('')}
+      <text class="elevation-axis" x="${left}" y="153">${escapeHtml(first.name)}</text><text class="elevation-axis" x="${right}" y="153" text-anchor="end">${escapeHtml(last.name)}</text>
+    </svg>
+    <div class="elevation-note"><span>海拔仅显示采样点数据</span><span>${values.length} 个有效点位</span></div>
+  </section>`;
+}
+
+function reportScreenHeader(eyebrow, title, subtitle, trailing = '') {
+  return `<div class="report-screen-heading"><button class="screen-back" type="button" data-view="home" aria-label="返回探索">←</button><div class="screen-heading-copy"><div class="eyebrow">${eyebrow}</div><h2>${title}</h2><p>${subtitle}</p></div>${trailing}</div>`;
+}
+
+function routeMapConsoleHtml({ routeName, date, mode, distance, duration, points, stale = false, note = '' }) {
+  const counts = { good: 0, fair: 0, caution: 0, bad: 0, neutral: 0 };
+  (points || []).forEach(point => {
+    const key = point && point.score != null && Number.isFinite(Number(point.score))
+      ? levelOf(Number(point.score)).key
+      : point && point.level && counts[point.level.key] != null ? point.level.key : navWeatherKey(point);
+    counts[key] += 1;
+  });
+  const flagged = counts.bad + counts.caution + counts.fair;
+  const endpoints = String(routeName || '').split(' → ');
+  const start = endpoints[0] || '起点';
+  const end = endpoints[endpoints.length - 1] || '终点';
+  return `<aside class="route-map-console" aria-label="路线概况">
+    <div class="route-map-console-head"><div><span class="map-console-kicker">ROUTE WEATHER · ${escapeHtml(String(mode || '行程规划'))}</span><div class="map-console-route"><strong>${escapeHtml(start)}</strong><svg viewBox="0 0 96 16" aria-hidden="true"><path d="M2 12 C16 2 22 14 34 7 S53 2 62 9 79 12 94 3"/><circle cx="3" cy="12" r="2.5"/><circle cx="93" cy="3" r="2.5"/></svg><strong>${escapeHtml(end)}</strong></div></div><span class="map-console-date">${escapeHtml(date || '')}${stale ? ' · 缓存数据' : ''}</span></div>
+    <div class="route-map-console-foot"><div class="map-console-metrics"><div><small>路线距离</small><strong>${Math.round(Number(distance) || 0)}<i> km</i></strong></div><div><small>预计用时</small><strong>${escapeHtml(fmtDuration(Number(duration) || 0))}</strong></div><div class="map-console-risk"><small>需留意采样点</small><strong>${flagged}<i> / ${counts.bad + counts.caution + counts.good + counts.fair + counts.neutral}</i></strong></div></div>
+      <div class="map-impact-legend" aria-label="路线颜色表示天气影响"><span><i class="good"></i>较小</span><span><i class="fair"></i>一般</span><span><i class="caution"></i>关注</span><span><i class="bad"></i>较强</span></div>
+    </div>${note ? `<p class="map-console-note">${escapeHtml(note)}</p>` : ''}</aside>`;
+}
+
 function navWeatherOverviewHtml(r, stale) {
   const points = r.points || [];
-  const counts = { good: 0, fair: 0, caution: 0, bad: 0 };
+  const counts = { good: 0, fair: 0, caution: 0, bad: 0, neutral: 0 };
   points.forEach(p => { counts[navWeatherKey(p)] += 1; });
-  const key = counts.bad ? 'bad' : counts.caution ? 'caution' : counts.fair ? 'fair' : 'good';
+  const key = counts.bad ? 'bad' : counts.caution ? 'caution' : counts.fair ? 'fair' : counts.neutral ? 'neutral' : 'good';
   const title = key === 'bad' ? '沿途有较强天气影响'
     : key === 'caution' ? '部分路段天气条件较差'
     : key === 'fair' ? '沿途有降水或风'
+    : key === 'neutral' ? '部分路段天气数据不足'
     : '沿途天气整体平稳';
   const texts = [...new Set(points.map(p => p.weatherText || wmoText(p.code)).filter(Boolean))].slice(0, 4);
   const rainCount = points.filter(p => (p.pp != null && p.pp >= 40) || (p.precip != null && p.precip > 0)).length;
-  const overview = `${points.length} 个沿路采样点${texts.length ? '，天气包括 ' + texts.join('、') : ''}；${rainCount} 个点预计有降水。`;
+  const stableCount = counts.good + counts.fair;
+  const stableRatio = points.length ? Math.round(stableCount / points.length * 100) : 0;
+  const overview = `${points.length} 个沿路采样点${texts.length ? '，天气包括 ' + texts.join('、') : ''}；${rainCount} 个点预计有降水。`
+    + (counts.neutral ? `另有 ${counts.neutral} 个点缺少天气字段，已在地图上标为中性。` : '');
 
   return `
     <div class="decision-lead decision-${key}">
-      <div class="decision-kicker">沿途天气</div>
-      <div class="decision-title">${escapeHtml(title)}</div>
-      <div class="decision-copy">${escapeHtml(overview)}</div>
-      <div class="decision-fresh">${escapeHtml(dataAgeText(r.fetchedAt, !!stale))}</div>
+      <div class="decision-orbit weather-stability-orbit ${key}" style="--score:${stableRatio}" aria-label="${stableCount} 个点位影响较小，共 ${points.length} 个采样点">
+        <div class="decision-orbit-value">${stableCount}<small>/${points.length}</small></div>
+        <div class="decision-orbit-label">影响较小点位</div>
+      </div>
+      <div class="decision-content">
+        <div class="decision-kicker">沿途天气</div>
+        <div class="decision-title">${escapeHtml(title)}</div>
+        <div class="decision-copy">${escapeHtml(overview)}</div>
+        <div class="decision-fresh">${escapeHtml(dataAgeText(r.fetchedAt, !!stale))}</div>
+      </div>
     </div>`;
 }
 
@@ -1144,6 +1449,7 @@ function renderNavReport(r, stale) {
   const mapPoints = r.points.map(p => {
     const out = Object.assign({}, p, {
       level: { key: navWeatherKey(p) },
+      weatherDataAvailable: ['code', 'pp', 'precip', 'wind', 'temp'].some(k => p[k] != null && Number.isFinite(Number(p[k]))),
       weatherText: p.weatherText || wmoText(p.code),
       pinLabel: p.pinLabel,
     });
@@ -1152,26 +1458,16 @@ function renderNavReport(r, stale) {
   });
 
   $('#reportBody').innerHTML = `
-    <div class="card summary weather-summary">
-      <div class="sum-date">${r.date} · ${modeText(r.travelMode)} · 导航模式</div>
-      <div class="sum-route">${escapeHtml(routeName)}</div>
-
-      ${weatherLead}
-
-      <div class="kv"><span class="kv-k">路网距离</span>
-        <span class="kv-v strong">${r.route.distanceKm.toFixed(0)} km</span></div>
-      <div class="kv"><span class="kv-k">预计时长${r.route.speedKmh ? `（按 ${r.route.speedKmh} km/h）` : ''}</span>
-        <span class="kv-v">${fmtDuration(r.route.durationMin)}</span></div>
-      <div class="kv"><span class="kv-k">出发时刻</span>
-        <span class="kv-v strong">${minToHM(Math.round(r.departureHour * 60))}</span></div>
-      <div class="kv"><span class="kv-k">预计抵达</span>
-        <span class="kv-v">${arriveText}</span></div>
-      ${stale ? `<div class="warn">⚠️ 数据可能已过期（离线缓存），请联网后重试</div>` : ''}
-      ${r.route.approx ? `<div class="warn">⚠️ 徒步/骑行路线按<b>公路网</b>规划，时长按 <b>${r.route.speedKmh} km/h</b> 估算。</div>` : ''}
-    </div>
-
-    ${shareBarHtml()}
-
+    <nav class="report-local-nav" aria-label="报告章节">
+      <span>本次行程</span>
+      <button class="on" type="button" data-report-target="routeAnalysis" aria-pressed="true">路线地图</button>
+      <button type="button" data-report-target="smartReport" aria-pressed="false">天气总览</button>
+      <button type="button" data-report-target="weatherDetails" aria-pressed="false">沿途天气 <span class="tab-count">${r.points.length}</span></button>
+      <button type="button" data-report-target="departurePlanner" aria-pressed="false">出发时段</button>
+      <button type="button" data-report-target="travelReport" aria-pressed="false">完整报告</button>
+    </nav>
+    <section class="report-screen is-active" id="routeAnalysis">
+    ${reportScreenHeader('ROUTE WEATHER MAP', '沿途天气影响', `${escapeHtml(routeName)} · 点击路线点位查看天气`, '<button class="report-favorite" id="btnReportFavorite" type="button" aria-pressed="false">♡ <span>收藏</span></button>')}
     <div class="card map-card">
       <div class="map-wrap">
         <div id="navMap" class="map map-report"></div>
@@ -1180,22 +1476,43 @@ function renderNavReport(r, stale) {
           <button class="map-btn" id="mapFull" type="button">⛶ 全屏</button>
         </div>
       </div>
-      <div class="map-hint">连线为规划路径；圆点颜色表示预计到达时的天气状况 · 底图 © OpenStreetMap contributors</div>
+      <div class="map-hint">路线颜色表示该里程区间的天气影响；点击路线或采样点查看详情。天气影响不代表道路安全等级。</div>
     </div>
+    ${routeMapConsoleHtml({ routeName, date: r.date, mode: `${modeText(r.travelMode)} · 导航`, distance: r.route.distanceKm, duration: r.route.durationMin, points: r.points, stale, note: r.route.approx ? `路线按${r.route.speedKmh} km/h 估算，实际通行时间以现场为准。` : '颜色表示天气影响程度，实际通行请以现场路况与官方预警为准。' })}
+    </section>
 
-    <h2 class="sec-title">沿途天气提醒</h2>
-    <div class="card advice">
-      ${buildNavWeatherNotes(r).map(a => `<div class="advice-item">· ${escapeHtml(a)}</div>`).join('')}
-    </div>
+    <section class="report-screen smart-report-screen" id="smartReport">
+      ${reportScreenHeader('WEATHER OVERVIEW', '天气总览与行程建议', `${escapeHtml(routeName)} · ${r.date}`, '<button class="report-favorite" id="btnReportFavoriteOverview" type="button" aria-pressed="false">♡ <span>收藏行程</span></button>')}
+      <div class="smart-report-content">
+        ${weatherLead}
+        <div class="smart-overview-orbit-note"><span class="orbit-spark">✦</span><div><strong>整段行程的天气脉络</strong><p>按预计到达时刻逐点检查天气，地图页可查看每个点位与风险路段。</p></div></div>
+        <div class="smart-report-facts"><div><small>路网距离</small><strong>${r.route.distanceKm.toFixed(0)} <i>km</i></strong></div><div><small>预计用时</small><strong>${fmtDuration(r.route.durationMin)}</strong></div><div><small>出发 / 抵达</small><strong>${minToHM(Math.round(r.departureHour * 60))} <i>→</i> ${arriveClock}</strong></div></div>
+        <section class="smart-report-section"><div class="smart-section-heading"><div><span>WATCH LIST</span><h3>出发前值得留意</h3></div><button type="button" data-report-target="weatherDetails">查看沿途天气 <b>↗</b></button></div><div class="smart-note-timeline">${buildNavWeatherNotes(r).map((a, i) => `<div class="smart-note-row"><span>${String(i + 1).padStart(2, '0')}</span><p>${escapeHtml(a)}</p><i>›</i></div>`).join('')}</div></section>
+        ${stale ? '<p class="smart-data-note">当前显示离线缓存的预报数据，请联网后刷新。</p>' : ''}
+      </div>
+    </section>
 
-    <h2 class="sec-title">关键点位 · 起点与终点</h2>
-    <div id="pointCards">
-      ${keyIdx.map(i => renderNavPointCard(r.points[i], i, state.expandIdx === i)).join('')}
-    </div>
+    <section class="report-screen" id="weatherDetails">
+      ${reportScreenHeader('WEATHER ALONG THE WAY', '沿途天气', '点位天气按预计到达时刻取数；点击卡片可切换查看逐小时变化。')}
+      <div class="weather-overview-strip"><span>沿路采样 <b>${r.points.length} 个点</b></span><span>路网距离 <b>${Math.round(r.route.distanceKm)} km</b></span><span>预计行程 <b>${fmtDuration(r.route.durationMin)}</b></span></div>
+      <div class="weather-screen-grid">
+        <div class="weather-points-stack" id="pointCards">
+          ${keyIdx.map(i => renderNavPointCard(r.points[i], i, state.expandIdx === i)).join('')}
+        </div>
+        <aside class="weather-side-note">
+          <div class="weather-note-kicker">TRIP WEATHER NOTES</div>
+          <h3>出发前值得留意</h3>
+          <div class="card advice">
+            ${buildNavWeatherNotes(r).map((a, i) => `<div class="advice-item"><span class="advice-index">${String(i + 1).padStart(2, '0')}</span><p>${escapeHtml(a)}</p></div>`).join('')}
+          </div>
+        </aside>
+      </div>
 
     ${legIdx.length ? `
-    <details class="sample-details">
-      <summary class="sec-title sample-summary">沿途天气采样 · ${legIdx.length} 个 <span class="detail-hint">展开查看</span></summary>
+    <div class="weather-timeline-card">
+      <div class="weather-timeline-head"><strong>沿线采样时间轴</strong><span>点击行项目可定位到地图</span></div>
+      <details class="sample-details" open>
+      <summary class="sec-title sample-summary">查看 ${legIdx.length} 个天气采样点 <span class="detail-hint">收起 / 展开</span></summary>
       <div class="card leg-list nav-leg-list">
         <div class="leg-head"><span>位置</span><span>到达</span><span>天气</span><span>温度</span><span>降水</span><span>影响</span></div>
         ${legIdx.map(i => {
@@ -1205,7 +1522,7 @@ function renderNavReport(r, stale) {
           const day = dayOff > 0 ? ' <sup>次日</sup>' : '';
           const pop = p.pp != null ? Math.round(p.pp) + '%' : '—';
           const mm = p.precip != null && p.precip > 0 ? ` / ${p.precip.toFixed(1)}mm` : '';
-          return `<div class="leg-row">
+          return `<div class="leg-row route-sample-row" data-sample-index="${i}" tabindex="0" role="button" aria-label="定位 ${escapeHtml(p.name)} 天气采样点">
             <span class="lr-name">${escapeHtml(p.name)}</span>
             <span class="lr-time">${minToHM(arriveTotalMin)}${day}</span>
             <span class="lr-wx">${p.icon || ''} ${escapeHtml(p.weatherText)}</span>
@@ -1216,36 +1533,51 @@ function renderNavReport(r, stale) {
         }).join('')}
         <div class="leg-note">天气取预计到达该点那一小时的逐小时预报。</div>
       </div>
-    </details>` : ''}
+      </details>
+    </div>` : ''}
+    </section>
 
-    <div class="card boundary">
+    <section class="report-screen" id="departurePlanner">
+      ${reportScreenHeader('DEPARTURE WINDOW', '换一个时刻，整段行程会怎样？', '比较未来三天的整条路线天气评分；选择时刻后将重新计算沿途预报。')}
+      <div class="departure-intro">
+        <div class="departure-rec-card"><small>近期推荐出发</small><strong>${r.recommendedHour != null ? `${minToHM(Math.round(r.recommendedHour * 60))} 出发` : '暂无可用时段'}</strong><p>${r.recommendedMin != null ? `路线最低点位评分 ${Math.round(r.recommendedMin)} 分 · ${modeText(r.travelMode)}` : '当前预报范围内没有完整可用的出发时段'}</p></div>
+        <div class="departure-current-card"><small>当前选择 · ${escapeHtml(r.date)}</small><strong>${minToHM(Math.round(r.departureHour * 60))}</strong><span>预计 ${arriveClock} 抵达 · 路网 ${Math.round(r.route.distanceKm)} km</span></div>
+      </div>
+      <div class="departure-grid-card"><div class="weather-timeline-head"><strong>72 小时出发时段</strong><span>颜色表示全程天气影响参考</span></div><div id="navHours">${renderNavHours(r)}</div><p class="departure-grid-note">选择一个有效时段可切换整条路线的到达天气。评分是天气决策辅助信息，不代表道路安全等级；实际通行请以官方预警与现场情况为准。</p></div>
+    </section>
+
+    <section class="report-screen report-details" id="travelReport">
+      ${reportScreenHeader('TRIP REPORT', '行程依据与使用边界', '天气来自公开预报，路线与时长采用公开路网服务估算。')}
+      <div class="report-detail-actions">${shareBarHtml()}<button class="report-favorite" id="btnReportFavoriteDetails" type="button">♡ <span>收藏行程</span></button></div>
+      <div class="card boundary">
       <div class="bd-title">⚠️ 使用边界</div>
       <div class="bd-item">天气按沿途等距采样点展示；采样点之间不逐点显示。</div>
       <div class="bd-item">到达时刻按<b>平均速度估算</b>，未考虑堵车、休息、封路等实际情况。</div>
       <div class="bd-item">天气来自公开气象预报，<b>不构成安全保证</b>，不替代官方预警与现场判断。</div>
-    </div>
+      </div>
 
-    <div class="card source">
-      <div class="src-line">天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（CC BY 4.0）</div>
-      <div class="src-line">路径规划：<a href="https://project-osrm.org/" target="_blank" rel="noopener">OSRM</a>（公共 demo 服务，路网数据 © OpenStreetMap contributors）</div>
-      <div class="src-line">更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</div>
-    </div>
-
-    <div class="row-btns end">
-      <button class="btn btn-ghost" onclick="showView('home')">回到首页</button>
-      <button class="btn btn-ghost" onclick="showView('create')">再查一条</button>
-    </div>
-    <div class="bottom-space"></div>
+      <div class="card source">
+        <div class="src-line">天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（CC BY 4.0）</div>
+        <div class="src-line">路径规划：<a href="https://project-osrm.org/" target="_blank" rel="noopener">OSRM</a>（公共 demo 服务，路网数据 © OpenStreetMap contributors）</div>
+        <div class="src-line">更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</div>
+      </div>
+      <div class="report-bottom-actions"><button class="btn btn-ghost" type="button" data-view="home">返回探索</button><button class="btn btn-primary" type="button" data-view="create">规划下一段 <span>↗</span></button></div>
+    </section>
   `;
 
+  bindReportNav();
+  bindReportFavorite();
+  if (state.reportTab !== 'routeAnalysis') activateReportScreen(state.reportTab, false);
   $$('#pointCards .pt-card').forEach(card => bindCard(card, r, 'nav'));
+  bindNavCompare(r);
 
   const mapToggle = $('#mapToggle');
   if (mapToggle) {
     mapToggle.addEventListener('click', () => {
       const name = MapCtl.toggleLayer();
       if (!name) return;
-      const other = TILE_LAYERS.find(t => t.name !== name);
+      const activeIndex = TILE_LAYERS.findIndex(t => t.name === name);
+      const other = TILE_LAYERS[(activeIndex + 1) % TILE_LAYERS.length];
       mapToggle.textContent = other ? other.name : '底图';
       toast('已切换到「' + name + '」底图');
     });
@@ -1256,13 +1588,33 @@ function renderNavReport(r, stale) {
   try {
     MapCtl.renderNavigation('navMap', r.routeCoords, mapPoints, (i) => {
       MapCtl.highlight(i);
+      activateReportScreen('weatherDetails', false);
       const card = document.querySelector(`#pointCards .pt-card[data-i="${i}"]`);
       if (card) {
         card.scrollIntoView({ behavior: 'smooth', block: 'center' });
         card.classList.remove('flash');
         void card.offsetWidth;
         card.classList.add('flash');
+      } else {
+        const row = document.querySelector(`.nav-leg-list .route-sample-row[data-sample-index="${i}"]`);
+        if (row) {
+          activateReportScreen('weatherDetails', false);
+          const details = row.closest('details');
+          if (details) details.open = true;
+          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          row.classList.remove('flash');
+          void row.offsetWidth;
+          row.classList.add('flash');
+        }
       }
+    });
+
+    $$('.nav-leg-list .route-sample-row').forEach(row => {
+      const locate = () => MapCtl.focusSample(Number(row.dataset.sampleIndex), true);
+      row.addEventListener('click', locate);
+      row.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); locate(); }
+      });
     });
   } catch (e) {
     console.warn('[map] 导航地图渲染失败：', e);
@@ -1522,16 +1874,16 @@ function legImpact(p) {
   const temp = p.temp == null ? null : Number(p.temp);
   const out = [];
 
-  if (code >= 95) out.push('雷暴、落石风险');
-  else if ([56, 57, 66, 67].includes(code) || (temp != null && temp < 0)) out.push('路面可能结冰');
-  else if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) out.push('积雪、路面湿滑');
+  if (code >= 95) out.push('雷暴天气影响');
+  else if ([56, 57, 66, 67].includes(code) || (temp != null && temp < 0)) out.push('低温或冻雨条件，留意结冰可能');
+  else if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) out.push('降雪天气影响');
   else if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82) || precip > 0.5) {
-    out.push('路面湿滑、视线受影响');
+    out.push('降水可能影响路面与能见度');
   }
 
   if (code === 45 || code === 48) out.push('能见度低');
-  if (wind >= 40) out.push('强侧风');
-  else if (wind >= 29) out.push('侧风明显');
+  if (wind >= 40) out.push('较强风速');
+  else if (wind >= 29) out.push('风速偏高');
   if (temp != null && temp >= 32) out.push('高温、体力消耗大');
   if (p.elev != null && p.elev > 3000 && temp != null && temp < 5) out.push('高海拔低温');
 
@@ -1600,12 +1952,30 @@ function buildTripAdvice(r) {
 function renderReport(r, stale) {
   const routeName = state.points.map(p => p.name).join(' → ');
   const decisionLead = decisionLeadHtml(r, stale);
+  const rec = recommendationForReport(r);
+  const currentMinute = currentDepartureMinute(r);
+  const same = rec && rec.date === r.date && currentMinute != null
+    && Math.abs(rec.hour * 60 - (((currentMinute % 1440) + 1440) % 1440)) < 5;
   const worst = r.points[r.worstIndex];
   const keyRows = r.points.map((p, i) => ({ p, i })).filter(x => x.p.kind !== 'leg');
   const totalKm = (r.legs || []).reduce((s2, L) => s2 + L.km * 1.25, 0);
   const totalMin = r.points.length > 1 ? (r.points[r.points.length - 1].minute - r.points[0].minute) : 0;
   const legRows = r.points.map((p, i) => ({ p, i }));   // 关键点位 + 沿途采样，按行程顺序
-  const lv = r.level;
+  const riskCandidates = r.points.map((p, i) => ({ p, i }))
+    .filter(x => x.p.score != null && Number.isFinite(Number(x.p.score)) && x.p.weatherText && x.p.kind === 'leg')
+    .sort((a, b) => Number(a.p.score) - Number(b.p.score));
+  const usedRiskSections = new Set();
+  const riskRows = riskCandidates.filter(({ p }) => {
+    const key = Math.floor(Number(p.cumKm || 0) / 16);
+    if (usedRiskSections.has(key)) return false;
+    usedRiskSections.add(key);
+    return true;
+  }).slice(0, 3);
+  if (!riskRows.length) {
+    riskRows.push(...r.points.map((p, i) => ({ p, i }))
+      .filter(x => x.p.score != null && Number.isFinite(Number(x.p.score)) && x.p.weatherText)
+      .sort((a, b) => Number(a.p.score) - Number(b.p.score)).slice(0, 3));
+  }
 
   const dz = r.diagnosis || { items: [], blockCount: 0, warnCount: 0, summary: 'ok' };
   const dzText = dz.summary === 'block' ? `发现 ${dz.blockCount} 处需要调整`
@@ -1617,33 +1987,16 @@ function renderReport(r, stale) {
   const tripAdvice = buildTripAdvice(r);
 
   $('#reportBody').innerHTML = `
-    <div class="card summary ${lv.key}">
-      <div class="sum-date">${r.date} · ${modeText(r.mode)}</div>
-      <div class="sum-route">${escapeHtml(routeName)}</div>
-
-      ${decisionLead}
-
-      <div class="sum-hero">
-        <div class="sum-score ${lv.key}">${r.routeScore}</div>
-        <div class="sum-lv">
-          <div class="sum-lv-icon">${lv.icon}</div>
-          <div class="sum-lv-text ${lv.key}">${lv.text}</div>
-          <div class="sum-lv-short">${lv.short}</div>
-        </div>
-      </div>
-
-      <div class="kv-note dim">时间口径：起点为「出发时刻」，其余点位为「到达时刻」</div>
-
-      <div class="kv">
-        <span class="kv-k">路线概况</span>
-        <span class="kv-v">路程 ${Math.round(totalKm)} km · 预计用时 ${fmtDuration(totalMin)}</span>
-      </div>
-
-      ${stale ? `<div class="warn">⚠️ 数据可能已过期（离线缓存），请联网后重试</div>` : ''}
-    </div>
-
-    ${shareBarHtml()}
-
+    <nav class="report-local-nav" aria-label="报告章节">
+      <span>本次行程</span>
+      <button class="on" type="button" data-report-target="routeAnalysis" aria-pressed="true">路线地图</button>
+      <button type="button" data-report-target="smartReport" aria-pressed="false">智能报告</button>
+      <button type="button" data-report-target="weatherDetails" aria-pressed="false">沿途天气 <span class="tab-count">${r.points.length}</span></button>
+      <button type="button" data-report-target="departurePlanner" aria-pressed="false">出发时段</button>
+      <button type="button" data-report-target="travelReport" aria-pressed="false">完整报告</button>
+    </nav>
+    <section class="report-screen is-active" id="routeAnalysis">
+    ${reportScreenHeader('ROUTE WEATHER MAP', '沿途天气影响', `${escapeHtml(routeName)} · 点击路线点位查看天气`, '<button class="report-favorite" id="btnReportFavorite" type="button" aria-pressed="false">♡ <span>收藏</span></button>')}
     <div class="card map-card">
       <div class="map-wrap">
         <div id="reportMap" class="map map-report"></div>
@@ -1652,32 +2005,52 @@ function renderReport(r, stale) {
           <button class="map-btn" id="mapFull" type="button">⛶ 全屏</button>
         </div>
       </div>
-      <div class="map-hint">点击地图上的点位可跳转到对应卡片 · 点「全屏」可放大查看 · 底图 © OpenStreetMap contributors</div>
+      <div class="map-hint">规划模式按关键点位连线估算，不代表真实道路路径。点击地图点位可查看对应天气信息。</div>
     </div>
+    ${routeMapConsoleHtml({ routeName, date: r.date, mode: modeText(r.mode), distance: totalKm, duration: totalMin, points: r.points, stale, note: '路线为关键点位间的天气影响示意，实际道路走向与通行情况请以现场为准。' })}
+    </section>
 
-    ${tripAdvice.length ? `<h2 class="sec-title">出行建议</h2>
-    <div class="card advice">
-      ${tripAdvice.map(a => `<div class="advice-item">· ${escapeHtml(a)}</div>`).join('')}
-    </div>` : ''}
+    <section class="report-screen smart-report-screen" id="smartReport">
+      ${reportScreenHeader('SMART JOURNEY REPORT', '智能行程报告', `${escapeHtml(routeName)} · ${r.date} · ${modeText(r.mode)}`, '<button class="report-favorite" id="btnReportFavoriteOverview" type="button" aria-pressed="false">♡ <span>收藏行程</span></button>')}
+      <div class="smart-report-content">
+        ${decisionLead}
+        <div class="smart-recommendation-spotlight"><div class="recommendation-clock">◷</div><div><span>推荐出发时间</span><strong>${rec ? `${escapeHtml(rec.date.slice(5).replace('-', '/'))} · ${pad(rec.hour)}:00` : '暂无可用推荐时段'}</strong><small>${rec ? `整段天气评分 ${rec.score} 分 · ${same ? '当前时刻已是推荐时段' : '根据沿途天气窗口计算'}` : '可调整日期或路线后重新评估'}</small></div><i>✦</i></div>
+        <section class="smart-report-section"><div class="smart-section-heading"><div><span>WEATHER RISKS</span><h3>重点风险提示</h3></div><button type="button" data-report-target="travelReport">查看分析依据 <b>↗</b></button></div>
+          <div class="diagnosis-board smart-diagnosis-board"><div class="diagnosis-board-head"><span>SMART TRIP CHECK</span><strong>${escapeHtml(dzText)}</strong><p>${escapeHtml(dzNote)}</p></div><div class="diagnosis-list">${dz.items.length ? dz.items.slice(0, 3).map(renderDx).join('') : '<div class="diagnosis-clear"><span>✓</span><b>目前没有需要调整的诊断项</b><small>建议在出发前重新检查预报更新。</small></div>'}</div></div>
+        </section>
+        <section class="smart-report-section smart-route-risk"><div class="smart-section-heading"><div><span>ROUTE WATCH · TOP 3</span><h3>沿途重点路段</h3></div><button type="button" data-report-target="weatherDetails">查看全部点位 <b>↗</b></button></div>
+          <div class="smart-segment-timeline">${riskRows.length ? riskRows.map(({ p, i }, rank) => { const segmentLevel = levelOf(Number(p.score)); return `<button class="smart-segment-row ${segmentLevel.key}" type="button" data-risk-sample="${i}"><span class="segment-rank">0${rank + 1}</span><span class="segment-copy"><strong>${escapeHtml(p.name || `沿线采样点 ${rank + 1}`)}</strong><small>${Number.isFinite(Number(p.cumKm)) ? `${Number(p.cumKm).toFixed(0)} km · ` : ''}${escapeHtml(p.weatherText || wmoText(p.code))}${p.elev != null ? ` · ${Math.round(p.elev)} m` : ''}</small></span><span class="segment-score">${Math.round(Number(p.score))}<small>分</small></span><span class="segment-arrow">↗</span></button>`; }).join('') : '<p class="smart-empty-note">目前没有足够的沿途评分数据，地图与天气点位仍可查看。</p>'}</div>
+        </section>
+        ${elevationProfileHtml(r.points)}
+        ${stale ? '<p class="smart-data-note">当前显示离线缓存的预报数据，请联网后刷新。</p>' : ''}
+      </div>
+    </section>
 
-    <h2 class="sec-title">出发窗口 · 全程评分</h2>
-    <div class="card cmp">
-      <div id="planHours">${renderNavHours(r)}</div>
-      ${state.planOriginalTimes ? `<div style="margin-top:10px"><button class="btn btn-ghost" id="btnRestorePlan" type="button">恢复原时间</button></div>` : ''}
-    </div>
-
-    <h2 class="sec-title">关键点位 · 按你安排的时间</h2>
-    <div id="pointCards">
-      ${keyRows.map(x => renderPointCard(x.p, x.i, state.expandIdx === x.i)).join('')}
-    </div>
+    <section class="report-screen" id="weatherDetails">
+      ${reportScreenHeader('WEATHER ALONG THE WAY', '沿途天气', '点位天气按预计到达时刻取数；展开卡片可以查看逐小时变化。')}
+      <div class="weather-overview-strip"><span>天气采样 <b>${r.points.length} 个点</b></span><span>路线评分 <b>${r.routeScore} / 100</b></span><span>最低点位 <b>${escapeHtml(worst.name)}</b></span></div>
+      <div class="weather-screen-grid">
+        <div class="weather-points-stack" id="pointCards">
+          ${keyRows.map(x => renderPointCard(x.p, x.i, state.expandIdx === x.i)).join('')}
+        </div>
+        <aside class="weather-side-note">
+          <div class="weather-note-kicker">TRIP WEATHER NOTES</div>
+          <h3>行程诊断建议</h3>
+          <div class="card advice">
+            ${tripAdvice.length ? tripAdvice.map((a, i) => `<div class="advice-item"><span class="advice-index">${String(i + 1).padStart(2, '0')}</span><p>${escapeHtml(a)}</p></div>`).join('') : '<div class="advice-item"><span class="advice-index">01</span><p>当前计划与沿途天气较匹配，仍建议出发前复核最新预报。</p></div>'}
+          </div>
+        </aside>
+      </div>
 
     ${legRows.length ? `
-    <details class="sample-details">
-      <summary class="sec-title sample-summary">采样点 · ${legRows.length} 个 <span class="detail-hint">展开查看</span></summary>
+    <div class="weather-timeline-card">
+      <div class="weather-timeline-head"><strong>路线天气时间轴</strong><span>按行程顺序排列</span></div>
+      <details class="sample-details" open>
+      <summary class="sec-title sample-summary">查看 ${legRows.length} 个关键点与沿途采样 <span class="detail-hint">收起 / 展开</span></summary>
       <div class="card leg-list">
       <div class="leg-head"><span>位置</span><span>到达</span><span>天气</span><span>评分</span><span>原因</span><span>影响</span></div>
       ${legRows.map(x => `
-        <div class="leg-row">
+        <div class="leg-row" data-sample-index="${x.i}">
           <span class="lr-name">${escapeHtml(x.p.name)}</span>
           <span class="lr-time">${x.p.timeLabel}</span>
           <span class="lr-wx">${x.p.icon || ''} ${escapeHtml(x.p.weatherText)}</span>
@@ -1687,7 +2060,23 @@ function renderReport(r, stale) {
         </div>`).join('')}
       <div class="leg-note">采样说明：关键点位与沿途采样点按行程顺序列出；「K6」表示距该段起点约 6 km 处。沿途点在相邻点位之间按直线等距插值，约每 8 km 一个（单段最多 12 个、全线不超过 20 个，长路段间隔会更大）；每个点取「预计到达该点那一刻」的天气，跨天时取次日预报。</div>
       </div>
-    </details>` : ''}
+      </details>
+    </div>` : ''}
+    </section>
+
+    <section class="report-screen" id="departurePlanner">
+      ${reportScreenHeader('DEPARTURE WINDOW', '选择更合适的出发时段', '每个时段都重新评估整条行程，不只查看起点天气。')}
+      <div class="departure-intro">
+        <div class="departure-rec-card"><small>当前预报窗口内推荐</small><strong>${rec ? `${escapeHtml(rec.date.slice(5).replace('-', '/'))} ${pad(rec.hour)}:00` : '暂无可用时段'}</strong><p>${rec ? `整条路线天气评分 ${rec.score} 分 · ${departureChangeText(currentDepartureMinute(r), rec.hour * 60) || '保持当前安排'}` : '可尝试调整日期或路线后重新分析'}</p>${rec && !same ? '<button class="departure-apply" id="btnUsePlanRec" type="button">采用推荐时段 <span>↗</span></button>' : ''}</div>
+        <div class="departure-current-card"><small>当前行程安排</small><strong>${minToHM(Math.round((currentDepartureMinute(r) || 0)))}</strong><span>路线天气评分 ${r.routeScore} 分 · ${fmtDuration(totalMin)} 预计用时</span></div>
+      </div>
+      <div class="departure-grid-card"><div class="weather-timeline-head"><strong>未来出发时段</strong><span>点击时段即可重新检查</span></div><div id="planHours">${renderNavHours(r)}</div>${state.planOriginalTimes ? `<div class="restore-plan"><button class="btn btn-ghost" id="btnRestorePlan" type="button">恢复原时间</button></div>` : ''}<p class="departure-grid-note">颜色仅表示天气适宜度参考。采样点之间不逐米评估；实际通行请以官方预警和现场情况为准。</p></div>
+    </section>
+
+    <section class="report-screen report-details" id="travelReport">
+      ${reportScreenHeader('TRIP REPORT', '分析依据与使用边界', '查看具体诊断、预报来源和当前行程的计算范围。')}
+      <div class="report-detail-actions">${shareBarHtml()}<button class="report-favorite" id="btnReportFavoriteDetails" type="button">♡ <span>收藏行程</span></button></div>
+      <div class="diagnosis-board"><div class="diagnosis-board-head"><span>SMART TRIP CHECK</span><strong>${escapeHtml(dzText)}</strong><p>${escapeHtml(dzNote)}</p></div><div class="diagnosis-list">${dz.items.length ? dz.items.map(renderDx).join('') : '<div class="diagnosis-clear"><span>✓</span><b>目前没有需要调整的诊断项</b><small>建议在出发前重新检查预报更新。</small></div>'}</div></div>
 
     <div class="card boundary">
       <div class="bd-title">⚠️ 使用边界</div>
@@ -1704,18 +2093,37 @@ function renderReport(r, stale) {
       <div class="src-line">更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</div>
       <div class="src-line dim">预报数据缓存 1 小时</div>
     </div>
-
-    <div class="row-btns end">
-      <button class="btn btn-ghost" onclick="showView('home')">回到首页</button>
-      <button class="btn btn-ghost" onclick="showView('create')">再体检一条</button>
-    </div>
-    <div class="bottom-space"></div>
+      <div class="report-bottom-actions"><button class="btn btn-ghost" type="button" data-view="home">返回探索</button><button class="btn btn-primary" type="button" data-view="create">规划下一段 <span>↗</span></button></div>
+    </section>
   `;
+
+  bindReportNav();
+  bindReportFavorite();
+  if (state.reportTab !== 'routeAnalysis') activateReportScreen(state.reportTab, false);
 
   // 诊断条目：点击弹出具体措施
   $$('.dx-item[data-idx]').forEach(el => {
     el.addEventListener('click', () => openDx(Number(el.dataset.idx)));
     el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDx(Number(el.dataset.idx)); } });
+  });
+
+  $$('.smart-segment-row[data-risk-sample]').forEach(button => {
+    button.addEventListener('click', () => {
+      const index = Number(button.dataset.riskSample);
+      activateReportScreen('weatherDetails', true);
+      MapCtl.highlight(index);
+      const card = document.querySelector(`#pointCards .pt-card[data-i="${index}"]`);
+      const row = document.querySelector(`.leg-row[data-sample-index="${index}"]`);
+      const target = card || row;
+      if (target) {
+        const details = target.closest('details');
+        if (details) details.open = true;
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.classList.remove('flash');
+        void target.offsetWidth;
+        target.classList.add('flash');
+      }
+    });
   });
 
   // 绑定卡片：展开/收起 + 点击小时切换
@@ -1751,18 +2159,35 @@ function renderReport(r, stale) {
 
   // 地图：路线可视化 + 点击点位联动卡片（地图失败绝不能影响整页）
   try {
-    MapCtl.renderReport('reportMap', keyRows.map((x, k) => Object.assign({}, x.p, {
-      __i: x.i,
-      pinLabel: k === 0 ? '起' : (k === keyRows.length - 1 ? '终' : '途'),
-    })), (i) => {
-      const realIdx = keyRows[i] ? keyRows[i].i : i;
+    const mapRows = r.points.map((p, i) => {
+      const keyIndex = keyRows.findIndex(x => x.i === i);
+      return Object.assign({}, p, {
+        __i: i,
+        __showMarker: keyIndex >= 0,
+        level: p.score != null && Number.isFinite(Number(p.score)) ? levelOf(Number(p.score)) : p.level,
+        pinLabel: keyIndex < 0 ? '' : (keyIndex === 0 ? '起' : (keyIndex === keyRows.length - 1 ? '终' : '途')),
+      });
+    });
+    MapCtl.renderReport('reportMap', mapRows, (i) => {
+      const realIdx = mapRows[i] ? mapRows[i].__i : i;
       MapCtl.highlight(i);
+      activateReportScreen('weatherDetails', false);
       const card = document.querySelector(`#pointCards .pt-card[data-i="${realIdx}"]`);
       if (card) {
         card.scrollIntoView({ behavior: 'smooth', block: 'center' });
         card.classList.remove('flash');
         void card.offsetWidth;
         card.classList.add('flash');
+      } else {
+        const row = document.querySelector(`.leg-row[data-sample-index="${realIdx}"]`);
+        if (row) {
+          const details = row.closest('details');
+          if (details) details.open = true;
+          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          row.classList.remove('flash');
+          void row.offsetWidth;
+          row.classList.add('flash');
+        }
       }
     });
   } catch (e) {
@@ -1778,7 +2203,8 @@ function renderReport(r, stale) {
     mapToggle.addEventListener('click', () => {
       const name = MapCtl.toggleLayer();
       if (!name) return;
-      const other = TILE_LAYERS.find(t => t.name !== name);
+      const activeIndex = TILE_LAYERS.findIndex(t => t.name === name);
+      const other = TILE_LAYERS[(activeIndex + 1) % TILE_LAYERS.length];
       mapToggle.textContent = other ? other.name : '底图';
       toast('已切换到「' + name + '」底图');
     });
@@ -1788,13 +2214,12 @@ function renderReport(r, stale) {
 
   bindShareBar(r);
   bindShiftChips(r);
-  const usePlanRec = $('#btnUsePlanRec');
-  if (usePlanRec) usePlanRec.addEventListener('click', () => {
+  $$('#btnUsePlanRecHero, #btnUsePlanRec').forEach(usePlanRec => usePlanRec.addEventListener('click', () => {
     const rec = recommendationForReport(r);
     if (!rec) return;
     toast(`已采用 ${rec.date} ${pad(rec.hour)}:00 出发，重新体检…`);
     applyPlanDeparture(rec.date, rec.hour);
-  });
+  }));
   syncReportFullscreen();
 
   runDiag();
@@ -1954,6 +2379,7 @@ function renderHourly(p, i, selHour) {
 function openTrip(id) {
   const t = getTrip(id);
   if (!t) return;
+  state.reportTab = 'routeAnalysis';
   state.date = t.date;
   state.mode = t.mode;
   state.points = t.points.map(p => ({ name: p.name, lat: p.lat, lon: p.lon }));
@@ -2216,9 +2642,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (name) toast('底图已自动切换为「' + name + '」');
   };
 
+  bindProductNavigation();
   initCreate();
   $('#btnNew').addEventListener('click', () => {
     state.points = [];
+    state.reportTab = 'routeAnalysis';
     renderPointList();
     showView('create');
   });
@@ -2324,13 +2752,11 @@ document.addEventListener('DOMContentLoaded', () => {
     showView('create');
   }
 
-  // ?demo=1 自动跑一次体检，便于演示与分享
+  // ?demo=1 预置示例路线；链接入口仍停留在探索首页
   if (params.get('demo') === '1') {
     if (!state.points.length) state.points = loadNames(DEMO_ROUTE.join(','));
     setDate();
     renderPointList();
-    showView('create');
-    runCheckup();
   }
 
   // ?sheet=1 直接打开点位选择弹层（便于演示与截图核对层叠顺序）

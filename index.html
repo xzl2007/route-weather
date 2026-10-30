@@ -3,14 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#0f172a">
-<title>路线天气体检</title>
-<meta name="description" content="输入一条路线，逐点核对沿途天气，得到一份一眼能看懂的行程天气体检报告。">
+<meta name="theme-color" content="#10243A">
+<title>RouteWeather 2.0 · 山途智行</title>
+<meta name="description" content="面向山地自驾的路线气象分析与出行决策辅助工具。">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="css/style.css?v=13">
-<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css?v=14">
+<link rel="stylesheet" href="css/redesign.css?v=1">
+<link rel="stylesheet" href="css/product-ui.css?v=4">
+<link rel="stylesheet" href="css/immersive-ui.css?v=19">
+<link rel="icon" href="icons/routeweather.svg" type="image/svg+xml">
 <script>
 /* 早期错误捕获：把 JS 错误显示在页面上，避免"白屏无提示" */
 window.__errs = [];
@@ -36,7 +39,22 @@ window.addEventListener('error', function (e) {
 <body>
 
 <header class="topbar">
-  <h1 id="topTitle">路线天气体检</h1>
+  <a class="brand-lockup" href="#home" aria-label="RouteWeather 山途智行首页" onclick="showView('home'); return false;">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 32 32" fill="none"><path d="M4 24.5 12.2 10l4.1 7 3.2-5.2L28 24.5H4Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 24.5h14M16.3 17l2 3.3 1.2-1.9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="23.8" cy="7.2" r="2.2" fill="currentColor"/></svg>
+    </span>
+    <span class="brand-copy"><strong>山途智行</strong><small>ROUTEWEATHER · <span id="topTitle">探索</span></small></span>
+  </a>
+  <nav class="app-nav" aria-label="主导航">
+    <button class="on" type="button" data-view="home">探索</button>
+    <button type="button" data-view="create">路线规划</button>
+    <button type="button" data-view="report">天气分析</button>
+    <button type="button" data-view="saved">行程收藏</button>
+  </nav>
+  <div class="topbar-actions">
+    <span class="topbar-context"><span class="status-dot"></span> 山地气象决策</span>
+    <button class="topbar-cta" type="button" data-view="create">开始规划 <span aria-hidden="true">↗</span></button>
+  </div>
 </header>
 
 <main id="app">
@@ -44,38 +62,99 @@ window.addEventListener('error', function (e) {
   <!-- ========== 首页 ========== -->
   <section id="view-home" class="view active">
     <div class="home-hero">
-      <div class="home-badge">山地出行 · 行程天气体检</div>
-      <h1 class="home-title">路线天气体检</h1>
-      <div class="home-cta">
-        <button class="btn btn-primary btn-lg" id="btnNew">开始行程体检</button>
-        <p class="home-hint">约 30 秒生成一份路线天气体检报告</p>
-        <button class="home-demo-link" id="btnHomeDemo" type="button">没有现成路线？用示例看看 →</button>
+      <div class="hero-copy">
+        <div class="home-badge"><span class="badge-spark"></span> 山区自驾 · 行程气象决策</div>
+        <p class="hero-overline">ROUTE WEATHER INTELLIGENCE</p>
+        <h1 class="home-title">把天气，<br><em>规划进路线。</em></h1>
+        <p class="home-sub">融合道路里程、海拔与逐小时预报，提前看见沿途天气变化，为每一段山路留出更从容的选择。</p>
+        <div class="home-cta">
+          <button class="btn btn-primary btn-lg" id="btnNew" type="button">
+            <span>开始规划行程</span><span class="btn-arrow" aria-hidden="true">↗</span>
+          </button>
+          <p class="home-hint">无需注册 · 行程仅保存在当前设备</p>
+          <button class="home-demo-link" id="btnHomeDemo" type="button">先体验示例路线 <span aria-hidden="true">→</span></button>
+        </div>
+      </div>
+      <div class="hero-visual" aria-label="雪山与蜿蜒山路">
+        <div class="visual-topline"><span>YOUR NEXT JOURNEY</span><span class="visual-live"><i></i> 行程气象已就绪</span></div>
+        <div class="hero-route-card">
+          <div class="hero-route-eyebrow"><span class="route-label-dot"></span> ROUTE WEATHER BRIEF</div>
+          <div class="hero-route-title">沿路看天气<br><strong>把每段山路都算进去</strong></div>
+          <div class="hero-route-metrics">
+            <span><i class="metric-icon">⌁</i><b>道路里程</b><small>真实路网</small></span>
+            <span><i class="metric-icon">◷</i><b>到达时刻</b><small>逐小时预报</small></span>
+            <span><i class="metric-icon">△</i><b>海拔变化</b><small>沿途采样</small></span>
+          </div>
+          <button type="button" class="hero-route-link" data-home-demo>查看示例路线 <span>↗</span></button>
+        </div>
+        <div class="hero-weather-float"><span class="weather-float-icon">☀</span><span><small>山地出行</small><b>天气 · 路线 · 时段</b></span><span class="weather-float-arrow">→</span></div>
       </div>
     </div>
 
-    <div id="homeEmpty" class="empty home-empty">
-      <p>还没有行程</p>
-    </div>
+    <div class="home-lower">
+      <div class="home-section-head">
+        <div><p class="section-kicker">DECISION SUPPORT</p><h2>从路线出发，理解天气影响</h2></div>
+        <p>用可解释的数据，辅助每一次山区出行安排</p>
+      </div>
+      <div class="home-features">
+        <button class="feat" type="button" data-home-demo><span class="feat-index">01</span><div><b>沿途逐点分析</b><p>结合预计到达时间，查看不同路段的逐小时预报。</p></div><span class="feat-symbol">↗</span></button>
+        <button class="feat" type="button" data-view="report"><span class="feat-index">02</span><div><b>天气影响分段</b><p>在真实道路几何上标出天气变化区段，并可点击查看依据。</p></div><span class="feat-symbol">⌁</span></button>
+        <button class="feat" type="button" data-view="saved"><span class="feat-index">03</span><div><b>出发时间对比</b><p>保存、筛选与回看你的山地行程分析。</p></div><span class="feat-symbol">◷</span></button>
+      </div>
 
-    <button class="trips-toggle hidden" id="tripsToggle" type="button" aria-expanded="false">
-      <span class="trips-title">我的行程 <span class="trips-count" id="tripsCount">0</span></span>
-      <span class="trips-arrow" id="tripsArrow">▾</span>
-    </button>
+      <div class="home-trips-head"><div><p class="section-kicker">YOUR ROUTES</p><h2>最近行程</h2></div><button class="library-shortcut" type="button" data-view="saved">打开行程库 <span>↗</span></button></div>
+      <div id="homeEmpty" class="empty home-empty">
+        <span class="empty-mark">⌁</span><p>这里会显示你最近分析的行程</p><small>完成一次路线分析后，结果将保存在当前设备</small>
+      </div>
 
-    <div id="homeList" class="list hidden">
-      <div id="historyList"></div>
+      <button class="trips-toggle hidden" id="tripsToggle" type="button" aria-expanded="false">
+        <span class="trips-title">查看已保存行程 <span class="trips-count" id="tripsCount">0</span></span>
+        <span class="trips-arrow" id="tripsArrow">↓</span>
+      </button>
+
+      <div id="homeList" class="list hidden">
+        <div id="historyList"></div>
+      </div>
     </div>
   </section>
 
   <!-- ========== 创建行程 ========== -->
   <section id="view-create" class="view">
-    <div class="field">
+    <div class="field planner-map-field" id="fieldMap">
+      <label>地图选点 <span class="small">（点击地图添加途经点）</span></label>
+      <div class="map-wrap map-wrap-create" id="createMapWrap">
+        <div id="createMap" class="map map-create"></div>
+        <div class="map-tools">
+          <button class="map-btn" id="btnCreateLayer" type="button">地形</button>
+          <button class="map-btn" id="btnCreateFull" type="button">⛶ 全屏</button>
+        </div>
+      </div>
+      <div class="map-hint">底图 © OpenStreetMap contributors · 点击地图添加沿途点</div>
+    </div>
+
+    <div class="planning-heading">
+      <a class="back-link" href="#home" onclick="showView('home'); return false;">← <span>返回首页</span></a>
+      <p class="section-kicker">PLAN YOUR ROUTE</p>
+      <h1>规划一段更从容的山路</h1>
+      <p>设置路线、出行方式和时间，我们会结合沿途天气生成分析报告。</p>
+      <div class="planner-steps" aria-label="规划步骤">
+        <button type="button" class="is-current" data-plan-target="fieldDate" aria-label="步骤 1：行程设置" title="定位到行程设置"><i>01</i><span>行程设置</span></button>
+        <b></b>
+        <button type="button" data-plan-target="fieldPoints" aria-label="步骤 2：路线点位" title="定位到路线点位"><i>02</i><span>路线点位</span></button>
+        <b></b>
+        <button type="button" data-plan-target="btnCheckup" aria-label="步骤 3：天气分析" title="定位到天气分析按钮"><i>03</i><span>天气分析</span></button>
+      </div>
+    </div>
+    <div class="planner-sheet">
+      <div class="planner-sheet-handle" aria-hidden="true"></div>
+      <div class="planner-controls">
+    <div class="field" id="fieldDate">
       <label>出行日期</label>
       <input type="date" id="inpDate">
     </div>
 
-    <div class="field">
-      <label>体检模式</label>
+    <div class="field" id="fieldCheckMode">
+      <label>分析模式</label>
       <div class="seg" id="segCheckMode">
         <button data-check="point" class="on">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s6.5-5.6 6.5-10.5a6.5 6.5 0 10-13 0C5.5 15.4 12 21 12 21z"/><circle cx="12" cy="10.5" r="2.3"/></svg>
@@ -95,7 +174,7 @@ window.addEventListener('error', function (e) {
       <p class="mode-desc">手动选择出发时刻，系统展示预计到达各采样点时的天气状况。</p>
     </div>
 
-    <div class="field">
+    <div class="field" id="fieldTravelMode">
       <label>出行方式</label>
       <div class="seg" id="segMode">
         <button data-mode="drive" class="on">
@@ -113,20 +192,10 @@ window.addEventListener('error', function (e) {
       </div>
     </div>
 
-    <div class="field">
-      <label>地图选点 <span class="small">（点地图任意位置可直接添加点位）</span></label>
-      <div class="map-wrap map-wrap-create" id="createMapWrap">
-        <div id="createMap" class="map map-create"></div>
-        <div class="map-tools">
-          <button class="map-btn" id="btnCreateLayer" type="button">地形</button>
-          <button class="map-btn" id="btnCreateFull" type="button">⛶ 全屏</button>
-        </div>
       </div>
-      <div class="map-hint">底图 © OpenStreetMap contributors · 仅供路线示意</div>
-    </div>
 
-    <div class="field">
-      <label>行程点位与时刻 <span class="small">（起点 = 出发时刻；途经/终点 = 到达时刻）</span></label>
+    <div class="field" id="fieldPoints">
+      <label>行程点位与时刻 <span class="small">（起点为出发，途经点与终点为到达）</span></label>
       <div id="pointList"></div>
       <div id="planLegs" class="plan-legs"></div>
       <div class="row-btns">
@@ -135,7 +204,9 @@ window.addEventListener('error', function (e) {
       </div>
     </div>
 
-    <div class="field">
+    <details class="planner-advanced">
+      <summary>手动输入坐标 <span>可选</span></summary>
+    <div class="field" id="fieldCoords">
       <label>手动输入坐标（可选，内置点位搜不到时用）</label>
       <div class="coord-row">
         <input type="text" id="inpLat" placeholder="纬度 如 29.98" inputmode="decimal">
@@ -144,17 +215,62 @@ window.addEventListener('error', function (e) {
         <button class="btn btn-ghost" id="btnAddCoord">添加</button>
       </div>
     </div>
+    </details>
 
-    <button class="btn btn-primary btn-lg" id="btnCheckup">开始体检</button>
+    <button class="btn btn-primary btn-lg" id="btnCheckup" type="button"><span>生成路线天气分析</span><span class="btn-arrow" aria-hidden="true">↗</span></button>
     <p class="hint">两种模式均加入沿途采样点；采样点之间不逐米评估。</p>
+    </div>
   </section>
 
   <!-- ========== 体检报告 ========== -->
   <section id="view-report" class="view">
-    <div id="reportBody"></div>
+    <div id="reportBody">
+      <div class="report-empty-state">
+        <span class="report-empty-icon">⌁</span>
+        <p class="section-kicker">ROUTE INTELLIGENCE</p>
+        <h1>先选一条路，<br>再看天气怎么变化。</h1>
+        <p>路线里程、到达时刻和逐小时天气会放在一起分析。</p>
+        <button class="btn btn-primary" type="button" data-view="create">开始规划行程 <span>↗</span></button>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-saved" class="view">
+    <div class="library-heading">
+      <div>
+        <p class="section-kicker">YOUR MOUNTAIN JOURNAL</p>
+        <h1>行程收藏</h1>
+        <p>本机保存的路线和分析记录，随时打开继续查看。</p>
+      </div>
+      <button class="btn btn-primary" type="button" data-view="create">规划新行程 <span>↗</span></button>
+    </div>
+    <div class="library-stats" aria-label="行程统计">
+      <div><small>已保存行程</small><strong id="libraryCount">0</strong></div>
+      <div><small>收藏路线</small><strong id="libraryFavoriteCount">0</strong></div>
+      <div><small>最近更新</small><strong id="libraryUpdated">—</strong></div>
+      <div class="library-note"><span class="status-dot"></span> 数据只保存在当前设备</div>
+    </div>
+    <div class="library-toolbar">
+      <label class="library-search"><span aria-hidden="true">⌕</span><input id="tripSearch" type="search" placeholder="搜索路线或地点" autocomplete="off"><kbd>Ctrl K</kbd></label>
+      <div class="library-filters" role="group" aria-label="筛选行程">
+        <button class="on" type="button" data-trip-filter="all">全部</button>
+        <button type="button" data-trip-filter="favorite">收藏</button>
+        <button type="button" data-trip-filter="drive">自驾</button>
+        <button type="button" data-trip-filter="hike">徒步</button>
+        <button type="button" data-trip-filter="bike">骑行</button>
+      </div>
+    </div>
+    <div id="savedTripsGrid" class="saved-trips-grid"></div>
   </section>
 
 </main>
+
+<nav class="mobile-nav" aria-label="主导航">
+  <button class="on" type="button" data-view="home"><span>⌂</span><small>探索</small></button>
+  <button type="button" data-view="create"><span>＋</span><small>规划</small></button>
+  <button type="button" data-view="report"><span>⌁</span><small>分析</small></button>
+  <button type="button" data-view="saved"><span>♡</span><small>收藏</small></button>
+</nav>
 
 <!-- 点位选择弹层 -->
 <div id="sheet" class="sheet hidden">
@@ -183,15 +299,16 @@ window.addEventListener('error', function (e) {
 
 <div id="toast" class="toast hidden"></div>
 
-<script src="js/config.js?v=13"></script>
+<script src="js/config.js?v=14"></script>
 <script src="vendor/leaflet/leaflet.js"></script>
-<script src="js/points.js?v=13"></script>
-<script src="js/api.js?v=13"></script>
-<script src="js/routing.js?v=13"></script>
-<script src="js/scoring.js?v=13"></script>
-<script src="js/storage.js?v=13"></script>
-<script src="js/geocode.js?v=13"></script>
-<script src="js/map.js?v=13"></script>
-<script src="js/app.js?v=13"></script>
+<script src="js/points.js?v=14"></script>
+<script src="js/api.js?v=14"></script>
+<script src="js/routing.js?v=14"></script>
+<script src="js/scoring.js?v=14"></script>
+<script src="js/storage.js?v=14"></script>
+<script src="js/geocode.js?v=14"></script>
+<script src="js/route-segments.js?v=1"></script>
+<script src="js/map.js?v=18"></script>
+<script src="js/app.js?v=26"></script>
 </body>
 </html>
