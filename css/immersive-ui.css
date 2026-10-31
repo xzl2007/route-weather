@@ -1,0 +1,1620 @@
+/* Full-bleed journey screens inspired by the supplied mobile product boards. */
+html, body { max-width: 100%; overflow-x: clip; }
+body.immersive-view { overflow-x: hidden; }
+body.immersive-view .topbar,
+body.immersive-view .mobile-nav { display: none !important; }
+body.immersive-view main#app { width: 100%; max-width: none; margin: 0; padding: 0; }
+
+/* Route planning: the real, interactive Leaflet map is the canvas. */
+#view-create.view.active {
+  position: relative; display: block !important; isolation: isolate; overflow: hidden;
+  width: 100vw; height: 100dvh; min-height: 560px;
+  margin: 0 calc(50% - 50vw); padding: 0 !important;
+  background: #dbe8ef;
+}
+#view-create .planner-map-field {
+  position: absolute !important; z-index: 0; inset: 0; width: 100%; height: 100%;
+  margin: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important;
+  background: transparent !important; box-shadow: none !important;
+}
+#view-create .planner-map-field > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+#view-create .map-wrap-create { position: absolute; inset: 0; overflow: hidden; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; }
+#view-create .map-create { position: absolute; inset: 0; width: 100%; height: 100% !important; min-height: 0 !important; border-radius: 0 !important; }
+#view-create .planner-map-field .map-hint { position: absolute; right: 14px; bottom: 12px; z-index: 450; margin: 0; padding: 7px 11px; border-radius: 999px; background: rgba(255,255,255,.82); color: #516d83; font-size: 9px; backdrop-filter: blur(12px); }
+#view-create .planner-map-field .map-tools { top: 90px; right: 18px; z-index: 450; }
+#view-create .planner-map-field .leaflet-top.leaflet-left { top: 72px; left: 12px; }
+#view-create .planner-map-field .leaflet-top.leaflet-right { top: 72px; right: 12px; }
+#view-create .map-btn { min-height: 38px; border: 1px solid rgba(255,255,255,.78); border-radius: 999px; background: rgba(255,255,255,.88); color: #244663; font-size: 10px; backdrop-filter: blur(16px); }
+
+#view-create .planning-heading {
+  position: absolute; z-index: 5; top: 15px; left: 50%; display: grid;
+  grid-template-columns: 34px minmax(0,1fr) auto; align-items: center; gap: 10px;
+  width: min(760px,calc(100% - 48px)); margin: 0; padding: 10px 16px;
+  border: 1px solid rgba(255,255,255,.72); border-radius: 999px;
+  background: rgba(248,252,255,.88); box-shadow: 0 10px 35px rgba(18,51,78,.14);
+  transform: translateX(-50%); backdrop-filter: blur(22px);
+}
+#view-create .planning-heading .back-link { grid-column: 1; grid-row: 1; margin: 0; color: #174f7b; font-size: 20px; }
+#view-create .planning-heading .back-link span,
+#view-create .planning-heading .section-kicker,
+#view-create .planning-heading > p:last-of-type { display: none; }
+#view-create .planning-heading h1 { grid-column: 2; grid-row: 1; overflow: hidden; margin: 0; color: #163a5d; font-size: 15px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+#view-create .planner-steps { grid-column: 3; grid-row: 1; gap: 4px; margin: 0; padding: 0; border: 0; background: transparent; }
+#view-create .planner-steps > button { min-height: 30px; padding: 3px; }
+#view-create .planner-steps > button span, #view-create .planner-steps > b { display: none; }
+#view-create .planner-steps i { width: 25px; height: 25px; background: #edf5fb; color: #7794aa; font-size: 8px; }
+#view-create .planner-steps > button.is-current i { background: #1683d4; color: #fff; box-shadow: 0 4px 12px rgba(22,131,212,.24); }
+
+#view-create .planner-sheet {
+  position: absolute; z-index: 4; top: 87px; bottom: 18px; left: 22px; width: min(440px,calc(100vw - 44px));
+  overflow: auto; overscroll-behavior: contain; padding: 22px 22px 24px;
+  border: 1px solid rgba(255,255,255,.78); border-radius: 32px 15px 32px 15px;
+  background: rgba(248,252,255,.92); box-shadow: 0 22px 60px rgba(20,49,73,.2);
+  backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
+}
+.planner-sheet-handle { display: none; }
+.planner-controls { display: grid; grid-template-columns: 1fr 1fr; grid-template-areas: "travel check" "date date" "depart depart"; gap: 11px 12px; margin-bottom: 15px; }
+#view-create .planner-controls > .field { min-width: 0; margin: 0; padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
+#fieldTravelMode { grid-area: travel; }
+#fieldCheckMode { grid-area: check; }
+#fieldDate { grid-area: date; display: grid; grid-template-columns: 80px minmax(0,1fr); align-items: center; gap: 9px; }
+#fieldDepart { grid-area: depart; }
+#view-create .planner-controls .field > label { margin: 0 0 6px; color: #486981; font-size: 10px; font-weight: 700; }
+#view-create #fieldDate > label { margin: 0; }
+#view-create .planner-controls .field input,
+#view-create .planner-controls .field select { min-height: 40px; padding: 8px 12px; border: 0 !important; border-radius: 999px !important; background: #eef5f9 !important; color: #193c5a !important; font-size: 11px; }
+#view-create .planner-controls .seg { gap: 2px; padding: 3px; border: 0; border-radius: 999px; background: #eaf1f6; }
+#view-create .planner-controls .seg button { display: flex; min-width: 0; min-height: 38px; gap: 4px; padding: 5px 4px; border-radius: 999px; color: #657f94; font-size: 9px; line-height: 1.1; }
+#view-create .planner-controls .seg button svg { width: 15px; height: 15px; }
+#view-create .planner-controls .seg button.on { background: #fff !important; color: #146fb5; box-shadow: 0 3px 10px rgba(26,73,108,.12) !important; }
+#view-create .planner-controls .mode-desc { display: none; }
+#view-create #fieldPoints { margin: 0; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
+#view-create #fieldPoints > label { margin: 0 0 9px; color: #1d3d59; font-size: 12px; font-weight: 750; }
+#view-create #fieldPoints .small { color: #8297a8; font-size: 8px; }
+#view-create #pointList { position: relative; }
+#view-create .pt-row { min-height: 52px; gap: 8px; margin: 0 0 7px; padding: 6px 11px; border: 1px solid rgba(221,233,241,.75) !important; border-radius: 999px !important; background: rgba(255,255,255,.78) !important; box-shadow: none !important; }
+#view-create .pt-drag { color: #a0b0bd; }
+#view-create .pt-role { width: 30px; height: 30px; }
+#view-create .pt-name { overflow: hidden; color: #183a58; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+#view-create .pt-time-label, #view-create .pt-time { font-size: 9px; }
+#view-create #pointList .pt-time { width: 82px; min-height: 31px; padding: 5px 8px; border: 0 !important; border-radius: 999px !important; background: #edf5fa !important; }
+#view-create .pt-del { color: #8ca1b2; }
+#view-create .row-btns { gap: 7px; margin: 9px 0 0; }
+#view-create .row-btns .btn { min-height: 37px; padding: 7px; border: 0 !important; border-radius: 999px; background: #eaf4fa !important; color: #326b94 !important; font-size: 9px; }
+#view-create .planner-advanced { margin: 12px 0 9px; border-top: 1px solid rgba(81,119,148,.12); }
+#view-create .planner-advanced > summary { padding: 10px 2px 3px; color: #57748a; font-size: 10px; cursor: pointer; }
+#view-create .planner-advanced > summary span { margin-left: 5px; color: #98aab7; font-size: 8px; }
+#view-create #fieldCoords { margin: 8px 0 0; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
+#view-create #fieldCoords > label { display: none; }
+#view-create #fieldCoords .coord-row { grid-template-columns: 1fr 1fr; }
+#view-create #fieldCoords input, #view-create #fieldCoords .btn { min-height: 38px; border-radius: 999px !important; font-size: 10px; }
+#view-create #btnCheckup { display: flex; min-height: 54px; margin: 14px 0 0; padding: 10px 17px; border: 0; border-radius: 999px !important; background: linear-gradient(105deg,#1689e4,#075cb0) !important; box-shadow: 0 12px 28px rgba(18,104,175,.28) !important; font-size: 12px; }
+#view-create .planner-sheet > .hint { margin: 9px 0 0; color: #8599aa; font-size: 8px; }
+
+/* Report navigation floats over a full-bleed route map. The summary behaves
+   like a translucent bottom sheet while map controls remain interactive. */
+body.immersive-view #view-report { width: 100vw; margin: 0 calc(50% - 50vw); padding: 0 24px 30px; }
+#view-report #reportBody { position: relative; min-height: 100vh; }
+#view-report .report-local-nav {
+  position: fixed; top: 13px; left: 50%; z-index: 1500; width: max-content; max-width: calc(100vw - 24px);
+  margin: 0; padding: 5px; border: 1px solid rgba(255,255,255,.76); border-radius: 999px;
+  background: rgba(247,251,254,.86); box-shadow: 0 9px 28px rgba(18,49,74,.15); transform: translateX(-50%);
+}
+#view-report .report-local-nav > span { display: none; }
+#view-report .report-local-nav button { min-height: 38px; padding: 0 14px; border-radius: 999px; color: #516d83; font-size: 9px; }
+#view-report .report-local-nav button.on { background: #167fd0; color: #fff; box-shadow: 0 5px 15px rgba(22,127,208,.23); }
+#view-report .report-screen { min-height: 80vh; padding-top: 72px; }
+#view-report .report-screen-heading { position: relative; z-index: 3; align-items: center; gap: 11px; margin: 0 0 10px; }
+.screen-back { display: grid; width: 35px; height: 35px; flex: 0 0 35px; place-items: center; border: 1px solid rgba(255,255,255,.75); border-radius: 50%; background: rgba(255,255,255,.78); color: #173d5f; font-size: 19px; cursor: pointer; backdrop-filter: blur(12px); }
+.screen-heading-copy { min-width: 0; }
+#view-report .report-screen-heading h2 { color: #12395e; font-size: clamp(18px,2.2vw,24px); }
+#view-report .report-screen-heading p { color: #607b92; font-size: 9px; }
+#view-report .report-screen-heading .eyebrow { color: #4786b2; }
+#view-report .report-screen-heading > .report-favorite { margin-left: auto; border-radius: 999px; background: rgba(255,255,255,.83); }
+#routeAnalysis.report-screen { position: relative; isolation: isolate; }
+#routeAnalysis .report-overview-grid { position: relative; display: block; min-height: 90vh; padding-top: max(31vh,220px); }
+#routeAnalysis .map-card {
+  position: fixed !important; z-index: 0; inset: 0; width: 100vw; height: 100dvh; margin: 0 !important;
+  padding: 0 !important; overflow: hidden; border: 0 !important; border-radius: 0 !important; background: #d8e4e4 !important; box-shadow: none !important;
+}
+#routeAnalysis .map-card .map-wrap { position: absolute; inset: 0; border-radius: 0; }
+#routeAnalysis #reportMap, #routeAnalysis #navMap { position: absolute; inset: 0; width: 100%; height: 100% !important; min-height: 100vh !important; border-radius: 0 !important; }
+#routeAnalysis .map-card .map-hint { position: absolute; right: 13px; bottom: 12px; z-index: 420; max-width: 280px; padding: 7px 10px; border-radius: 999px; background: rgba(255,255,255,.8); color: #42627a; font-size: 8px; backdrop-filter: blur(10px); }
+#routeAnalysis .map-card .map-tools { top: 94px; right: 13px; z-index: 450; }
+#routeAnalysis .map-card .leaflet-top.leaflet-left { top: 68px; left: 12px; }
+#routeAnalysis .map-card .leaflet-top.leaflet-right { top: 68px; right: 12px; }
+#routeAnalysis .summary {
+  position: relative; z-index: 3; width: min(520px,100%); max-height: min(57vh,590px); overflow: auto;
+  margin: 0; padding: 18px !important; border: 1px solid rgba(255,255,255,.82) !important;
+  border-radius: 32px 14px 32px 14px !important; background: rgba(250,253,255,.92) !important;
+  box-shadow: 0 24px 65px rgba(14,43,65,.25) !important; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+}
+#routeAnalysis .summary .decision-lead { margin-top: 11px; }
+#routeAnalysis .elevation-card { position: relative; z-index: 2; margin-top: 12px; }
+#routeAnalysis .report-screen-heading .report-favorite { color: #456980; }
+
+/* Distinct detail screens: the content stays airy; only the route overview
+   uses a map canvas. */
+#weatherDetails, #departurePlanner, #travelReport { position: relative; z-index: 1; }
+#weatherDetails .report-screen-heading,
+#departurePlanner .report-screen-heading,
+#travelReport .report-screen-heading {
+  min-height: 154px; align-items: flex-end; margin: -4px -24px 17px; padding: 34px 24px 24px;
+  border-radius: 0 0 42px 13px;
+  background: linear-gradient(90deg,rgba(245,250,253,.97) 0%,rgba(245,250,253,.82) 47%,rgba(245,250,253,.18) 100%),
+    url('../assets/hero-alpine-road.png') center 52%/cover;
+  box-shadow: 0 15px 34px rgba(20,55,83,.1);
+}
+#weatherDetails .report-screen-heading { background-position: center 52%; }
+#departurePlanner .report-screen-heading { background-position: right 56%; }
+#travelReport .report-screen-heading { background-position: center 38%; }
+#weatherDetails .weather-overview-strip > span { background: rgba(255,255,255,.8); }
+#weatherDetails .weather-timeline-card { padding: 18px; }
+#departurePlanner .departure-rec-card {
+  background: linear-gradient(105deg,rgba(8,48,82,.9),rgba(17,81,128,.4)),url('../assets/hero-alpine-road.png') center 58%/cover;
+}
+#travelReport .diagnosis-list .dx-item::after {
+  top: 0; right: 0; bottom: 0; width: 112px; height: auto; clip-path: none; opacity: .55;
+  background-image: linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.05)),url('../assets/hero-alpine-road.png');
+  background-size: cover; background-position: 72% center;
+  mask-image: linear-gradient(90deg,transparent 0%,#000 35%);
+}
+#travelReport .diagnosis-list .dx-item:nth-child(2)::after { background-position: 90% center; }
+#travelReport .diagnosis-list .dx-item:nth-child(3)::after { background-position: 56% center; }
+#view-saved .saved-card-cover { background-image: linear-gradient(180deg,rgba(13,37,62,.04),rgba(13,37,62,.58)),url('../assets/hero-alpine-road.png'); }
+#view-home .home-hero {
+  background-image: linear-gradient(90deg,rgba(245,249,252,.96) 0%,rgba(245,249,252,.82) 34%,rgba(245,249,252,.18) 67%,rgba(245,249,252,.02) 100%),
+    url('../assets/hero-alpine-road.png') !important;
+  background-position: center, center 58% !important;
+}
+#view-home .hero-route-card { border-radius: 38px 13px 38px 13px; }
+#view-home .hero-weather-float { background: rgba(9,43,72,.76); }
+#view-home .home-hero { border-radius: 48px 18px 58px 18px !important; }
+#weatherDetails .weather-timeline-card { border: 0; border-radius: 28px 12px 28px 12px; background: rgba(255,255,255,.76); }
+#travelReport .diagnosis-list .dx-item { cursor: pointer; }
+#view-report .report-empty-state { margin-top: 80px; }
+
+@media (max-width: 760px) {
+  body.immersive-view main#app { padding: 0 !important; }
+  #view-create.view.active {
+    height: 100dvh; min-height: 0; margin: 0; padding: 0 !important;
+  }
+  #view-create .planning-heading { top: 10px; width: calc(100% - 22px); gap: 7px; padding: 8px 10px; }
+  #view-create .planning-heading h1 { font-size: 13px; }
+  #view-create .planning-heading .back-link { font-size: 18px; }
+  #view-create .planner-steps { gap: 1px; }
+  #view-create .planner-steps i { width: 22px; height: 22px; font-size: 7px; }
+  #view-create .planner-sheet {
+    top: auto; right: 9px; bottom: 9px; left: 9px; width: auto; max-height: 57dvh;
+    padding: 18px 14px calc(13px + env(safe-area-inset-bottom)); border-radius: 27px 27px 22px 22px;
+  }
+  #view-create .planner-sheet-handle { display: block; width: 38px; height: 4px; margin: -7px auto 13px; border-radius: 999px; background: #c9d9e4; }
+  #view-create .planner-controls { grid-template-columns: 1fr 1fr; gap: 9px 7px; margin-bottom: 12px; }
+  #view-create .planner-controls .field > label { font-size: 8px; }
+  #view-create .planner-controls .seg button { min-height: 34px; gap: 2px; padding: 4px 2px; font-size: 8px; }
+  #view-create .planner-controls .seg button svg { width: 13px; height: 13px; }
+  #view-create #fieldDate { grid-template-columns: 55px minmax(0,1fr); gap: 6px; }
+  #view-create .planner-controls .field input, #view-create .planner-controls .field select { min-height: 35px; padding: 6px 9px; font-size: 9px; }
+  #view-create #fieldPoints > label { display: block; font-size: 10px; }
+  #view-create #fieldPoints .small { display: block; margin-top: 2px; font-size: 7px; }
+  #view-create .pt-row { min-height: 44px; gap: 6px; margin-bottom: 5px; padding: 5px 8px; }
+  #view-create .pt-role { width: 25px; height: 25px; }
+  #view-create .pt-name { font-size: 9px; }
+  #view-create .pt-time-label { font-size: 7px; }
+  #view-create #pointList .pt-time { width: 70px; min-height: 28px; padding: 4px 6px; font-size: 8px; }
+  #view-create .pt-drag { display: none; }
+  #view-create .row-btns .btn { min-height: 31px; font-size: 8px; }
+  #view-create #btnCheckup { min-height: 46px; margin-top: 9px; font-size: 10px; }
+  #view-create .planner-sheet > .hint { font-size: 7px; }
+  #view-create .planner-map-field .map-tools { top: 67px; right: 10px; }
+  #view-create .planner-map-field .leaflet-top.leaflet-left { top: 67px; left: 9px; }
+  #view-create .planner-map-field .leaflet-top.leaflet-right { top: 67px; right: 9px; }
+  #view-create .planner-map-field .map-hint { display: none; }
+
+  body.immersive-view #view-report { margin: 0; padding: 0 11px 30px; }
+  #view-report #reportBody { min-height: 100dvh; }
+  #view-report .report-local-nav { top: max(8px,env(safe-area-inset-top)); max-width: calc(100vw - 16px); }
+  #view-report .report-local-nav button { min-height: 34px; padding: 0 11px; font-size: 8px; }
+  #view-report .report-screen { padding-top: 58px; }
+  #view-report .report-screen-heading { gap: 8px; margin: 0 2px 7px; }
+  .screen-back { width: 31px; height: 31px; flex-basis: 31px; font-size: 17px; }
+  #view-report .report-screen-heading h2 { font-size: 17px; }
+  #view-report .report-screen-heading p { display: none; }
+  #view-report .report-screen-heading .eyebrow { margin-bottom: 2px; font-size: 6px; }
+  #weatherDetails .report-screen-heading,
+  #departurePlanner .report-screen-heading,
+  #travelReport .report-screen-heading {
+    min-height: 148px; margin: 0 -11px 13px; padding: 72px 14px 18px; border-radius: 0 0 34px 12px;
+    background-image: linear-gradient(90deg,rgba(246,250,253,.95),rgba(246,250,253,.68) 60%,rgba(246,250,253,.24)),
+      url('../assets/hero-alpine-road.png');
+  }
+  #view-home .home-hero {
+    min-height: min(760px,calc(100dvh - 55px)) !important; padding: 28px 22px 22px !important;
+    border-radius: 0 0 42px 42px !important;
+    background-image: linear-gradient(180deg,rgba(242,249,253,.8) 0%,rgba(242,249,253,.6) 34%,rgba(17,43,67,.28) 100%),
+      url('../assets/hero-alpine-road.png') !important;
+    background-position: center, 65% center !important;
+  }
+  #view-home .hero-copy { padding-top: 7px; }
+  #view-home .home-title { text-shadow: 0 1px 16px rgba(255,255,255,.55); }
+  #view-home .hero-visual { min-height: 245px; }
+  #view-home .hero-route-card { background: rgba(250,253,255,.92); }
+  #view-home .hero-weather-float { border: 1px solid rgba(255,255,255,.45); }
+  #view-report .report-screen-heading > .report-favorite { min-height: 30px; padding: 0 8px; font-size: 7px; }
+  #routeAnalysis .report-overview-grid { min-height: 86dvh; padding-top: 31dvh; }
+  #routeAnalysis .map-card { top: 0; height: 100dvh; }
+  #routeAnalysis #reportMap, #routeAnalysis #navMap { min-height: 100dvh !important; }
+  #routeAnalysis .map-card .map-tools { top: 66px; right: 9px; }
+  #routeAnalysis .map-card .leaflet-top.leaflet-left { top: 62px; left: 9px; }
+  #routeAnalysis .map-card .leaflet-top.leaflet-right { top: 62px; right: 9px; }
+  #routeAnalysis .map-card .map-hint { display: none; }
+  #routeAnalysis .summary { max-height: 56dvh; padding: 14px !important; border-radius: 28px 12px 28px 12px !important; }
+  #routeAnalysis .summary .sum-date { font-size: 8px; }
+  #routeAnalysis .summary .sum-route { margin-bottom: 8px; font-size: 15px; }
+  #routeAnalysis .report-overview-grid .decision-lead { margin: 8px 0 10px; }
+  #routeAnalysis .summary .kv { padding: 6px 0; font-size: 9px; }
+  #routeAnalysis .summary .kv-note { font-size: 7px; }
+  #routeAnalysis .elevation-card { margin-top: 9px; padding: 12px; }
+  #weatherDetails .weather-screen-grid { margin-top: 2px; }
+  #travelReport .diagnosis-list .dx-item { padding-right: 68px !important; }
+  #travelReport .diagnosis-list .dx-item::after { width: 84px; }
+  #weatherDetails, #departurePlanner, #travelReport { padding-top: 58px; }
+  #view-report .weather-screen-grid { gap: 8px; }
+  #view-report .weather-overview-strip { gap: 5px; }
+  #view-report .weather-overview-strip > span { padding: 6px 8px; font-size: 7px; }
+  #view-report .weather-overview-strip b { font-size: 8px; }
+  #view-report .weather-points-stack .pt-card { border-radius: 23px 10px 23px 10px !important; }
+  #view-report .departure-intro { grid-template-columns: 1fr; gap: 7px; }
+  #view-report .departure-rec-card { min-height: 115px; padding: 18px; border-radius: 30px 11px 30px 11px; }
+  #view-report .departure-current-card { min-height: 92px; padding: 12px 12px 12px 75px; border-radius: 11px 30px 11px 30px; }
+  #view-report .departure-current-card::before { left: 19px; width: 40px; height: 40px; font-size: 21px; }
+  #view-report .departure-grid-card .rec-hour { flex-basis: 58px; min-width: 58px; }
+  #view-report .report-details { padding-bottom: 35px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* Art directed finishing pass: let the map own the overview screen and keep
+   the analytical pieces as floating instruments above it. */
+#routeAnalysis .report-screen-heading {
+  position: fixed; top: 64px; left: 18px; right: 18px; z-index: 1510;
+  margin: 0; padding: 0; pointer-events: none;
+}
+#routeAnalysis .report-screen-heading > * { pointer-events: auto; }
+#routeAnalysis .report-screen-heading .screen-back,
+#routeAnalysis .report-screen-heading .report-favorite {
+  border: 1px solid rgba(255,255,255,.84); background: rgba(250,253,255,.82);
+  box-shadow: 0 8px 24px rgba(17,47,72,.13); backdrop-filter: blur(18px);
+}
+#routeAnalysis .report-screen-heading .screen-heading-copy {
+  padding: 8px 14px; border: 1px solid rgba(255,255,255,.74); border-radius: 999px;
+  background: rgba(247,251,254,.78); box-shadow: 0 8px 24px rgba(17,47,72,.1); backdrop-filter: blur(18px);
+}
+#routeAnalysis .report-screen-heading h2 { font-size: 14px; }
+#routeAnalysis .report-screen-heading p { display: none; }
+#routeAnalysis .report-overview-grid { min-height: 100dvh; padding: 0; }
+#routeAnalysis .map-card { background: #314d57 !important; }
+#routeAnalysis .map-card .leaflet-top.leaflet-left { top: 130px; left: 15px; }
+#routeAnalysis .map-card .leaflet-top.leaflet-right { top: 130px; right: 15px; }
+#routeAnalysis .map-card .map-tools { top: 127px; right: 16px; }
+#routeAnalysis .map-card .map-btn {
+  border-color: rgba(255,255,255,.78); border-radius: 999px; background: rgba(248,252,255,.84);
+  box-shadow: 0 8px 25px rgba(10,34,50,.17); backdrop-filter: blur(18px);
+}
+#routeAnalysis .summary {
+  position: fixed; left: clamp(16px,3vw,38px); bottom: 18px; z-index: 1450;
+  width: min(440px,calc(100vw - 32px)); max-height: min(51dvh,510px); padding: 18px !important;
+  border: 1px solid rgba(255,255,255,.82) !important; border-radius: 34px 14px 34px 14px !important;
+  background: linear-gradient(150deg,rgba(255,255,255,.91),rgba(245,250,253,.82)) !important;
+  box-shadow: 0 24px 70px rgba(6,28,47,.28) !important; backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
+}
+#routeAnalysis .summary::before {
+  content: ""; position: absolute; top: -28px; right: 14px; width: 112px; height: 58px;
+  clip-path: polygon(0 100%,22% 56%,37% 74%,59% 15%,76% 60%,90% 39%,100% 100%);
+  background: linear-gradient(135deg,rgba(98,177,231,.05),rgba(68,154,212,.24)); pointer-events: none;
+}
+#routeAnalysis .summary .sum-route { position: relative; font-size: 16px; }
+#routeAnalysis .summary .kv { border-bottom-color: rgba(123,157,182,.14); }
+#routeAnalysis .summary .decision-lead {
+  border: 1px solid rgba(255,255,255,.92) !important; background: rgba(255,255,255,.77) !important;
+  box-shadow: 0 15px 34px rgba(21,72,111,.1) !important;
+}
+#routeAnalysis .summary .decision-btn { min-height: 42px; }
+#routeAnalysis .elevation-card {
+  position: fixed; right: clamp(16px,3vw,38px); bottom: 18px; z-index: 1440;
+  width: min(360px,35vw); max-height: 192px; margin: 0; overflow: hidden;
+  border: 1px solid rgba(255,255,255,.77); border-radius: 31px 12px 31px 12px;
+  background: rgba(248,252,255,.85); box-shadow: 0 22px 58px rgba(6,28,47,.22);
+  backdrop-filter: blur(23px); -webkit-backdrop-filter: blur(23px);
+}
+#routeAnalysis .elevation-chart { height: 94px; }
+#routeAnalysis .elevation-note { margin-top: 4px; }
+
+/* The saved journeys page becomes a scenic journal cover followed by a loose,
+   editorial archive rather than another dashboard stack. */
+#view-saved.view.active {
+  position: relative; isolation: isolate; padding-top: 0; overflow-x: clip;
+  width: 100vw; margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw);
+}
+#view-saved .library-heading {
+  position: relative; width: 100%; min-height: 275px; align-items: flex-end;
+  margin: 0 0 20px; padding: 48px max(28px,calc((100vw - 1180px)/2)) 38px;
+  overflow: hidden; border-radius: 0 0 64px 18px;
+  background: linear-gradient(90deg,rgba(12,37,62,.83),rgba(18,54,82,.32) 58%,rgba(14,39,59,.08)),
+    url('../assets/hero-alpine-road.png') center 59%/cover;
+  box-shadow: 0 22px 50px rgba(15,48,72,.16);
+}
+#view-saved .library-heading::after { content: none; }
+#view-saved .library-heading > div { position: relative; z-index: 1; }
+#view-saved .library-heading .section-kicker { color: #a8d6f1; }
+#view-saved .library-heading h1 { color: #fff; font-size: clamp(32px,5vw,48px); text-shadow: 0 3px 22px rgba(5,20,35,.24); }
+#view-saved .library-heading > div > p:last-child { max-width: 400px; color: rgba(255,255,255,.8); }
+#view-saved .library-heading > .btn { position: relative; z-index: 1; border: 1px solid rgba(255,255,255,.5); border-radius: 999px; background: rgba(255,255,255,.16); color: #fff; backdrop-filter: blur(18px); }
+#view-saved .library-stats {
+  position: relative; z-index: 1; grid-template-columns: repeat(3,minmax(0,1fr)) minmax(190px,1.05fr);
+  gap: 0; margin: -43px 14px 26px; padding: 15px 20px;
+  border: 1px solid rgba(255,255,255,.84); border-radius: 34px 13px 34px 13px;
+  background: rgba(250,253,255,.87); box-shadow: 0 19px 48px rgba(16,52,80,.13); backdrop-filter: blur(23px);
+}
+#view-saved .library-stats > div { min-height: 58px; padding: 8px 17px; border: 0; border-right: 1px solid rgba(127,159,181,.15); border-radius: 0; background: transparent; box-shadow: none; }
+#view-saved .library-stats > div:nth-child(3) { border-right: 0; }
+#view-saved .library-stats strong { color: #0c63a8; font-size: 25px; }
+#view-saved .library-stats .library-note { min-height: 42px; border-right: 0; border-radius: 999px; background: #eaf6fb; }
+#view-saved .library-toolbar {
+  gap: 9px; padding: 7px 10px; border: 1px solid rgba(210,225,235,.72); border-radius: 999px;
+  background: rgba(255,255,255,.73); box-shadow: 0 12px 30px rgba(31,63,88,.06); backdrop-filter: blur(18px);
+}
+#view-saved .library-search { border: 0; border-radius: 999px; background: rgba(237,245,249,.82); }
+#view-saved .library-filters { gap: 4px; }
+#view-saved .library-filters button { border-radius: 999px; transition: transform .2s ease,background .2s ease,color .2s ease; }
+#view-saved .library-filters button:hover { transform: translateY(-2px); }
+#view-saved .saved-route-card { border-radius: 32px 14px 32px 14px; box-shadow: 0 18px 45px rgba(29,58,82,.1); transition: transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .28s ease; }
+#view-saved .saved-route-card:hover { transform: translateY(-7px) rotate(-.4deg); box-shadow: 0 26px 55px rgba(29,58,82,.17); }
+#view-saved .saved-card-cover { min-height: 190px; border-radius: 31px 13px 0 0; }
+#view-saved .saved-card-body { background: linear-gradient(180deg,#fff,#f6fafc); }
+#view-saved .saved-card-open { padding-inline: 13px; }
+
+/* Make each weather point read like a stop in a journey, while time choices
+   keep their tactile forecast-chip interaction. */
+#weatherDetails .weather-points-stack .pt-card { position: relative; background: rgba(255,255,255,.8); box-shadow: 0 14px 36px rgba(25,60,87,.08); }
+#weatherDetails .weather-points-stack .pt-card:hover { transform: translateY(-3px); box-shadow: 0 20px 42px rgba(25,60,87,.13); }
+#weatherDetails .weather-timeline-card { border-radius: 28px 12px 28px 12px; }
+#departurePlanner .departure-grid-card .rec-hour:not(.on):hover { transform: translateY(-4px); box-shadow: 0 15px 26px rgba(27,84,125,.14); }
+#travelReport .diagnosis-list .dx-item { transition: transform .24s ease,box-shadow .24s ease; }
+#travelReport .diagnosis-list .dx-item:hover { transform: translateX(4px); box-shadow: 0 18px 39px rgba(20,58,87,.13); }
+
+@media (max-width: 760px) {
+  #routeAnalysis .report-screen-heading { top: 55px; left: 10px; right: 10px; gap: 6px; }
+  #routeAnalysis .report-screen-heading .screen-heading-copy { padding: 7px 11px; }
+  #routeAnalysis .report-screen-heading h2 { font-size: 11px; }
+  #routeAnalysis .report-screen-heading .screen-back { width: 30px; height: 30px; flex-basis: 30px; }
+  #routeAnalysis .report-screen-heading .report-favorite { min-height: 30px; padding: 0 9px; font-size: 7px; }
+  #routeAnalysis .map-card .leaflet-top.leaflet-left { top: 112px; left: 9px; }
+  #routeAnalysis .map-card .leaflet-top.leaflet-right { top: 112px; right: 9px; }
+  #routeAnalysis .map-card .map-tools { top: 111px; right: 9px; }
+  #routeAnalysis .summary {
+    right: 10px; left: 10px; bottom: 103px; width: auto; max-height: min(43dvh,390px); padding: 13px !important;
+    border-radius: 27px 11px 27px 11px !important;
+  }
+  #routeAnalysis .summary .sum-date { font-size: 7px; }
+  #routeAnalysis .summary .sum-route { margin-bottom: 7px; font-size: 13px; }
+  #routeAnalysis .summary .decision-lead { grid-template-columns: 76px minmax(0,1fr); gap: 8px; margin: 7px 0; padding: 9px !important; }
+  #routeAnalysis .summary .decision-orbit { width: 72px; }
+  #routeAnalysis .summary .decision-orbit-value { font-size: 22px; }
+  #routeAnalysis .summary .decision-title { font-size: 12px; }
+  #routeAnalysis .summary .decision-copy { font-size: 8px; }
+  #routeAnalysis .summary .decision-risk { font-size: 7px; }
+  #routeAnalysis .summary .decision-fresh { display: none; }
+  #routeAnalysis .summary .decision-btn { min-height: 34px; padding: 6px 11px; font-size: 8px; }
+  #routeAnalysis .summary .kv { padding: 5px 0; font-size: 8px; }
+  #routeAnalysis .summary .kv-note { font-size: 6px; }
+  #routeAnalysis .elevation-card {
+    right: 10px; bottom: 10px; left: 10px; width: auto; max-height: 82px; padding: 9px 12px;
+    border-radius: 22px 9px 22px 9px;
+  }
+  #routeAnalysis .elevation-head { align-items: center; }
+  #routeAnalysis .elevation-head h3 { margin: 0; font-size: 10px; }
+  #routeAnalysis .elevation-head p, #routeAnalysis .elevation-range, #routeAnalysis .elevation-note { display: none; }
+  #routeAnalysis .elevation-chart { height: 42px; }
+
+  #view-saved .library-heading {
+    min-height: 245px; align-items: flex-end; margin: 0 calc(50% - 50vw) 15px; padding: 35px 18px 31px;
+    border-radius: 0 0 42px 12px; background-position: center 62%;
+  }
+  #view-saved .library-heading::after { right: 17px; bottom: 15px; font-size: 6px; }
+  #view-saved .library-heading h1 { font-size: 30px; }
+  #view-saved .library-heading > div > p:last-child { max-width: 230px; font-size: 9px; }
+  #view-saved .library-heading > .btn { min-height: 34px; padding: 7px 10px; font-size: 8px; }
+  #view-saved .library-stats { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0; margin: -28px 5px 19px; padding: 9px 6px; border-radius: 25px 10px 25px 10px; }
+  #view-saved .library-stats > div { min-height: 52px; padding: 5px 7px; }
+  #view-saved .library-stats small { font-size: 6px; }
+  #view-saved .library-stats strong { font-size: 18px; }
+  #view-saved .library-stats .library-note { grid-column: 1/-1; min-height: 31px; margin-top: 4px; padding: 4px 10px; font-size: 7px; }
+  #view-saved .library-toolbar { flex-direction: column; align-items: stretch; padding: 8px; border-radius: 24px 10px 24px 10px; }
+  #view-saved .library-search { min-height: 38px; }
+  #view-saved .library-filters { justify-content: space-between; }
+  #view-saved .library-filters button { flex: 1; min-height: 30px; padding: 0 4px; font-size: 7px; }
+  #view-saved .saved-card-cover { min-height: 145px; }
+}
+
+@media (min-width: 761px) and (max-width: 1050px) {
+  #routeAnalysis .summary {
+    right: 16px; bottom: 120px; left: 16px; width: auto;
+    max-height: min(43dvh,370px);
+  }
+  #routeAnalysis .elevation-card {
+    right: 16px; bottom: 15px; left: 16px; width: auto; max-height: 88px; padding: 9px 14px;
+  }
+  #routeAnalysis .elevation-head { align-items: center; }
+  #routeAnalysis .elevation-head h3 { margin: 0; font-size: 11px; }
+  #routeAnalysis .elevation-head p, #routeAnalysis .elevation-range, #routeAnalysis .elevation-note { display: none; }
+  #routeAnalysis .elevation-chart { height: 43px; }
+}
+
+/* The map and the score report are separate product screens. The map gets the
+   whole canvas; decision content only exists in the report screen below. */
+#view-report .report-local-nav {
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none; white-space: nowrap;
+  border-color: rgba(255,255,255,.82); background: rgba(248,252,255,.82);
+  backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+}
+#view-report .report-local-nav::-webkit-scrollbar { display: none; }
+#view-report .report-local-nav button { flex: 0 0 auto; transition: color .2s ease,background .2s ease,transform .2s ease; }
+#view-report .report-local-nav button:active { transform: scale(.96); }
+#view-report .report-screen:not(.is-active) { display: none !important; }
+#view-report .report-screen.is-active { display: block; }
+#view-report .report-details.is-active { display: grid; }
+#routeAnalysis .report-screen-heading {
+  position: fixed; top: 64px; left: 18px; right: 18px; z-index: 1510;
+  margin: 0; padding: 0; pointer-events: none;
+}
+#routeAnalysis .report-screen-heading > * { pointer-events: auto; }
+#routeAnalysis .report-screen-heading .screen-back,
+#routeAnalysis .report-screen-heading .report-favorite {
+  border: 1px solid rgba(255,255,255,.84); background: rgba(250,253,255,.84);
+  box-shadow: 0 8px 24px rgba(17,47,72,.15); backdrop-filter: blur(18px);
+}
+#routeAnalysis .report-screen-heading .screen-heading-copy {
+  padding: 8px 15px; border: 1px solid rgba(255,255,255,.76); border-radius: 999px;
+  background: rgba(247,251,254,.82); box-shadow: 0 8px 24px rgba(17,47,72,.12); backdrop-filter: blur(18px);
+}
+#routeAnalysis .report-screen-heading .eyebrow,
+#routeAnalysis .report-screen-heading p { display: none; }
+#routeAnalysis .report-screen-heading h2 { color: #153b5e; font-size: 14px; }
+#routeAnalysis .report-screen-heading .report-favorite { min-height: 39px; border-radius: 999px; color: #245477; }
+#routeAnalysis .report-overview-grid { min-height: 100dvh; padding: 0; }
+#routeAnalysis .map-card {
+  position: fixed !important; z-index: 0; inset: 0; width: 100vw; height: 100dvh;
+  margin: 0 !important; padding: 0 !important; overflow: hidden;
+  border: 0 !important; border-radius: 0 !important; background: #334d55 !important; box-shadow: none !important;
+}
+#routeAnalysis .map-card .map-wrap { position: absolute; inset: 0; border-radius: 0; }
+#routeAnalysis #reportMap, #routeAnalysis #navMap {
+  position: absolute; inset: 0; width: 100%; height: 100% !important;
+  min-height: 100dvh !important; border-radius: 0 !important;
+}
+#routeAnalysis .map-card .map-hint,
+#routeAnalysis .weather-legend { display: none !important; }
+#routeAnalysis .map-card .map-tools { top: 127px; right: 16px; z-index: 450; }
+#routeAnalysis .map-card .map-tools .map-btn {
+  min-height: 39px; border: 1px solid rgba(255,255,255,.84); border-radius: 999px;
+  background: rgba(248,252,255,.88); color: #254963; box-shadow: 0 8px 25px rgba(10,34,50,.18);
+  backdrop-filter: blur(18px);
+}
+#routeAnalysis .map-card .leaflet-top.leaflet-left { top: 130px; left: 15px; }
+#routeAnalysis .map-card .leaflet-top.leaflet-right { top: 130px; right: 15px; }
+#routeAnalysis .leaflet-control-attribution { margin-bottom: 153px; border-radius: 10px 0 0 0; }
+.route-map-console {
+  position: fixed; z-index: 1450; left: 50%; bottom: 17px; width: min(920px,calc(100vw - 44px));
+  padding: 16px 23px 13px; overflow: hidden; border: 1px solid rgba(255,255,255,.83);
+  border-radius: 34px 14px 34px 14px; background: linear-gradient(135deg,rgba(255,255,255,.985),rgba(245,250,253,.96));
+  box-shadow: 0 21px 60px rgba(7,30,49,.27); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+  transform: translateX(-50%); animation: consoleRise .52s cubic-bezier(.18,.75,.25,1) both;
+}
+@keyframes consoleRise { from { opacity: 0; transform: translate(-50%,18px) scale(.985); } to { opacity: 1; transform: translate(-50%,0) scale(1); } }
+.route-map-console-head { display: flex; justify-content: space-between; align-items: center; gap: 14px; }
+.map-console-kicker { color: #7392a7; font-size: 8px; font-weight: 800; letter-spacing: .17em; }
+.map-console-route { display: flex; align-items: center; gap: 11px; margin-top: 3px; color: #183e5d; }
+.map-console-route strong { max-width: 32vw; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.map-console-route svg { width: 78px; height: 14px; overflow: visible; }
+.map-console-route svg path { fill: none; stroke: #1385d6; stroke-width: 2.2; stroke-dasharray: 3 2; animation: routeDash 8s linear infinite; }
+.map-console-route svg circle { fill: #fff; stroke: #1789d5; stroke-width: 2; }
+@keyframes routeDash { to { stroke-dashoffset: -40; } }
+.map-console-date { color: #8298a9; font-size: 9px; white-space: nowrap; }
+.route-map-console-foot { display: flex; justify-content: space-between; align-items: center; gap: 22px; margin-top: 12px; padding-top: 11px; border-top: 1px solid rgba(112,149,175,.16); }
+.map-console-metrics { display: flex; align-items: stretch; min-width: 0; }
+.map-console-metrics > div { min-width: 112px; padding: 0 17px; border-right: 1px solid rgba(112,149,175,.18); }
+.map-console-metrics > div:first-child { padding-left: 0; }
+.map-console-metrics > div:last-child { border-right: 0; }
+.map-console-metrics small { display: block; margin-bottom: 2px; color: #8297a8; font-size: 8px; }
+.map-console-metrics strong { color: #163d5d; font-size: 18px; font-variant-numeric: tabular-nums; }
+.map-console-metrics strong i { color: #668298; font-size: 9px; font-style: normal; font-weight: 600; }
+.map-console-metrics .map-console-risk strong { color: #d87a34; }
+.map-impact-legend { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px 12px; color: #526f84; font-size: 8px; }
+.map-impact-legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.map-impact-legend i { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 3px rgba(66,119,151,.08); }
+.map-impact-legend i.good { background: #19ad77; }
+.map-impact-legend i.fair { background: #efba35; }
+.map-impact-legend i.caution { background: #f38424; }
+.map-impact-legend i.bad { background: #ef4248; }
+.map-console-note { margin: 9px 0 0; color: #8a9cac; font-size: 8px; }
+
+#smartReport.smart-report-screen { position: relative; z-index: 1; min-height: 100vh; padding: 0 24px 64px; }
+#smartReport .report-screen-heading {
+  align-items: flex-end; min-height: 286px; margin: 0 -24px; padding: 80px max(32px,calc((100vw - 1050px)/2)) 78px;
+  border-radius: 0 0 74px 17px; background:
+    linear-gradient(90deg,rgba(8,43,72,.77),rgba(17,69,104,.38) 52%,rgba(15,55,81,.06)),
+    url('../assets/hero-alpine-road.png') center 52%/cover;
+  box-shadow: 0 22px 55px rgba(18,55,82,.18);
+}
+#smartReport .report-screen-heading .screen-back,
+#smartReport .report-screen-heading .report-favorite { border-color: rgba(255,255,255,.55); background: rgba(241,249,253,.2); color: #fff; backdrop-filter: blur(16px); }
+#smartReport .report-screen-heading .screen-back { margin-bottom: 4px; }
+#smartReport .report-screen-heading .screen-heading-copy { margin-right: auto; }
+#smartReport .report-screen-heading .eyebrow { color: #b8e3f7; }
+#smartReport .report-screen-heading h2 { color: #fff; font-size: clamp(26px,3vw,38px); text-shadow: 0 4px 20px rgba(5,25,41,.2); }
+#smartReport .report-screen-heading p { color: rgba(245,251,255,.82); font-size: 10px; }
+#smartReport .smart-report-content { position: relative; z-index: 4; width: min(980px,100%); margin: -54px auto 0; }
+#smartReport .smart-report-content > .decision-lead {
+  display: grid; grid-template-columns: 190px minmax(0,1fr); align-items: center; gap: 24px;
+  width: min(900px,100%); margin: 0 auto 20px; padding: 27px 31px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,.92) !important; border-radius: 50px 17px 50px 17px;
+  background: linear-gradient(130deg,rgba(255,255,255,.98),rgba(245,250,253,.91)) !important;
+  box-shadow: 0 24px 62px rgba(19,61,94,.16) !important; backdrop-filter: blur(25px);
+}
+#smartReport .route-score-orbit { width: 158px; height: 158px; border-radius: 50%; background: conic-gradient(from 210deg,#1988e3 calc(var(--score)*1%),#e0edf5 0); box-shadow: 0 0 0 9px rgba(35,139,213,.09),0 15px 30px rgba(15,111,181,.14); }
+#smartReport .route-score-orbit::before { inset: 12px; background: linear-gradient(155deg,#fff,#f1f8fd); }
+#smartReport .decision-orbit-value { font-size: 48px; }
+#smartReport .decision-orbit-value small { font-size: 14px; }
+#smartReport .decision-orbit-label { max-width: 112px; margin-top: 8px; font-size: 9px; }
+#smartReport .decision-kicker { color: #6d94af; font-size: 9px; letter-spacing: .12em; }
+#smartReport .decision-title { margin: 5px 0 8px; color: #153b5c; font-size: 22px; }
+#smartReport .decision-copy { max-width: 520px; color: #607b91; font-size: 11px; line-height: 1.8; }
+#smartReport .decision-risk { margin-top: 11px; color: #526c80; font-size: 10px; }
+#smartReport .decision-risk span { margin-right: 7px; color: #879cab; }
+#smartReport .decision-fresh { margin-top: 7px; color: #9aacb9; font-size: 8px; }
+#smartReport .decision-btn { min-height: 39px; margin-top: 11px; border-radius: 999px; }
+.smart-recommendation-spotlight {
+  display: flex; align-items: center; gap: 16px; width: min(900px,100%); margin: 0 auto 31px; padding: 17px 25px;
+  border-radius: 29px 12px 29px 12px; background: linear-gradient(110deg,#e8f5fd,#f6fbfe 70%,#fff);
+  box-shadow: inset 0 0 0 1px rgba(107,171,211,.16),0 13px 30px rgba(29,81,118,.07);
+}
+.recommendation-clock { display: grid; width: 48px; height: 48px; flex: 0 0 48px; place-items: center; border-radius: 50%; background: #fff; color: #1581d0; font-size: 27px; box-shadow: 0 6px 17px rgba(19,114,181,.12); }
+.smart-recommendation-spotlight > div:nth-child(2) { display: grid; gap: 2px; }
+.smart-recommendation-spotlight span { color: #66839a; font-size: 9px; }
+.smart-recommendation-spotlight strong { color: #123f65; font-size: 19px; letter-spacing: -.025em; }
+.smart-recommendation-spotlight small { color: #8298a8; font-size: 8px; }
+.smart-recommendation-spotlight > i { margin-left: auto; color: #44a8e8; font-size: 23px; font-style: normal; animation: sparkleFloat 2.4s ease-in-out infinite; }
+@keyframes sparkleFloat { 50% { transform: translateY(-4px) rotate(14deg); opacity: .68; } }
+.smart-report-section { width: min(900px,100%); margin: 0 auto 30px; }
+.smart-section-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 14px; margin: 0 3px 12px; }
+.smart-section-heading > div > span { color: #75a0ba; font-size: 8px; font-weight: 800; letter-spacing: .16em; }
+.smart-section-heading h3 { margin: 3px 0 0; color: #163d5c; font-size: 19px; letter-spacing: -.035em; }
+.smart-section-heading > button { border: 0; background: transparent; color: #6a89a0; font-size: 9px; cursor: pointer; }
+.smart-section-heading > button b { margin-left: 4px; color: #1684d0; }
+#smartReport .smart-diagnosis-board { padding: 0; }
+#smartReport .smart-diagnosis-board .diagnosis-board-head { padding: 0 4px 11px; }
+#smartReport .smart-diagnosis-board .diagnosis-list { display: grid; gap: 8px; }
+#smartReport .smart-diagnosis-board .dx-item { min-height: 76px; border-radius: 28px 11px 28px 11px !important; box-shadow: 0 10px 24px rgba(27,67,96,.06); }
+#smartReport .smart-diagnosis-board .dx-item:hover { transform: translateX(4px); box-shadow: 0 15px 30px rgba(27,67,96,.12); }
+.smart-segment-timeline { position: relative; padding: 2px 0 2px 14px; }
+.smart-segment-timeline::before { content: ""; position: absolute; top: 15px; bottom: 15px; left: 27px; width: 1px; background: linear-gradient(#7cc3e6,#d5e5ee); }
+.smart-segment-row {
+  position: relative; display: grid; grid-template-columns: 31px minmax(0,1fr) auto 22px; align-items: center; gap: 13px;
+  width: 100%; min-height: 71px; padding: 8px 14px 8px 0; border: 0; border-radius: 26px 10px 26px 10px;
+  border-bottom: 1px solid rgba(113,151,177,.16); background: rgba(255,255,255,.68); text-align: left; cursor: pointer;
+  transition: transform .22s ease,background .22s ease,box-shadow .22s ease;
+}
+.smart-segment-row:hover { z-index: 1; transform: translateX(5px); background: #fff; box-shadow: 0 12px 28px rgba(29,68,97,.1); }
+.segment-rank { z-index: 1; display: grid; width: 27px; height: 27px; place-items: center; border: 3px solid #f5fafc; border-radius: 50%; background: #2189d7; color: #fff; font-size: 9px; font-weight: 800; }
+.smart-segment-row.caution .segment-rank { background: #f08b22; }
+.smart-segment-row.bad .segment-rank { background: #ee4a4d; }
+.segment-copy { min-width: 0; }
+.segment-copy strong { display: block; overflow: hidden; color: #1b3f5d; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.segment-copy small { display: block; overflow: hidden; margin-top: 4px; color: #8297a8; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.segment-score { color: #1583d2; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.smart-segment-row.caution .segment-score { color: #dc8429; }
+.smart-segment-row.bad .segment-score { color: #e1484a; }
+.segment-score small { margin-left: 2px; color: #849aab; font-size: 8px; }
+.segment-arrow { color: #91a8b8; font-size: 15px; }
+.smart-empty-note,.smart-data-note { margin: 10px 3px; color: #8297a7; font-size: 9px; }
+#smartReport .elevation-card { width: min(900px,100%); margin: 25px auto 0; }
+#smartReport .elevation-chart { height: 130px; }
+
+@media (max-width: 760px) {
+  #view-report .report-local-nav {
+    top: 9px; width: calc(100vw - 14px); max-width: calc(100vw - 14px); justify-content: flex-start;
+    gap: 2px; margin: 0; padding: 4px; border-radius: 999px;
+  }
+  #view-report .report-local-nav button { min-height: 34px; padding: 0 10px; font-size: 8px; }
+  #routeAnalysis .report-screen-heading { top: 58px; left: 9px; right: 9px; gap: 6px; }
+  #routeAnalysis .report-screen-heading .screen-heading-copy { padding: 7px 11px; }
+  #routeAnalysis .report-screen-heading h2 { font-size: 11px; }
+  #routeAnalysis .report-screen-heading .screen-back { width: 31px; height: 31px; flex-basis: 31px; }
+  #routeAnalysis .report-screen-heading .report-favorite { min-height: 31px; padding: 0 9px; font-size: 8px; }
+  #routeAnalysis .map-card .map-tools { top: 112px; right: 9px; }
+  #routeAnalysis .map-card .leaflet-top.leaflet-left { top: 112px; left: 9px; }
+  #routeAnalysis .map-card .leaflet-top.leaflet-right { top: 112px; right: 9px; }
+  #routeAnalysis .leaflet-control-attribution { margin-bottom: 175px; font-size: 7px; }
+  .route-map-console { bottom: calc(9px + env(safe-area-inset-bottom)); width: calc(100vw - 18px); padding: 12px 13px 10px; border-radius: 27px 11px 27px 11px; }
+  .route-map-console-head { gap: 6px; }
+  .map-console-kicker { font-size: 7px; letter-spacing: .13em; }
+  .map-console-route { gap: 6px; margin-top: 2px; }
+  .map-console-route strong { max-width: 29vw; font-size: 11px; }
+  .map-console-route svg { width: 45px; height: 12px; }
+  .map-console-date { font-size: 8px; }
+  .route-map-console-foot { align-items: flex-start; gap: 10px; margin-top: 8px; padding-top: 8px; }
+  .map-console-metrics { flex: 1; }
+  .map-console-metrics > div { min-width: 0; flex: 1; padding: 0 7px; }
+  .map-console-metrics small { font-size: 7px; }
+  .map-console-metrics strong { font-size: 14px; }
+  .map-console-metrics strong i { font-size: 7px; }
+  .map-impact-legend { display: grid; grid-template-columns: repeat(2,auto); justify-content: end; gap: 5px 8px; font-size: 7px; }
+  .map-impact-legend i { width: 6px; height: 6px; }
+  .map-console-note { display: none; }
+  #smartReport.smart-report-screen { padding: 0 12px 40px; }
+  #smartReport .report-screen-heading {
+    min-height: 248px; margin: 0 -12px; padding: 85px 13px 68px; gap: 7px;
+    border-radius: 0 0 45px 12px; background-position: 59% center;
+  }
+  #smartReport .report-screen-heading .screen-back { width: 32px; height: 32px; flex: 0 0 32px; }
+  #smartReport .report-screen-heading .screen-heading-copy { padding: 0; }
+  #smartReport .report-screen-heading h2 { font-size: 21px; }
+  #smartReport .report-screen-heading p { max-width: 52vw; overflow: hidden; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+  #smartReport .report-screen-heading .report-favorite { min-height: 31px; padding: 0 8px; font-size: 7px; }
+  #smartReport .smart-report-content { margin-top: -42px; }
+  #smartReport .smart-report-content > .decision-lead { grid-template-columns: 91px minmax(0,1fr); gap: 12px; margin-bottom: 12px; padding: 14px 12px; border-radius: 31px 11px 31px 11px; }
+  #smartReport .route-score-orbit { width: 83px; height: 83px; box-shadow: 0 0 0 5px rgba(35,139,213,.09),0 9px 18px rgba(15,111,181,.12); }
+  #smartReport .route-score-orbit::before { inset: 7px; }
+  #smartReport .decision-orbit-value { font-size: 27px; }
+  #smartReport .decision-orbit-value small { font-size: 8px; }
+  #smartReport .decision-orbit-label { max-width: 62px; margin-top: 3px; font-size: 6px; }
+  #smartReport .decision-kicker { font-size: 7px; }
+  #smartReport .decision-title { margin: 3px 0 4px; font-size: 13px; }
+  #smartReport .decision-copy { font-size: 8px; line-height: 1.6; }
+  #smartReport .decision-risk { margin-top: 5px; font-size: 7px; }
+  #smartReport .decision-fresh { display: none; }
+  #smartReport .decision-btn { min-height: 31px; margin-top: 7px; padding: 5px 9px; font-size: 7px; }
+  .smart-recommendation-spotlight { gap: 10px; margin-bottom: 22px; padding: 12px 14px; border-radius: 24px 9px 24px 9px; }
+  .recommendation-clock { width: 38px; height: 38px; flex-basis: 38px; font-size: 22px; }
+  .smart-recommendation-spotlight strong { font-size: 15px; }
+  .smart-recommendation-spotlight small { max-width: 65vw; font-size: 7px; }
+  .smart-section-heading { align-items: flex-end; margin-bottom: 9px; }
+  .smart-section-heading h3 { font-size: 15px; }
+  .smart-section-heading > button { font-size: 7px; }
+  .smart-report-section { margin-bottom: 22px; }
+  #smartReport .smart-diagnosis-board .diagnosis-board-head strong { font-size: 12px; }
+  #smartReport .smart-diagnosis-board .diagnosis-board-head p { font-size: 7px; }
+  #smartReport .smart-diagnosis-board .dx-item { min-height: 65px; padding: 12px 53px 12px 13px !important; border-radius: 24px 9px 24px 9px !important; }
+  #smartReport .smart-diagnosis-board .dx-t { font-size: 9px; }
+  #smartReport .smart-diagnosis-board .dx-l { font-size: 8px; }
+  .smart-segment-timeline { padding-left: 10px; }
+  .smart-segment-timeline::before { left: 21px; }
+  .smart-segment-row { grid-template-columns: 25px minmax(0,1fr) auto 14px; gap: 8px; min-height: 62px; padding-right: 7px; }
+  .segment-rank { width: 22px; height: 22px; font-size: 7px; }
+  .segment-copy strong { font-size: 9px; }
+  .segment-copy small { font-size: 7px; }
+  .segment-score { font-size: 14px; }
+  #smartReport .elevation-chart { height: 95px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-map-console, .map-console-route svg path, .smart-recommendation-spotlight > i { animation: none !important; }
+}
+
+/* The map uses fixed, full-viewport layers. Fade-in while scrolling between
+   report sections lets the previous screen show through its translucent UI. */
+#routeAnalysis.report-screen {
+  min-height: 100dvh; padding-top: 0;
+}
+#routeAnalysis.report-screen.is-active { animation: none !important; opacity: 1; transform: none; }
+
+/* Planner controls stay in the clear area beside the itinerary sheet. */
+#view-create .planning-heading { width: min(900px,calc(100% - 40px)); }
+#view-create .planner-steps { gap: 5px; }
+#view-create .planner-steps > button { gap: 7px; min-height: 34px; padding: 3px 8px; }
+#view-create .planner-steps > button span { display: inline !important; color: #54728a; font-size: 9px; white-space: nowrap; }
+#view-create .planner-steps > button.is-current span { color: #174c7a; }
+#view-create .planner-steps > b { display: block !important; width: 15px; }
+#view-create .planner-map-field .leaflet-top.leaflet-left {
+  top: 140px; right: 18px; left: auto; z-index: 470;
+}
+#view-create .planner-map-field .leaflet-control-zoom {
+  overflow: hidden; border: 1px solid rgba(255,255,255,.86); border-radius: 18px;
+  background: rgba(250,253,255,.92); box-shadow: 0 9px 26px rgba(10,34,50,.22);
+  backdrop-filter: blur(16px);
+}
+#view-create .planner-map-field .leaflet-control-zoom a {
+  display: grid; width: 38px; height: 38px; place-items: center;
+  border-color: rgba(110,148,174,.18); color: #234c6b; font-size: 20px; line-height: 1;
+}
+#view-create .pt-role {
+  display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center;
+  padding: 0; border-radius: 50%; line-height: 1; text-align: center;
+}
+#view-create .pt-role::after { display: block; line-height: 1; transform: translateY(-.5px); }
+
+/* The homepage features have a single text track; the ordinal and arrow float
+   in their own decorative positions and cannot squeeze Chinese copy. */
+.home-features .feat {
+  display: grid !important; grid-template-columns: minmax(0,1fr) !important;
+  min-width: 0; min-height: 124px; padding: 18px 52px 17px 66px !important;
+  overflow: hidden; border: 1px solid rgba(63,126,168,.14) !important;
+  border-radius: 26px 12px 26px 12px !important;
+  background: radial-gradient(circle at 100% 0%,rgba(145,206,240,.2),transparent 38%),linear-gradient(135deg,#edf7fc,#fbfdfe) !important;
+  box-shadow: 0 12px 30px rgba(27,67,105,.07) !important;
+}
+.home-features .feat:nth-child(2) { background: radial-gradient(circle at 100% 0%,rgba(139,219,195,.2),transparent 38%),linear-gradient(135deg,#eff9f6,#fbfdfc) !important; }
+.home-features .feat:nth-child(3) { background: radial-gradient(circle at 100% 0%,rgba(172,188,245,.22),transparent 38%),linear-gradient(135deg,#f1f4fc,#fcfcfe) !important; }
+.home-features .feat > div { grid-column: 1; align-self: center; min-width: 0; }
+.home-features .feat b { display: block; color: #173f60; font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; }
+.home-features .feat p { max-width: none; margin-top: 5px; color: #6b8295; font-size: 11px; line-height: 1.65; overflow-wrap: anywhere; }
+.home-features .feat::before { top: 50%; left: 13px; width: 42px; height: 42px; transform: translateY(-50%); }
+.home-features .feat-index { top: 50%; left: 24px; transform: translateY(-50%); color: #3976a0; font-weight: 750; }
+.home-features .feat-symbol { top: 50%; right: 15px; transform: translateY(-50%); }
+.home-features .feat:hover .feat-symbol { transform: translate(2px,calc(-50% - 2px)); }
+
+/* Keep the point timeline and its advisory column inside one measured grid. */
+#weatherDetails .weather-screen-grid {
+  width: min(1510px,100%); margin-inline: auto;
+  grid-template-columns: minmax(0,1.45fr) minmax(300px,.85fr);
+  gap: clamp(18px,2vw,30px); align-items: start;
+}
+#weatherDetails .weather-screen-grid > *,
+#weatherDetails .weather-points-stack,
+#weatherDetails .weather-points-stack .pt-card,
+#weatherDetails .weather-side-note { min-width: 0; max-width: 100%; box-sizing: border-box; }
+#weatherDetails .weather-points-stack .pt-card { width: 100%; }
+#weatherDetails .weather-side-note {
+  position: sticky; top: 96px; align-self: start; width: 100%; padding: 20px;
+  overflow: hidden; border: 1px solid rgba(118,170,204,.14); border-radius: 34px 13px 34px 13px;
+  background: radial-gradient(circle at 95% 0%,rgba(138,200,234,.2),transparent 34%),linear-gradient(145deg,#edf6fb,#f8fbfd 65%,#f3f8fb);
+  box-shadow: 0 18px 42px rgba(28,70,104,.09);
+}
+#weatherDetails .weather-side-note::before {
+  content: ""; position: absolute; top: 9px; right: 13px; width: 104px; height: 50px;
+  clip-path: polygon(0 100%,21% 54%,38% 75%,59% 12%,77% 62%,90% 42%,100% 100%);
+  background: linear-gradient(135deg,rgba(111,184,224,.12),rgba(69,142,190,.25)); pointer-events: none;
+}
+#weatherDetails .weather-side-note > * { position: relative; z-index: 1; }
+#weatherDetails .weather-side-note h3 { font-size: 17px; }
+#weatherDetails .weather-side-note .advice { padding: 12px 15px; border-radius: 25px 10px 25px 10px !important; background: rgba(255,255,255,.68) !important; }
+
+@media (max-width: 1080px) {
+  #weatherDetails .weather-screen-grid { width: min(820px,100%); grid-template-columns: minmax(0,1fr); gap: 16px; }
+  #weatherDetails .weather-side-note { position: relative; top: auto; order: -1; }
+}
+
+@media (max-width: 760px) {
+  #view-create .planning-heading {
+    top: max(8px,env(safe-area-inset-top)); width: calc(100% - 20px); padding: 8px 10px;
+    grid-template-columns: 28px minmax(0,1fr); grid-template-rows: auto auto; gap: 3px 8px;
+    border-radius: 23px 10px 23px 10px;
+  }
+  #view-create .planning-heading h1 { grid-column: 2; grid-row: 1; font-size: 13px; }
+  #view-create .planning-heading .back-link { grid-column: 1; grid-row: 1; }
+  #view-create .planner-steps {
+    grid-column: 1 / -1; grid-row: 2; justify-content: center; gap: 3px;
+    width: 100%; min-width: 0; overflow: visible;
+  }
+  #view-create .planner-steps > button { min-height: 30px; gap: 5px; padding: 2px 6px; }
+  #view-create .planner-steps > button span { font-size: 9px; }
+  #view-create .planner-steps > button i { width: 22px; height: 22px; flex: 0 0 22px; font-size: 8px; }
+  #view-create .planner-steps > b { width: 9px; flex: 0 0 9px; }
+  #view-create .planner-map-field .map-tools { top: 105px; right: 10px; }
+  #view-create .planner-map-field .leaflet-top.leaflet-left { top: 151px; right: 10px; left: auto; }
+  #view-create .planner-map-field .leaflet-control-zoom a { width: 34px; height: 34px; }
+  #view-create .planner-sheet { max-height: min(60dvh,540px); }
+  #view-create .pt-row { min-height: 49px; gap: 7px; }
+  #view-create .pt-role { width: 30px; height: 30px; flex-basis: 30px; }
+  #view-create .pt-role::after { font-size: 11px; }
+  #view-create .pt-name { font-size: 12px; }
+  #view-create .pt-time-label { font-size: 10px; }
+  #view-create #pointList .pt-time { width: 77px; font-size: 12px; }
+  #view-create .planner-controls .field > label { font-size: 10px; }
+  #view-create .planner-controls .seg button { min-height: 39px; padding-inline: 5px; font-size: 10px; }
+  #view-create .planner-controls .field input, #view-create .planner-controls .field select { min-height: 40px; font-size: 12px; }
+  #view-create .planner-sheet > .hint { font-size: 9px; }
+
+  .home-features .feat { min-height: 94px; padding: 14px 48px 14px 58px !important; border-radius: 23px 10px 23px 10px !important; }
+  .home-features .feat b { font-size: 14px; }
+  .home-features .feat p { font-size: 11px; }
+
+  #view-report .report-local-nav button { min-height: 38px; padding: 0 9px; font-size: 9px; }
+  #weatherDetails .weather-screen-grid { gap: 13px; }
+  #weatherDetails .weather-side-note { padding: 15px; border-radius: 27px 10px 27px 10px; }
+  #weatherDetails .weather-side-note h3 { font-size: 15px; }
+  #weatherDetails .weather-overview-strip > span { padding: 7px 9px; font-size: 10px; }
+  #weatherDetails .weather-overview-strip b { font-size: 11px; }
+  #weatherDetails .weather-points-stack { padding-left: 18px; gap: 10px; }
+  #weatherDetails .weather-points-stack .pt-card { border-radius: 25px 10px 25px 10px !important; }
+  #weatherDetails .weather-points-stack .pt-card:nth-child(even) { margin-left: 0; }
+  #weatherDetails .weather-points-stack .pc-name { font-size: 15px; }
+  #weatherDetails .weather-points-stack .pc-meta,
+  #weatherDetails .weather-points-stack .pc-arrive,
+  #weatherDetails .weather-points-stack .pc-lv { font-size: 11px; }
+  #weatherDetails .weather-points-stack .ded { font-size: 10px; }
+  #weatherDetails .weather-points-stack .hs-col { flex-basis: 48px; }
+  #weatherDetails .weather-points-stack .ht-legend { font-size: 9px; }
+
+  #smartReport .decision-kicker { font-size: 9px; }
+  #smartReport .decision-title { font-size: 16px; }
+  #smartReport .decision-copy { font-size: 11px; }
+  #smartReport .decision-risk { font-size: 10px; }
+  #smartReport .smart-recommendation-spotlight span { font-size: 10px; }
+  #smartReport .smart-recommendation-spotlight strong { font-size: 16px; }
+  #smartReport .smart-recommendation-spotlight small { font-size: 9px; }
+  #smartReport .smart-section-heading h3 { font-size: 15px; }
+  #smartReport .smart-section-heading > button { font-size: 10px; }
+  #smartReport .smart-diagnosis-board .dx-t { font-size: 11px; }
+  #smartReport .smart-diagnosis-board .dx-l { font-size: 10px; }
+  #smartReport .segment-copy strong { font-size: 11px; }
+  #smartReport .segment-copy small { font-size: 9px; }
+  #smartReport .smart-data-note, #smartReport .smart-empty-note { font-size: 10px; }
+  #departurePlanner .departure-grid-note,
+  #departurePlanner .departure-current-card span,
+  #departurePlanner .departure-rec-card p { font-size: 10px; }
+  #travelReport .dx-t { font-size: 12px; }
+  #travelReport .dx-l { font-size: 10px; }
+}
+
+@media (max-width: 390px) {
+  #view-create .planner-steps > button { gap: 3px; padding-inline: 3px; }
+  #view-create .planner-steps > button span { font-size: 8px; }
+  #view-create .planner-steps > b { width: 6px; flex-basis: 6px; }
+  #view-create .planner-sheet { max-height: 62dvh; }
+  #smartReport .smart-report-content > .decision-lead { grid-template-columns: 82px minmax(0,1fr); gap: 9px; padding-inline: 10px; }
+  #smartReport .route-score-orbit { width: 76px; height: 76px; }
+}
+
+/* Keep the floating chapter switch inside the viewport at every width. */
+#view-report .report-local-nav {
+  box-sizing: border-box;
+  max-width: calc(100vw - 20px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+}
+#view-report .report-local-nav > button { flex: 0 0 auto; white-space: nowrap; }
+
+/* The smart report hero and its decision card share one visual column. */
+#smartReport.smart-report-screen {
+  width: min(900px, calc(100vw - 48px));
+  margin-inline: auto;
+  padding: 0 0 64px;
+  box-sizing: border-box;
+}
+#smartReport .report-screen-heading {
+  width: 100%;
+  margin: 0;
+  box-sizing: border-box;
+}
+#smartReport .smart-report-content {
+  width: 100%;
+  max-width: none;
+  margin: -54px auto 0;
+  box-sizing: border-box;
+}
+#smartReport .smart-report-content > .decision-lead,
+#smartReport .smart-recommendation-spotlight,
+#smartReport .smart-report-section,
+#smartReport .elevation-card {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+/* Advice copy gets a dedicated flexible text track so long Chinese notes
+   never collapse into a character-per-line column. */
+#weatherDetails .weather-side-note .advice,
+#smartReport .weather-side-note .advice {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+#weatherDetails .weather-side-note .advice-item,
+#smartReport .weather-side-note .advice-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+#weatherDetails .weather-side-note .advice-index,
+#smartReport .weather-side-note .advice-index { flex: 0 0 25px; }
+#weatherDetails .weather-side-note .advice-item > p,
+#smartReport .weather-side-note .advice-item > p {
+  display: block;
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  writing-mode: horizontal-tb;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  line-height: 1.75;
+}
+
+/* Use the actual glyph in the origin/stop badge; the old generated label
+   created a second grid item and pulled the visible character off center. */
+#view-create .pt-role {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  padding: 0 !important;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 13px !important;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+}
+#view-create .pt-role::after { content: none !important; display: none !important; }
+
+@media (max-width: 760px) {
+  #view-report .report-local-nav {
+    left: 50%;
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
+    justify-content: flex-start;
+    padding-inline: 4px;
+  }
+  #smartReport.smart-report-screen {
+    width: calc(100vw - 22px);
+    padding: 0 0 40px;
+  }
+  #smartReport .report-screen-heading { width: 100%; margin: 0; }
+  #smartReport .smart-report-content { width: 100%; margin-top: -42px; }
+  #view-create .pt-role { width: 30px; height: 30px; flex-basis: 30px; font-size: 12px !important; }
+}
+
+/* The hero is now a centered 900px column, so its padding must be based on
+   that column rather than the full viewport (which used to leave ~30px for
+   the heading at desktop widths). */
+#smartReport .report-screen-heading {
+  padding-inline: clamp(24px, 4vw, 42px);
+}
+#smartReport .report-screen-heading .screen-back { flex: 0 0 35px; }
+#smartReport .report-screen-heading .screen-heading-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: 0;
+}
+#smartReport .report-screen-heading .screen-heading-copy h2 {
+  max-width: 100%;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+#smartReport .report-screen-heading .report-favorite {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  #smartReport .report-screen-heading { padding: 85px 13px 68px; }
+  #smartReport .report-screen-heading .screen-back { flex-basis: 32px; }
+}
+
+/* Let the chapter pill float over each scenic report banner, matching the
+   map and smart-report screens instead of sitting in a blank spacer above it. */
+#weatherDetails.report-screen,
+#departurePlanner.report-screen,
+#travelReport.report-screen { padding-top: 0; }
+#weatherDetails .report-screen-heading,
+#departurePlanner .report-screen-heading,
+#travelReport .report-screen-heading {
+  min-height: 220px;
+  margin: 0 -24px 17px;
+  padding: 98px 24px 24px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 760px) {
+  #weatherDetails.report-screen,
+  #departurePlanner.report-screen,
+  #travelReport.report-screen { padding-top: 0; }
+  #weatherDetails .report-screen-heading,
+  #departurePlanner .report-screen-heading,
+  #travelReport .report-screen-heading {
+    min-height: 190px;
+    margin: 0 -11px 13px;
+    padding: 88px 14px 18px;
+  }
+}
+
+/* Mobile refinement: keep the hero headline clear, put both navigation layers
+   inside safe areas, and give the planner sheet a real tactile collapse handle. */
+@media (max-width: 760px) {
+  body.home-active .topbar {
+    position: absolute !important;
+    z-index: 1600;
+    top: max(9px, env(safe-area-inset-top));
+    right: 13px;
+    left: 13px;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 8px;
+    min-height: 54px !important;
+    padding: 6px 8px !important;
+    border: 1px solid rgba(255,255,255,.76) !important;
+    border-radius: 20px !important;
+    background: rgba(248,252,255,.72) !important;
+    box-shadow: 0 10px 30px rgba(17,55,88,.12) !important;
+    backdrop-filter: blur(20px) saturate(1.25) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(1.25) !important;
+    box-sizing: border-box;
+  }
+  body.home-active .topbar::before { display: none !important; }
+  body.home-active .brand-lockup { min-width: 0; gap: 9px; }
+  body.home-active .brand-mark { width: 36px; height: 36px; flex: 0 0 36px; }
+  body.home-active .brand-copy { min-width: 0; }
+  body.home-active .brand-copy strong { overflow: hidden; color: #123859 !important; font-size: 14px; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+  body.home-active .brand-copy small { display: none; }
+  body.home-active .topbar-actions { min-width: 0; }
+  body.home-active .topbar-context { display: none !important; }
+  body.home-active .topbar-cta { min-height: 39px; gap: 7px; padding: 0 12px; border-radius: 14px; background: #123d65; font-size: 10px; white-space: nowrap; }
+
+  .mobile-nav {
+    position: fixed;
+    z-index: 1800;
+    right: auto;
+    bottom: max(10px, calc(env(safe-area-inset-bottom) + 8px));
+    left: 50%;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 3px;
+    width: min(430px, calc(100vw - 24px));
+    padding: 6px;
+    border: 1px solid rgba(255,255,255,.54);
+    border-radius: 25px;
+    background: linear-gradient(135deg, rgba(12,39,65,.94), rgba(20,62,96,.91));
+    box-shadow: 0 14px 38px rgba(11,38,63,.34), inset 0 1px rgba(255,255,255,.15);
+    transform: translateX(-50%);
+    backdrop-filter: blur(24px) saturate(1.35);
+    -webkit-backdrop-filter: blur(24px) saturate(1.35);
+    box-sizing: border-box;
+  }
+  .mobile-nav button {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 3px;
+    min-width: 0;
+    min-height: 54px;
+    padding: 4px 2px;
+    border: 0;
+    border-radius: 19px;
+    background: transparent;
+    color: rgba(226,240,251,.72);
+    transition: background .22s ease, color .22s ease, transform .18s ease, box-shadow .22s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mobile-nav button > span { display: grid; width: 27px; height: 27px; place-items: center; font-size: 0; line-height: 1; }
+  .mobile-nav button svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .mobile-nav button small { font-size: 9px; line-height: 1; font-weight: 650; letter-spacing: .04em; }
+  .mobile-nav button.on { color: #0e4772; background: linear-gradient(145deg,#e9f8ff,#c7eaff); box-shadow: 0 5px 14px rgba(2,25,44,.2), inset 0 1px #fff; }
+  .mobile-nav button:active { transform: scale(.94); }
+  main#app { padding-bottom: calc(108px + env(safe-area-inset-bottom)) !important; }
+  #view-home.view.active { min-height: 100svh; justify-content: flex-start !important; }
+  #view-home .home-hero {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    min-height: 0 !important;
+    padding: calc(77px + env(safe-area-inset-top)) 18px 24px !important;
+    border-radius: 0 0 34px 34px !important;
+    background-image: linear-gradient(180deg,rgba(238,247,253,.46) 0%,rgba(238,247,253,.32) 32%,rgba(12,38,63,.28) 100%),url('../assets/hero-alpine-road.png') !important;
+    background-position: center, 63% center !important;
+    background-size: cover !important;
+    box-shadow: 0 18px 48px rgba(20,58,91,.2) !important;
+    text-align: left;
+  }
+  #view-home .hero-copy { max-width: none; padding: 4px 1px 0; text-align: left; }
+  #view-home .home-badge { margin: 0 0 13px !important; }
+  #view-home .hero-overline { margin-bottom: 7px; }
+  #view-home .home-title { font-size: clamp(36px,10vw,48px) !important; line-height: 1.1 !important; }
+  #view-home .home-sub { max-width: 34em; margin: 10px 0 14px !important; }
+  #view-home .home-cta { display: flex; flex-wrap: wrap; align-items: center; column-gap: 14px; }
+  #view-home .home-cta .btn-primary { flex: 1 1 190px; }
+  #view-home .home-hint { flex: 1 1 125px; margin: 7px 0 0 !important; }
+  #view-home .home-demo-link { margin: 8px 0 0 !important; }
+  #view-home .hero-visual {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 11px;
+    width: 100%;
+    min-height: 0;
+    margin-top: 23px;
+    padding: 0;
+  }
+  #view-home .visual-topline {
+    position: static;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    min-height: 18px;
+    color: rgba(255,255,255,.94);
+    font-size: 8px;
+    letter-spacing: .12em;
+    text-shadow: 0 1px 8px rgba(5,28,47,.55);
+  }
+  #view-home .visual-live { flex: 0 0 auto; color: #fff; font-size: 8px; }
+  #view-home .hero-route-card {
+    width: 100%;
+    margin: 0;
+    padding: 15px 15px 13px;
+    border-radius: 24px 12px 24px 12px;
+    background: rgba(250,253,255,.92);
+    box-shadow: 0 17px 42px rgba(8,38,66,.22);
+    animation: none;
+    box-sizing: border-box;
+  }
+  #view-home .hero-route-title { margin-top: 8px; font-size: 10px; }
+  #view-home .hero-route-title strong { font-size: 15px; }
+  #view-home .hero-route-metrics { margin-top: 10px; padding: 9px 0; }
+  #view-home .hero-weather-float { width: 100%; max-width: none; margin: 0; border-radius: 17px; }
+  #view-home .home-lower { padding-bottom: 15px; }
+
+  #view-create .planning-heading {
+    top: max(8px, env(safe-area-inset-top));
+    grid-template-columns: 34px minmax(0,1fr);
+    grid-template-rows: auto auto;
+    gap: 7px 8px;
+    width: calc(100% - 20px);
+    padding: 9px 10px 8px;
+    border-radius: 23px 12px 23px 12px;
+    background: rgba(248,252,255,.92);
+  }
+  #view-create .planning-heading .back-link {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    border: 1px solid rgba(67,123,164,.14);
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 4px 12px rgba(28,69,103,.1);
+    font-size: 18px;
+    text-decoration: none;
+  }
+  #view-create .planning-heading h1 { align-self: center; font-size: 14px; }
+  #view-create .planner-steps {
+    display: grid;
+    grid-template-columns: repeat(3,minmax(0,1fr));
+    grid-column: 1 / -1;
+    grid-row: 2;
+    gap: 3px;
+    justify-content: stretch;
+  }
+  #view-create .planner-steps > button {
+    display: flex;
+    justify-content: center;
+    min-width: 0;
+    min-height: 31px;
+    gap: 5px;
+    padding: 3px 4px;
+    border-radius: 999px;
+    background: rgba(229,239,247,.68);
+  }
+  #view-create .planner-steps > button span { display: inline; overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+  #view-create .planner-steps > button i { width: 20px; height: 20px; flex: 0 0 20px; font-size: 7px; }
+  #view-create .planner-steps > b { display: none !important; }
+  #view-create .planner-sheet {
+    right: 10px;
+    bottom: max(10px, calc(env(safe-area-inset-bottom) + 8px));
+    left: 10px;
+    max-height: min(57dvh, 520px);
+    padding: 12px 14px calc(14px + env(safe-area-inset-bottom));
+    border-radius: 27px 14px 27px 14px;
+    transition: max-height .28s ease, height .28s ease, padding .28s ease, transform .28s ease;
+    touch-action: pan-y;
+  }
+  #view-create .planner-sheet-handle {
+    position: sticky;
+    top: -12px;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto 20px;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 42px;
+    margin: -12px 0 10px;
+    padding: 12px 2px 2px;
+    border: 0;
+    border-radius: 0;
+    background: linear-gradient(180deg,rgba(248,252,255,.98),rgba(248,252,255,.88));
+    color: #173e60;
+    text-align: left;
+    cursor: grab;
+    touch-action: none;
+  }
+  #view-create .planner-sheet-handle .handle-grip {
+    position: absolute;
+    top: 5px;
+    left: 50%;
+    width: 38px;
+    height: 4px;
+    border-radius: 999px;
+    background: #b8ccda;
+    transform: translateX(-50%);
+  }
+  #view-create .planner-sheet-handle strong { font-size: 12px; font-weight: 750; }
+  #view-create .planner-sheet-handle small { color: #7a91a4; font-size: 9px; }
+  #view-create .planner-sheet-handle i { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 50%; background: #e9f3fa; color: #1769a8; font-size: 16px; font-style: normal; transition: transform .24s ease; }
+  #view-create .planner-sheet.is-collapsed {
+    height: 65px;
+    min-height: 65px;
+    max-height: 65px;
+    overflow: hidden;
+    padding: 10px 15px 6px;
+  }
+  #view-create .planner-sheet.is-collapsed > :not(.planner-sheet-handle) { display: none !important; }
+  #view-create .planner-sheet.is-collapsed .planner-sheet-handle { top: 0; min-height: 42px; margin: 0; padding: 12px 2px 0; background: transparent; }
+  #view-create .planner-sheet.is-collapsed .planner-sheet-handle i { transform: rotate(180deg); }
+  #view-create .planner-map-field .map-tools { top: 124px; right: 10px; }
+  #view-create .planner-map-field .leaflet-top.leaflet-left,
+  #view-create .planner-map-field .leaflet-top.leaflet-right { top: 167px; }
+  #view-create .planner-map-field .map-hint { display: block; right: 12px; bottom: 94px; font-size: 9px; }
+  body.planner-sheet-collapsed #view-create .planner-map-field .map-hint { bottom: 90px; }
+
+  body:not(.immersive-view) main#app { padding-bottom: calc(112px + env(safe-area-inset-bottom)) !important; }
+  #view-report .report-local-nav { top: max(8px, calc(env(safe-area-inset-top) + 4px)); width: max-content; max-width: calc(100vw - 16px); }
+  #view-report .report-screen-heading { scroll-margin-top: 78px; }
+}
+
+@media (max-width: 390px) {
+  #view-home .home-hero { padding-right: 15px !important; padding-left: 15px !important; }
+  #view-home .visual-live { font-size: 7px; }
+  #view-create .planning-heading { width: calc(100% - 16px); }
+  #view-create .planner-steps > button { gap: 4px; padding-inline: 2px; }
+  #view-create .planner-steps > button span { font-size: 8px; }
+}
+
+/* Product revision: static home cards, direct recent trips, merged smart report */
+.hero-route-link.static { cursor: default; }
+.feat.feat-static { grid-template-columns: 35px 1fr !important; cursor: default; }
+.feat.feat-static:hover { transform: none; border-color: var(--line) !important; box-shadow: 0 8px 22px rgba(23,60,92,.045) !important; }
+.home-features .feat-static { padding-right: 20px !important; }
+.smart-report-actions { margin-top: 16px; }
+.smart-report-actions .share-bar { margin: 0; }
+.smart-data-details { margin-top: 14px; border: 1px solid #e2eaf0; border-radius: 15px; background: #fff; box-shadow: 0 8px 24px rgba(23,60,92,.045); }
+.smart-data-details summary { padding: 13px 15px; color: #42647e; font-size: 11px; font-weight: 700; cursor: pointer; }
+.smart-data-body { padding: 0 15px 14px; color: #6f8395; font-size: 10px; line-height: 1.7; }
+.smart-data-body p { margin: 8px 0 0; }
+.smart-data-body a { color: #1769b2; }
+#weatherDetails {
+  width: min(900px, calc(100vw - 48px));
+  margin-inline: auto;
+  padding-bottom: 64px;
+  box-sizing: border-box;
+}
+#weatherDetails .report-screen-heading {
+  align-items: flex-end;
+  min-height: 286px;
+  margin: 0;
+  padding: 80px clamp(24px, 4vw, 42px) 78px;
+  border-radius: 0 0 74px 17px;
+  background:
+    linear-gradient(90deg,rgba(8,43,72,.77),rgba(17,69,104,.38) 52%,rgba(15,55,81,.06)),
+    url('../assets/hero-alpine-road.png') center 52%/cover;
+  box-shadow: 0 22px 55px rgba(18,55,82,.18);
+}
+#weatherDetails .report-screen-heading .screen-back,
+#weatherDetails .report-screen-heading .report-favorite {
+  border-color: rgba(255,255,255,.55);
+  background: rgba(241,249,253,.2);
+  color: #fff;
+  backdrop-filter: blur(16px);
+}
+#weatherDetails .report-screen-heading .eyebrow { color: #b8e3f7; }
+#weatherDetails .report-screen-heading h2 {
+  color: #fff;
+  font-size: clamp(26px,3vw,38px);
+  text-shadow: 0 4px 20px rgba(5,25,41,.2);
+}
+#weatherDetails .report-screen-heading p { color: rgba(245,251,255,.82); font-size: 10px; }
+@media (max-width: 760px) {
+  #weatherDetails { width: 100%; padding-inline: 12px; }
+  #weatherDetails .report-screen-heading { padding: 85px 13px 68px; }
+  #weatherDetails .report-screen-heading h2 { font-size: 21px; }
+}
+@media (max-width: 760px) {
+  .mobile-nav { grid-template-columns: repeat(2,1fr); }
+}
+/* Final UI corrections requested after review */
+.home-features .feat-static { align-items: center !important; }
+.home-features .feat-static > div {
+  grid-column: 2 !important;
+  width: 100%;
+  min-width: 0;
+  align-self: center;
+}
+.home-features .feat-static b,
+.home-features .feat-static p { width: 100%; overflow-wrap: normal; }
+.saved-card-score:not(.nav) {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  line-height: 1;
+}
+.saved-card-score:not(.nav) b {
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.saved-card-score:not(.nav) small {
+  font-size: 7px;
+  line-height: 1;
+  color: rgba(255,255,255,.9);
+}
+#weatherDetails .weather-screen-grid { grid-template-columns: minmax(0,1fr); }
+.smart-departure-time {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  margin: 10px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+.smart-departure-time strong {
+  display: block;
+  color: #fff;
+  font-size: 27px;
+  line-height: 1.2;
+  letter-spacing: -.04em;
+}
+.smart-departure-time small {
+  display: inline-block;
+  margin-top: 5px;
+  color: #bdd7e9;
+  font-size: 8px;
+  letter-spacing: .08em;
+}
+.smart-departure-time:disabled { cursor: default; opacity: .78; }
+.smart-departure-time:not(:disabled):hover strong { text-decoration: underline; text-underline-offset: 4px; }
+.smart-restore-time {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border: 1px solid #dbe7ef;
+  border-radius: 9px;
+  background: #f7fafc;
+  color: #315f81;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.smart-restore-time:hover { border-color: #b9d4e8; background: #eef7fc; }
+@media (max-width: 760px) {
+  .home-features .feat-static > div { grid-column: 2 !important; }
+  .saved-card-score:not(.nav) { width: 43px; height: 43px; }
+}
+/* Static feature cards use two real tracks so copy fills the card. */
+.home-features .feat.feat-static {
+  grid-template-columns: 35px minmax(0,1fr) !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 20px !important;
+}
+.home-features .feat.feat-static::before { display: none !important; }
+.home-features .feat-static .feat-index {
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  width: 31px;
+  height: 31px;
+  transform: none !important;
+  align-self: center;
+}
+.home-features .feat-static > div { grid-column: 2 !important; width: 100%; }
+@media (max-width: 760px) {
+  .home-features .feat.feat-static { padding: 16px !important; }
+}
+
+/* Keep every weather point card on the same left edge and width. */
+#weatherDetails .weather-points-stack {
+  padding-left: 0 !important;
+  gap: 12px !important;
+}
+#weatherDetails .weather-points-stack::before,
+#weatherDetails .weather-points-stack .pt-card::before { display: none !important; }
+#weatherDetails .weather-points-stack .pt-card,
+#weatherDetails .weather-points-stack .pt-card:nth-child(even) {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+}
+#weatherDetails .weather-points-stack .pt-card {
+  border-radius: 22px 10px 22px 10px !important;
+}
+
+/* Put the report back button beside the report tabs. */
+#view-report .report-local-nav .report-nav-back {
+  display: grid;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  place-items: center;
+  border-radius: 50%;
+  background: #edf6fc;
+  color: #174d79;
+  font-size: 18px;
+  font-weight: 700;
+}
+#view-report .report-local-nav .report-nav-back:hover { background: #dff0fb; }
+@media (max-width: 760px) {
+  #view-report .report-local-nav .report-nav-back {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    min-height: 34px;
+    font-size: 16px;
+  }
+}
+
+
+/* Horizontal weather strips scroll with the mouse wheel and show no native scrollbar. */
+.hourly-strip,
+.ht-scroll,
+.rec-strip,
+.leg-list {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  overscroll-behavior-x: contain;
+  cursor: grab;
+}
+.hourly-strip::-webkit-scrollbar,
+.ht-scroll::-webkit-scrollbar,
+.rec-strip::-webkit-scrollbar,
+.leg-list::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.hourly-strip:active,
+.ht-scroll:active,
+.rec-strip:active,
+.leg-list:active { cursor: grabbing; }
+
+
+/* Reduce repaint overhead while horizontal strips are animating. */
+.hourly-strip,
+.ht-scroll,
+.rec-strip {
+  will-change: scroll-position;
+}
+
+
+/* Restore framed cards inside the navigation smart report. */
+#smartReport.nav-smart-report .smart-report-facts,
+#smartReport.nav-smart-report .smart-report-section,
+#smartReport.nav-smart-report .smart-report-actions,
+#smartReport.nav-smart-report .smart-data-details {
+  padding: 18px;
+  border: 1px solid rgba(110,157,188,.2);
+  border-radius: 27px 11px 27px 11px;
+  background: rgba(255,255,255,.88);
+  box-shadow: 0 16px 38px rgba(23,63,93,.08);
+}
+#smartReport.nav-smart-report .smart-report-section { margin-bottom: 18px; }
+#smartReport.nav-smart-report .smart-report-actions { margin-top: 16px; }
+#smartReport.nav-smart-report .smart-data-details { margin-top: 16px; }
+#smartReport.nav-smart-report .smart-report-actions .share-bar {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+#smartReport.nav-smart-report .smart-data-details summary { padding: 0; }
+#smartReport.nav-smart-report .smart-data-body { padding: 10px 0 0; }
+@media (max-width: 760px) {
+  #smartReport.nav-smart-report .smart-report-facts,
+  #smartReport.nav-smart-report .smart-report-section,
+  #smartReport.nav-smart-report .smart-report-actions,
+  #smartReport.nav-smart-report .smart-data-details { padding: 14px; border-radius: 22px 9px 22px 9px; }
+}
+
+
+/* Navigation smart-report travel advice cards. */
+#smartReport.nav-smart-report .travel-advice-section { padding-bottom: 20px; }
+.smart-note-timeline { display: grid; gap: 10px; }
+.smart-note-row {
+  display: grid;
+  grid-template-columns: 32px 30px minmax(0,1fr);
+  align-items: center;
+  gap: 11px;
+  padding: 13px 14px;
+  border: 1px solid rgba(112,158,191,.17);
+  border-radius: 18px 8px 18px 8px;
+  background: linear-gradient(135deg,rgba(246,251,254,.98),rgba(255,255,255,.94));
+  box-shadow: 0 8px 20px rgba(24,65,96,.055);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.smart-note-row:hover {
+  transform: translateY(-1px);
+  border-color: rgba(57,139,199,.3);
+  box-shadow: 0 12px 26px rgba(24,65,96,.09);
+}
+.smart-note-row:first-child {
+  border-color: rgba(27,133,209,.28);
+  background: linear-gradient(135deg,rgba(231,246,255,.98),rgba(248,252,255,.96));
+}
+.smart-note-index {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: #1684d0;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 5px 12px rgba(22,132,208,.2);
+}
+.smart-note-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 9px;
+  background: #eaf5fc;
+  color: #2c7fb6;
+  font-size: 16px;
+  font-weight: 700;
+}
+.smart-note-copy { min-width: 0; }
+.smart-note-copy strong {
+  display: block;
+  color: #1a405f;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.5;
+}
+.smart-note-copy small {
+  display: block;
+  margin-top: 3px;
+  color: #71889a;
+  font-size: 9px;
+  line-height: 1.55;
+}
+@media (max-width: 760px) {
+  .smart-note-row { grid-template-columns: 28px 26px minmax(0,1fr); gap: 8px; padding: 11px 10px; }
+  .smart-note-index,.smart-note-icon { width: 25px; height: 25px; }
+  .smart-note-copy strong { font-size: 11px; }
+  .smart-note-copy small { font-size: 8px; }
+}

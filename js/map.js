@@ -29,6 +29,19 @@ function buildTileLayers() {
   if (TIANDITU_KEY) {
     return [
       {
+        name: '卫星',
+        url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        opts: {
+          maxZoom: 19,
+          attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+        },
+        extras: [{
+          url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+          opts: { maxZoom: 19, attribution: '' }
+        }],
+        gcj: false,
+      },
+      {
         name: '普通',
         url: tdtUrl('vec'),
         opts: {
@@ -48,6 +61,26 @@ function buildTileLayers() {
           attribution: '地形 &copy; <a href="https://www.tianditu.gov.cn/">天地图</a>'
         },
         extras: [{ url: tdtUrl('cta'), opts: { subdomains: '01234567', maxZoom: 18, attribution: '' } }],
+        gcj: false,
+      },
+      {
+        name: '影像',
+        url: tdtUrl('img'),
+        opts: {
+          subdomains: '01234567',
+          maxZoom: 18,
+          attribution: '影像 &copy; <a href="https://www.tianditu.gov.cn/">天地图</a>'
+        },
+        extras: [{ url: tdtUrl('cia'), opts: { subdomains: '01234567', maxZoom: 18, attribution: '' } }],
+        gcj: true,
+      },
+      {
+        name: '开放地图',
+        url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        opts: {
+          maxZoom: 19,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        },
         gcj: false,
       },
     ];
@@ -72,13 +105,29 @@ function buildTileLayers() {
       },
       gcj: false,
     },
+    {
+      name: '影像',
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      opts: {
+        maxZoom: 19,
+        attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+      },
+      extras: [{
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+        opts: { maxZoom: 19, attribution: '' }
+      }],
+      gcj: false,
+    },
   ];
 }
 
 const TILE_LAYERS = buildTileLayers();
 
 /** 全局偏好的底图序号（切换后重建时沿用） */
-let preferredTileIdx = 0;
+const prefersTouchMap = (navigator.maxTouchPoints || 0) > 0
+  || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+let preferredTileIdx = TILE_LAYERS.findIndex(layer => layer.name === '普通');
+if (preferredTileIdx < 0) preferredTileIdx = 0;
 
 /* ---------------- WGS-84 → GCJ-02 坐标纠偏 ---------------- */
 /* 用途：OPEN-METEO / OSRM 返回的都是 WGS-84，而高德瓦片是 GCJ-02。
@@ -152,6 +201,53 @@ const ROUTE_STYLE = {
   casingWeight: 11,
 };
 
+const WEATHER_ROUTE_COLORS = {
+  good: '#28A879',
+  fair: '#D7A326',
+  caution: '#E77832',
+  bad: '#D95050',
+  neutral: '#8595A6',
+};
+
+function mapEscape(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
+function weatherPopupHtml(point, index) {
+  const levels = {
+    good: ['影响较小', 'good'], fair: ['一般影响', 'fair'],
+    caution: ['需要关注', 'caution'], bad: ['影响较强', 'bad'],
+    neutral: ['数据不足', 'neutral'],
+  };
+  const key = point && point.level ? point.level.key : 'neutral';
+  const level = levels[key] || levels.neutral;
+  const available = point && point.weatherDataAvailable !== false;
+  const arrivalMin = point && point.arriveAbs != null ? Math.round(point.arriveAbs * 60)
+    : point && point.hour != null ? Math.round(point.hour * 60) : null;
+  const arrival = arrivalMin == null ? '—' : minToLabel(arrivalMin);
+  const distance = point && point.cumKm != null ? `${Number(point.cumKm).toFixed(0)} km` : '—';
+  const weather = point && point.weatherText ? mapEscape(point.weatherText) : '暂无预报';
+  const temperature = point && point.temp != null ? `${Math.round(point.temp)}℃` : '—';
+  const precipitation = point && point.pp != null ? `${Math.round(point.pp)}%` : '—';
+  const wind = point && point.wind != null ? `${Math.round(point.wind)} km/h` : '—';
+  const position = point && Number.isFinite(point.lat) && Number.isFinite(point.lon)
+    ? `${point.lat.toFixed(3)}, ${point.lon.toFixed(3)}` : '—';
+  const evidence = available
+    ? [point && point.code != null ? weather : '', point && point.pp != null ? `降水概率 ${Math.round(point.pp)}%` : '', point && point.wind != null ? `风速 ${Math.round(point.wind)} km/h` : '']
+      .filter(Boolean).join(' · ') || '已返回的沿途天气数据'
+    : '该采样点未返回可用天气字段，路线以中性样式显示。';
+
+  return `<div class="weather-popup">
+    <div class="popup-eyebrow">沿途采样 ${String(index + 1).padStart(2, '0')} <span class="popup-distance">${distance}</span></div>
+    <div class="popup-heading"><strong>${mapEscape(point && point.name || '路线采样点')}</strong><span class="impact-chip ${level[1]}">${level[0]}</span></div>
+    <div class="popup-weather">${point && point.icon ? mapEscape(point.icon) + ' ' : ''}${weather}<span>${temperature}</span></div>
+    <div class="popup-grid"><span>预计到达<b>${arrival}</b></span><span>降水概率<b>${precipitation}</b></span><span>风速<b>${wind}</b></span><span>位置<b>${position}</b></span></div>
+    <div class="popup-evidence"><small>天气影响依据</small><span>${mapEscape(evidence)}</span></div>
+  </div>`;
+}
+
 const MapCtl = {
   report: null,
   create: null,
@@ -210,26 +306,51 @@ const MapCtl = {
     const conf = TILE_LAYERS[idx] || TILE_LAYERS[0];
     tried[idx] = true;
 
+    if (map.__tileRetryTimer) {
+      clearTimeout(map.__tileRetryTimer);
+      map.__tileRetryTimer = null;
+    }
+    map.__tileIdx = idx;
+    map.__gcj = !!conf.gcj;
     const layer = L.tileLayer(conf.url, conf.opts);
     let handled = false;
+    let loadedAnyTile = false;
 
-    layer.on('tileerror', () => {
-      if (handled) return;
-      handled = true;
-      // 找一个还没试过的源
-      const nextIdx = TILE_LAYERS.findIndex((_, i) => i !== idx && !tried[i]);
-      if (nextIdx >= 0) {
-        console.warn('[map] 瓦片源「' + conf.name + '」加载失败，自动切换到「' + TILE_LAYERS[nextIdx].name + '」');
-        try { map.removeLayer(layer); } catch (e) {}
-        this._addTiles(map, nextIdx, tried);
-        this._notifyLayer(map);
-      } else {
-        // 全部失败：明确告诉用户，而不是留一块灰
-        this._showTileFail(map);
+    layer.on('tileload', () => {
+      if (map.__tileIdx !== idx) return;
+      loadedAnyTile = true;
+      preferredTileIdx = idx;
+      if (map.__tileRetryTimer) {
+        clearTimeout(map.__tileRetryTimer);
+        map.__tileRetryTimer = null;
       }
     });
 
+    const failover = () => {
+      map.__tileRetryTimer = null;
+      if (handled || loadedAnyTile || map.__tileIdx !== idx || !map._container || !document.body.contains(map._container)) return;
+      handled = true;
+      const nextIdx = TILE_LAYERS.findIndex((_, i) => i !== idx && !tried[i]);
+      if (nextIdx >= 0) {
+        console.warn('[map] 瓦片源「' + conf.name + '」持续无瓦片加载，自动切换到「' + TILE_LAYERS[nextIdx].name + '」');
+        try { map.removeLayer(layer); } catch (e) {}
+        (map.__extraLayers || []).forEach(extra => { try { map.removeLayer(extra); } catch (e) {} });
+        map.__extraLayers = [];
+        this._addTiles(map, nextIdx, tried);
+        this._notifyLayer(map, true);
+      } else {
+        this._showTileFail(map);
+      }
+    };
+
+    layer.on('tileerror', () => {
+      if (handled || loadedAnyTile || map.__tileIdx !== idx || map.__tileRetryTimer) return;
+      map.__tileRetryTimer = window.setTimeout(failover, 1600);
+    });
+
     layer.addTo(map);
+    // 某些网络请求会长时间挂起而不触发 tileerror。独立看门狗保证底图最终能降级。
+    if (!map.__tileRetryTimer) map.__tileRetryTimer = window.setTimeout(failover, 2600);
 
     // 叠层（如天地图的 cva 注记层）
     map.__extraLayers = [];
@@ -245,11 +366,12 @@ const MapCtl = {
     map.__tileLayer = layer;
     map.__tileIdx = idx;
     map.__gcj = !!conf.gcj;   // 当前底图是否需要 GCJ-02 纠偏
+    this._notifyLayer(map);
     return layer;
   },
 
   /** 通知外部（按钮文字 / toast）底图已变化 */
-  _notifyLayer(map) {
+  _notifyLayer(map, automatic = false) {
     const idx = map.__tileIdx || 0;
     const name = (TILE_LAYERS[idx] || {}).name || '';
     const nextIdx = (idx + 1) % TILE_LAYERS.length;
@@ -257,7 +379,7 @@ const MapCtl = {
     if (btn) btn.textContent = TILE_LAYERS[nextIdx].name;
     const btn2 = document.getElementById('btnCreateLayer');
     if (btn2) btn2.textContent = TILE_LAYERS[nextIdx].name;
-    if (typeof window.__onMapLayerChange === 'function') {
+    if (automatic && typeof window.__onMapLayerChange === 'function') {
       window.__onMapLayerChange(name);
     }
   },
@@ -403,9 +525,52 @@ const MapCtl = {
 
     const line = routeCoords.map(c => this._conv(map, c.lat, c.lon));
 
-    // 先描边后主线（不用 bringToBack，见上文说明）
-    L.polyline(line, { color: ROUTE_STYLE.casing, weight: ROUTE_STYLE.casingWeight, opacity: 0.9, lineJoin: 'round', lineCap: 'round' }).addTo(map);
-    L.polyline(line, { color: ROUTE_STYLE.main, weight: ROUTE_STYLE.mainWeight, opacity: 1, lineJoin: 'round', lineCap: 'round' }).addTo(map);
+    // 基于实际道路几何和采样点累计里程拆分；各段共用边界，缺失数据为中性灰。
+    const sections = window.RouteWeatherSegments
+      ? RouteWeatherSegments.buildSegments(routeCoords, points)
+      : [{ index: -1, point: null, level: 'neutral', coords: routeCoords }];
+    map.__routeSections = [];
+    sections.forEach(section => {
+      const sectionLine = section.coords.map(c => this._conv(map, c.lat, c.lon));
+      if (sectionLine.length < 2) return;
+      L.polyline(sectionLine, {
+        color: ROUTE_STYLE.casing,
+        weight: ROUTE_STYLE.casingWeight,
+        opacity: 0.94,
+        lineJoin: 'round',
+        lineCap: 'round',
+        className: 'route-weather-casing',
+        interactive: false,
+      }).addTo(map);
+      const lineLayer = L.polyline(sectionLine, {
+        color: WEATHER_ROUTE_COLORS[section.level] || WEATHER_ROUTE_COLORS.neutral,
+        weight: ROUTE_STYLE.mainWeight,
+        opacity: 0.98,
+        lineJoin: 'round',
+        lineCap: 'round',
+        className: `route-weather-line route-${section.level || 'neutral'}`,
+      }).addTo(map);
+      lineLayer.on('click', () => {
+        if (section.index >= 0) this.focusSample(section.index, true);
+      });
+      map.__routeSections.push(lineLayer);
+    });
+
+    const legend = L.control({ position: 'bottomleft' });
+    legend.onAdd = () => {
+      const box = L.DomUtil.create('div', 'weather-legend');
+      box.innerHTML = `<div class="legend-title">沿途天气影响</div>
+        <div class="legend-items">
+          <span><i style="--legend:${WEATHER_ROUTE_COLORS.good}"></i>较小</span>
+          <span><i style="--legend:${WEATHER_ROUTE_COLORS.fair}"></i>一般</span>
+          <span><i style="--legend:${WEATHER_ROUTE_COLORS.caution}"></i>关注</span>
+          <span><i style="--legend:${WEATHER_ROUTE_COLORS.bad}"></i>较强</span>
+          <span><i style="--legend:${WEATHER_ROUTE_COLORS.neutral}"></i>数据不足</span>
+        </div>`;
+      L.DomEvent.disableClickPropagation(box);
+      return box;
+    };
+    legend.addTo(map);
 
     // 起点用「起」气泡、终点用「终」气泡，中间采样点用数字
     points.forEach((p, i) => {
@@ -422,6 +587,12 @@ const MapCtl = {
         + (p.cumKm != null ? ` · ${p.cumKm.toFixed(0)}km` : ''),
         { direction: 'top', offset: [0, -14], opacity: 1, className: 'route-tip' }
       );
+      mk.bindPopup(weatherPopupHtml(p, i), {
+        maxWidth: 300,
+        minWidth: 250,
+        closeButton: true,
+        className: 'weather-popup-shell',
+      });
 
       mk.on('click', () => { if (typeof onPick === 'function') onPick(i); });
 
@@ -462,27 +633,35 @@ const MapCtl = {
 
     const latlngs = points.map(p => this._conv(map, p.lat, p.lon));
 
-    // 先加白色描边（在下层），再加彩色主线（在上层）。
-    // 注意：不要用 polyline.bringToBack() —— 地图尚未渲染时 _renderer 未就绪会抛错。
-    if (latlngs.length > 1) {
-      L.polyline(latlngs, {
+    // Plan mode has sampled route points rather than a road geometry. Color each
+    // interval by the weather at its next sample, keeping the estimate explicit.
+    for (let i = 1; i < latlngs.length; i++) {
+      const section = [latlngs[i - 1], latlngs[i]];
+      const p = points[i] || points[i - 1];
+      const level = p && p.level ? p.level.key : 'neutral';
+      L.polyline(section, {
         color: ROUTE_STYLE.casing,
         weight: ROUTE_STYLE.casingWeight,
-        opacity: 0.9,
+        opacity: 0.92,
         lineJoin: 'round',
         lineCap: 'round',
+        interactive: false,
       }).addTo(map);
-
-      L.polyline(latlngs, {
-        color: ROUTE_STYLE.main,
+      const lineLayer = L.polyline(section, {
+        color: WEATHER_ROUTE_COLORS[level] || WEATHER_ROUTE_COLORS.neutral,
         weight: ROUTE_STYLE.mainWeight,
-        opacity: 1,
+        opacity: 0.98,
         lineJoin: 'round',
         lineCap: 'round',
+        className: `route-weather-line route-${level}`,
       }).addTo(map);
+      lineLayer.on('click', () => {
+        if (typeof onPick === 'function') onPick(i);
+      });
     }
 
     points.forEach((p, i) => {
+      if (p.__showMarker === false) return;
       const mk = L.marker(this._conv(map, p.lat, p.lon), {
         icon: this._iconFor(i, points.length, p.level ? p.level.key : 'neutral', false, p.pinLabel),
         keyboard: false,
@@ -530,6 +709,20 @@ const MapCtl = {
       mk.setIcon(this._iconFor(i, (map.__points || []).length, p && p.level ? p.level.key : 'neutral', i === index, p && p.pinLabel));
       mk.setZIndexOffset(i === index ? 1000 : 0);
     });
+  },
+
+  /** 从采样清单或着色路线定位到对应采样点，并打开天气详情。 */
+  focusSample(index, openPopup) {
+    const map = this.report;
+    const marker = map && map.reportMarkers && map.reportMarkers[index];
+    if (!map || !marker) return false;
+    this.highlight(index);
+    const targetZoom = Math.max(map.getZoom(), 9);
+    map.setView(marker.getLatLng(), targetZoom, { animate: true, duration: 0.45 });
+    if (openPopup) marker.openPopup();
+    const nav = this.__lastNav;
+    if (nav && typeof nav.onPick === 'function') nav.onPick(index, { source: 'map' });
+    return true;
   },
 
   /* ---------------- 新建页地图 ---------------- */
@@ -612,6 +805,7 @@ const MapCtl = {
   _destroy(which) {
     const map = this[which];
     if (map) {
+      if (map.__tileRetryTimer) { clearTimeout(map.__tileRetryTimer); map.__tileRetryTimer = null; }
       if (map.__ro) { try { map.__ro.disconnect(); } catch (e) {} }
       try { map.remove(); } catch (e) {}
       this[which] = null;

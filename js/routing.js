@@ -1,25 +1,24 @@
 /* ============================================================
  * 路径规划与沿路采样
  * ------------------------------------------------------------
- * 实测（2026-10-17）：
- *   · OSRM 公共服务器 https://router.project-osrm.org
- *   · CORS: Access-Control-Allow-Origin: * → 浏览器可直连
- *   · 雅安→泸定 96.0 km / 70.5 min / 1359 个几何点
- *   · 成都→稻城 681 km / 7.9 h
- *
- * ⚠️ 公共 demo 服务器只有「汽车路网」：bike / foot 会静默返回与 driving
- *    相同的结果。因此徒步/骑行模式下必须向用户标注「路径按公路网估算」。
+ * 自驾使用 OSRM driving 路网；骑行和徒步使用 BRouter 的对应 OSM 通行 profile。
+ * profile 分别偏向汽车、亚洲太平洋骑行和徒步路径，避免把驾车路线冒充为步道/骑行道。
  * ============================================================ */
 
 const ROUTING = {
-  BASE: 'https://router.project-osrm.org/route/v1',
+  OSRM_BASE: 'https://router.project-osrm.org/route/v1',
+  BROUTER_BASE: 'https://brouter.de/brouter',
   CACHE_TTL: 24 * 60 * 60 * 1000, // 路网几乎不变，缓存 1 天
+
+  MODES: {
+    drive: { provider: 'OSRM', profile: 'driving' },
+    bike: { provider: 'BRouter', profile: 'fastbike-asia-pacific' },
+    hike: { provider: 'BRouter', profile: 'trekking' },
+  },
 
   /**
    * 各出行方式的实际速度（km/h）
-   * 注意：OSRM 公共 demo 服务器只有汽车路网，徒步/骑行会返回与自驾相同的
-   * 距离与时长（实测深圳→成都三种 profile 都是 681km/7.9h）。
-   * 因此徒步/骑行的时长必须按下面这些速度自行换算，不能用接口返回值。
+   * 徒步和骑行按模式专用路网计算距离，再用保守的平均速度估算用时。
    */
   SPEED: {
     drive: null,   // 用接口值（汽车路网本来就是对的）
@@ -30,11 +29,13 @@ const ROUTING = {
   /** 预报有效期（天）：Open-Meteo 免费档大约 16 天，保守按 7 天算 */
   FORECAST_HORIZON_DAYS: 7,
 
-  /** 网页/徒步/骑行 → OSRM profile 名 */
+  /** 返回当前出行模式对应的路线服务与路网 profile。 */
+  configOf(mode) {
+    return this.MODES[mode] || this.MODES.drive;
+  },
+
   profileOf(mode) {
-    if (mode === 'hike') return 'foot';
-    if (mode === 'bike') return 'bike';
-    return 'driving';
+    return this.configOf(mode).profile;
   },
 
   /**
@@ -53,16 +54,16 @@ const ROUTING = {
    * 规划路径
    * @param {Array} pts [{name, lat, lon}] 第一个为起点，最后一个为终点，中间为途经点
    * @param {string} mode drive|hike|bike
-   * @returns {Promise<{ok, distance, duration, coords, approx, profile, speedKmh, estimated, overHorizon, horizonDays}>}
+   * @returns {Promise<{ok, distance, duration, coords, approx, provider, profile, speedKmh, overHorizon, horizonDays}>}
    */
   async fetchRoute(pts, mode) {
     if (!pts || pts.length < 2) return { ok: false, error: '至少需要起点和终点' };
 
-    const profile = this.profileOf(mode);
-    // 缓存按「去程 profile + 坐标」存原始数据，换算在返回时做，
-    // 这样改速度常量不会命中旧缓存导致不一致
+    const config = this.configOf(mode);
+    const { provider, profile } = config;
+    // 缓存必须区分服务与 profile；同一组坐标的汽车、骑行和徒步路线不同。
     const coordStr = pts.map(p => `${p.lon},${p.lat}`).join(';');
-    const key = 'rwc:route:' + coordStr;
+    const key = `rwc:route:${provider}:${profile}:${coordStr}`;
 
     let raw = null;
     try {
@@ -74,23 +75,52 @@ const ROUTING = {
     } catch (e) { /* ignore */ }
 
     if (!raw) {
-      const url = `${this.BASE}/${profile}/${coordStr}?overview=full&geometries=geojson&steps=false`;
       try {
-        const json = await fetchJson(url, 15000);
-        if (json.code !== 'Ok' || !json.routes || !json.routes.length) {
-          throw new Error(json.message || ('路由失败: ' + json.code));
+        let distance;
+        let apiDuration;
+        let coordinates;
+
+        if (provider === 'OSRM') {
+          const url = `${this.OSRM_BASE}/${profile}/${coordStr}?overview=full&geometries=geojson&steps=false`;
+          const json = await fetchJson(url, 20000);
+          if (json.code !== 'Ok' || !json.routes || !json.routes.length) {
+            throw new Error(json.message || ('OSRM 路由失败: ' + json.code));
+          }
+          const route = json.routes[0];
+          distance = route.distance;
+          apiDuration = route.duration;
+          coordinates = route.geometry.coordinates;
+        } else {
+          const params = new URLSearchParams({
+            lonlats: pts.map(p => `${p.lon},${p.lat}`).join('|'),
+            profile,
+            alternativeidx: '0',
+            format: 'geojson',
+          });
+          const json = await fetchJson(`${this.BROUTER_BASE}?${params}`, 45000);
+          const feature = json.features && json.features[0];
+          if (json.type !== 'FeatureCollection' || !feature || !feature.geometry
+              || !Array.isArray(feature.geometry.coordinates)) {
+            throw new Error(json.message || 'BRouter 没有返回可用路线，请检查地点或稍后重试。');
+          }
+          const props = feature.properties || {};
+          distance = Number(props['track-length']);
+          apiDuration = Number(props['total-time']);
+          coordinates = feature.geometry.coordinates;
         }
-        const r = json.routes[0];
+        if (!Number.isFinite(distance) || distance <= 0 || !coordinates || coordinates.length < 2) {
+          throw new Error('路线数据不完整，请稍后重试。');
+        }
         raw = {
-          distance: r.distance,
-          apiDuration: r.duration,
-          coords: r.geometry.coordinates.map(c => ({ lat: c[1], lon: c[0] })),
+          distance,
+          apiDuration: Number.isFinite(apiDuration) ? apiDuration : null,
+          coords: coordinates.map(c => ({ lat: c[1], lon: c[0] })),
         };
         try {
           localStorage.setItem(key, JSON.stringify({ t: Date.now(), data: raw }));
         } catch (e) { /* 配额满忽略 */ }
       } catch (e) {
-        console.warn('路径规划失败：', e);
+        console.warn(`${provider} 路径规划失败：`, e);
         return { ok: false, error: e.message || String(e) };
       }
     }
@@ -103,7 +133,8 @@ const ROUTING = {
       distance: raw.distance,           // 米（路网距离）
       duration: conv.duration,          // 秒（已按出行方式换算）
       coords: raw.coords,
-      profile,                          // 实际调用的 OSRM profile
+      provider,
+      profile,                          // 实际调用的道路/步道 profile
       approx: conv.estimated,           // true = 时长是自行估算的
       speedKmh: conv.speedKmh,
       // 是否超出预报有效期（超出则整体评估无意义）

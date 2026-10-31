@@ -1,17 +1,16 @@
 {
-  "name": "路线天气体检",
-  "short_name": "路线天气",
-  "description": "输入一条路线，逐点核对天气，得到一份一眼能看懂的行程天气体检报告",
+  "name": "RouteWeather 2.0 · 山途智行",
+  "short_name": "山途智行",
+  "description": "面向山地出行的路线气象分析与决策辅助工具",
   "lang": "zh-CN",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#F2F4F7",
-  "theme_color": "#0F172A",
+  "background_color": "#F3F6FA",
+  "theme_color": "#10243A",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "icons/routeweather.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" }
   ]
 }

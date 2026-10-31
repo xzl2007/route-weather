@@ -6,12 +6,15 @@
  * 导航请求走「网络优先」，保证更新能及时生效；断网时回落到缓存外壳。
  */
 
-const CACHE = 'rwc-shell-v28';
+const CACHE = 'rwc-shell-v69';
 
 const ASSETS = [
   './',
   'index.html',
   'css/style.css',
+  'css/redesign.css',
+  'css/product-ui.css',
+  'css/immersive-ui.css',
   'js/config.js',
   'js/points.js',
   'js/api.js',
@@ -19,13 +22,16 @@ const ASSETS = [
   'js/scoring.js',
   'js/storage.js',
   'js/geocode.js',
+  'js/route-segments.js',
   'js/map.js',
   'js/app.js',
   'vendor/leaflet/leaflet.js',
   'vendor/leaflet/leaflet.css',
   'manifest.webmanifest',
   'icons/icon-192.png',
-  'icons/icon-512.png',
+  'icons/routeweather.svg',
+  'assets/hero-alpine.webp',
+  'assets/hero-alpine-road.png',
 ];
 
 self.addEventListener('install', (e) => {
