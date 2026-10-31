@@ -307,6 +307,12 @@ function modeText(m) {
   return ({ drive: '自驾', hike: '徒步', bike: '骑行' })[m] || '自驾';
 }
 
+function routeNetworkText(route) {
+  return route && route.provider && route.profile
+    ? `${route.provider}「${route.profile}」路网`
+    : '历史路网';
+}
+
 /* ============================================================
  * 创建行程
  * ============================================================ */
@@ -323,14 +329,14 @@ function initCreate() {
       $$('#segMode button').forEach(x => x.classList.remove('on'));
       b.classList.add('on');
       state.mode = b.dataset.mode;
-      // 徒步/骑行：OSRM 公共服务器只有汽车路网，必须提前告知
-      // 注意要点明是「哪种方式」的估算，且切回自驾时不应残留提示
+      // 切换方式时同步告知使用的专用路网，以及徒步/骑行的估算速度。
       const spd = ROUTING.SPEED[state.mode];
+      const routeConfig = ROUTING.configOf(state.mode);
       if (spd) {
         const label = state.mode === 'hike' ? '徒步' : '骑行';
-        toast(`${label}模式：路线按公路网规划，时长按 ${spd} km/h 估算`, 3200);
+        toast(`${label}已切换至 ${routeConfig.provider}「${routeConfig.profile}」路网；时长按 ${spd} km/h 估算`, 4200);
       } else {
-        hideToast();   // 切回自驾时立刻收起旧提示
+        toast(`自驾已切换至 OSRM「${routeConfig.profile}」道路网`, 2800);
       }
     });
   });
@@ -1529,7 +1535,7 @@ function renderNavReport(r, stale) {
       </div>
       <div class="map-hint">路线颜色表示该里程区间的天气影响；点击路线或采样点查看详情。天气影响不代表道路安全等级。</div>
     </div>
-    ${routeMapConsoleHtml({ routeName, date: r.date, mode: `${modeText(r.travelMode)} · 导航`, distance: r.route.distanceKm, duration: r.route.durationMin, points: r.points, stale, note: r.route.approx ? `路线按${r.route.speedKmh} km/h 估算，实际通行时间以现场为准。` : '颜色表示天气影响程度，实际通行请以现场路况与官方预警为准。' })}
+    ${routeMapConsoleHtml({ routeName, date: r.date, mode: `${modeText(r.travelMode)} · 导航`, distance: r.route.distanceKm, duration: r.route.durationMin, points: r.points, stale, note: r.route.approx ? `${modeText(r.travelMode)}采用${escapeHtml(routeNetworkText(r.route))}；时长按${r.route.speedKmh} km/h估算，实际以现场为准。` : '自驾路线由 OSRM 道路网规划；颜色表示天气影响程度，实际通行请以现场路况与官方预警为准。' })}
     </section>
 
     <section class="report-screen smart-report-screen" id="smartReport">
@@ -1609,7 +1615,7 @@ function renderNavReport(r, stale) {
 
       <div class="card source">
         <div class="src-line">天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（CC BY 4.0）</div>
-        <div class="src-line">路径规划：<a href="https://project-osrm.org/" target="_blank" rel="noopener">OSRM</a>（公共 demo 服务，路网数据 © OpenStreetMap contributors）</div>
+        <div class="src-line">路径规划：自驾使用 <a href="https://project-osrm.org/" target="_blank" rel="noopener">OSRM 道路网</a>；骑行与徒步使用 <a href="https://brouter.de/" target="_blank" rel="noopener">BRouter 专用 profile</a>（路网数据 © OpenStreetMap contributors）</div>
         <div class="src-line">更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</div>
       </div>
       <div class="report-bottom-actions"><button class="btn btn-ghost" type="button" data-view="home">返回探索</button><button class="btn btn-primary" type="button" data-view="create">规划下一段 <span>↗</span></button></div>
@@ -2578,7 +2584,7 @@ function reportSummaryText(r) {
     const texts = [...new Set((r.points || []).map(p => p.weatherText).filter(Boolean))].slice(0, 4);
     const maxPP = Math.max(...(r.points || []).map(p => p.pp == null ? 0 : p.pp));
     lines.push(`沿途天气：${texts.join('、') || '—'}；最高降水概率 ${Math.round(maxPP)}%`);
-    if (r.route && r.route.approx) lines.push(`徒步/骑行路线按公路网规划，时长按 ${r.route.speedKmh} km/h 估算`);
+    if (r.route && r.route.approx) lines.push(`${modeText(r.travelMode)}路线采用${routeNetworkText(r.route)}，时长按 ${r.route.speedKmh} km/h 估算`);
     buildNavWeatherNotes(r).slice(0, 3).forEach(a => lines.push('· ' + a));
   } else {
     const worst = r.points && r.points[r.worstIndex];

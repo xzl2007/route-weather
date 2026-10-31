@@ -1,7 +1,7 @@
 /* ============================================================
  * 地图模块（Leaflet，本地化于 vendor/leaflet）
  * ------------------------------------------------------------
- * 瓦片：只保留「普通（天地图矢量）」与「地形（天地地形晕渲）」两种；
+ * 瓦片：只提供「普通」「地形」与「影像」三种底图；
  * 用途：
  *   · 报告页 —— 路线可视化，点位按评分着色，点击点位联动下方卡片
  *   · 新建页 —— 边加点边画线，可直接点地图选点
@@ -11,7 +11,7 @@
  * 底图源
  * gcj: true 表示该底图使用 GCJ-02（中国国测局）坐标系，
  *      绘制前必须把 WGS-84 坐标偏移过去，否则点位会偏几百米。
- *      当前两套底图均为 WGS-84（可直接使用 Open-Meteo / OSRM 坐标）
+ *      普通、地形底图为 WGS-84；天地图影像使用 GCJ-02，绘制时单独偏移坐标。
  *
  * TIANDITU_KEY 定义在 js/config.js（地图与地名搜索共用）
  */
@@ -24,23 +24,10 @@ function tdtUrl(layer) {
 }
 
 function buildTileLayers() {
-  // 只保留两种底图：普通（矢量路网 + 注记）与地形（晕渲 + 注记）。
+  // 产品内只提供普通、地形、影像三种底图；切换顺序在桌面和手机上一致。
   // 优先用天地图（国内访问快、路网与注记完整）；没有 Key 时退回 OSM / Esri。
   if (TIANDITU_KEY) {
     return [
-      {
-        name: '卫星',
-        url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        opts: {
-          maxZoom: 19,
-          attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community'
-        },
-        extras: [{
-          url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-          opts: { maxZoom: 19, attribution: '' }
-        }],
-        gcj: false,
-      },
       {
         name: '普通',
         url: tdtUrl('vec'),
@@ -73,15 +60,6 @@ function buildTileLayers() {
         },
         extras: [{ url: tdtUrl('cia'), opts: { subdomains: '01234567', maxZoom: 18, attribution: '' } }],
         gcj: true,
-      },
-      {
-        name: '开放地图',
-        url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-        opts: {
-          maxZoom: 19,
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        },
-        gcj: false,
       },
     ];
   }
@@ -126,11 +104,11 @@ const TILE_LAYERS = buildTileLayers();
 /** 全局偏好的底图序号（切换后重建时沿用） */
 const prefersTouchMap = (navigator.maxTouchPoints || 0) > 0
   || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-let preferredTileIdx = TILE_LAYERS.findIndex(layer => layer.name === (prefersTouchMap ? '普通' : '卫星'));
+let preferredTileIdx = TILE_LAYERS.findIndex(layer => layer.name === (prefersTouchMap ? '普通' : '影像'));
 if (preferredTileIdx < 0) preferredTileIdx = 0;
 
 /* ---------------- WGS-84 → GCJ-02 坐标纠偏 ---------------- */
-/* 用途：OPEN-METEO / OSRM 返回的都是 WGS-84，而高德瓦片是 GCJ-02。
+/* 用途：Open-Meteo / OSRM / BRouter 返回的都是 WGS-84，而天地图影像是 GCJ-02。
    不做转换，点位会偏 300–700 米。算法为标准公开实现。 */
 
 const GCJ = {
@@ -292,9 +270,18 @@ const MapCtl = {
     }
 
     if (desktop) {
-      // 鼠标移入地图才接管滚轮，移出立刻释放 —— 否则页面滚到地图上就卡住
-      map.on('mouseover', () => { try { map.scrollWheelZoom.enable(); } catch (e) {} });
-      map.on('mouseout', () => { try { map.scrollWheelZoom.disable(); } catch (e) {} });
+      // 容器级 pointer 事件在地图重建后仍能可靠控制滚轮；重建时鼠标可能
+      // 一直停在原位，pointerenter 不会重发，因此还要恢复当前 hover 状态。
+      const container = map.getContainer();
+      const enableWheel = () => { try { map.scrollWheelZoom.enable(); } catch (e) {} };
+      const disableWheel = () => { try { map.scrollWheelZoom.disable(); } catch (e) {} };
+      container.addEventListener('pointerenter', enableWheel, { passive: true });
+      container.addEventListener('pointerleave', disableWheel, { passive: true });
+      map.once('unload', () => {
+        container.removeEventListener('pointerenter', enableWheel);
+        container.removeEventListener('pointerleave', disableWheel);
+      });
+      if (container.matches(':hover')) enableWheel();
     }
 
     return map;

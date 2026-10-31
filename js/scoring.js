@@ -534,6 +534,7 @@ function analyzeNavigation(series, elevations, samples, route, departHour, dateS
       distanceKm: route.distance / 1000,
       durationMin: route.duration / 60,
       approx: !!route.approx,
+      provider: route.provider,
       profile: route.profile,
       speedKmh: route.speedKmh,          // 徒步/骑行时为估算速度，自驾为 null
       arriveHour: useHour + route.duration / 3600,
@@ -571,8 +572,10 @@ function buildNavAdvice(points, route, departHour, mode) {
   if (hasStorm) out.push('⚠️ 沿途有雷暴预报，山区避免午后通过');
   if (maxElev > 3000) out.push(`途经海拔 ${maxElev} m 的路段，明显更冷，注意保暖与高反`);
   if (isFinite(minTemp) && minTemp < 0) out.push('部分路段气温低于 0℃，注意路面结冰');
-  if (mode === 'hike') out.push('徒步请按实际步行速度重新估算抵达时间，当前时长为公路网估算');
-  if (route.approx) out.push('⚠️ 徒步/骑行时长按公路网估算，与实际步行/骑行速度差异较大');
+  if (route.approx) {
+    const travelLabel = mode === 'hike' ? '徒步' : '骑行';
+    out.push(`已采用${travelLabel}专用路网；时长按 ${route.speedKmh} km/h 估算，请结合个人体能与路线难度调整`);
+  }
   if (route.duration / 3600 > 4) out.push('全程超过 4 小时，建议中途安排休息并复核后段天气');
   out.push('时长按路网限速估算，山区实际车速通常更慢，建议按抵达时间预留 20–30% 余量');
   return out;
