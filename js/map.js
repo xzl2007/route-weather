@@ -1,7 +1,7 @@
 /* ============================================================
  * 地图模块（Leaflet，本地化于 vendor/leaflet）
  * ------------------------------------------------------------
- * 瓦片：只保留「普通（天地图矢量）」与「地形（天地地形晕渲）」两种；
+ * 瓦片：提供「普通」「地形」「影像」三种底图；
  * 用途：
  *   · 报告页 —— 路线可视化，点位按评分着色，点击点位联动下方卡片
  *   · 新建页 —— 边加点边画线，可直接点地图选点
@@ -11,7 +11,7 @@
  * 底图源
  * gcj: true 表示该底图使用 GCJ-02（中国国测局）坐标系，
  *      绘制前必须把 WGS-84 坐标偏移过去，否则点位会偏几百米。
- *      当前两套底图均为 WGS-84（可直接使用 Open-Meteo / OSRM 坐标）
+ *      当前底图使用 WGS-84 / CGCS2000 坐标，可直接使用路由与天气坐标。
  *
  * TIANDITU_KEY 定义在 js/config.js（地图与地名搜索共用）
  */
@@ -24,23 +24,10 @@ function tdtUrl(layer) {
 }
 
 function buildTileLayers() {
-  // 只保留两种底图：普通（矢量路网 + 注记）与地形（晕渲 + 注记）。
+  // 只提供普通、地形和影像三种底图。
   // 优先用天地图（国内访问快、路网与注记完整）；没有 Key 时退回 OSM / Esri。
   if (TIANDITU_KEY) {
     return [
-      {
-        name: '卫星',
-        url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        opts: {
-          maxZoom: 19,
-          attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community'
-        },
-        extras: [{
-          url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-          opts: { maxZoom: 19, attribution: '' }
-        }],
-        gcj: false,
-      },
       {
         name: '普通',
         url: tdtUrl('vec'),
@@ -72,15 +59,7 @@ function buildTileLayers() {
           attribution: '影像 &copy; <a href="https://www.tianditu.gov.cn/">天地图</a>'
         },
         extras: [{ url: tdtUrl('cia'), opts: { subdomains: '01234567', maxZoom: 18, attribution: '' } }],
-        gcj: true,
-      },
-      {
-        name: '开放地图',
-        url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-        opts: {
-          maxZoom: 19,
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        },
+        // 天地图 WMTS 使用 CGCS2000 / Web Mercator，与 WGS-84 路由点近似一致；不做 GCJ-02 偏移。
         gcj: false,
       },
     ];
@@ -291,9 +270,20 @@ const MapCtl = {
     }
 
     if (desktop) {
-      // 鼠标移入地图才接管滚轮，移出立刻释放 —— 否则页面滚到地图上就卡住
-      map.on('mouseover', () => { try { map.scrollWheelZoom.enable(); } catch (e) {} });
-      map.on('mouseout', () => { try { map.scrollWheelZoom.disable(); } catch (e) {} });
+      // 用容器边界管理滚轮，避免 Leaflet 在地图重建后丢失 hover 状态。
+      // 地图重绘时鼠标可能仍停在原位置，因此注册后立即恢复当前 hover 状态。
+      const container = map.getContainer();
+      const enableWheelZoom = () => { try { map.scrollWheelZoom.enable(); } catch (e) {} };
+      const disableWheelZoom = () => { try { map.scrollWheelZoom.disable(); } catch (e) {} };
+      const cleanup = () => {
+        container.removeEventListener('mouseenter', enableWheelZoom);
+        container.removeEventListener('mouseleave', disableWheelZoom);
+      };
+      container.addEventListener('mouseenter', enableWheelZoom);
+      container.addEventListener('mouseleave', disableWheelZoom);
+      map.__wheelZoomCleanup = cleanup;
+      map.once('unload', cleanup);
+      if (container.matches && container.matches(':hover')) enableWheelZoom();
     }
 
     return map;
@@ -436,7 +426,7 @@ const MapCtl = {
     // 重建新建页地图
     const cre = this.__lastCreate;
     if (cre && alive(cre.containerId)) {
-      this.renderCreate(cre.containerId, cre.points, cre.onMapClick);
+      this.renderCreate(cre.containerId, cre.points, cre.onMapClick, cre.mode);
     }
 
     return conf.name;
@@ -727,12 +717,15 @@ const MapCtl = {
 
   /* ---------------- 新建页地图 ---------------- */
 
-  renderCreate(containerId, points, onMapClick) {
+  renderCreate(containerId, points, onMapClick, mode) {
     this._destroy('create');
     const el = document.getElementById(containerId);
     if (!el) return;
 
-    this.__lastCreate = { containerId, points, onMapClick };
+    const travelMode = mode || 'drive';
+    const requestId = (this.__createRouteRequestId || 0) + 1;
+    this.__createRouteRequestId = requestId;
+    this.__lastCreate = { containerId, points, onMapClick, mode: travelMode, requestId };
 
     const map = this._makeMap(containerId);
     this.create = map;
@@ -741,15 +734,17 @@ const MapCtl = {
     const latlngs = points.map(p => this._conv(map, p.lat, p.lon));
 
     if (latlngs.length > 1) {
-      // 同样：描边先加，不用 bringToBack
-      L.polyline(latlngs, {
-        color: ROUTE_STYLE.casing, weight: ROUTE_STYLE.casingWeight, opacity: 0.9,
-        lineJoin: 'round', lineCap: 'round',
-      }).addTo(map);
-      L.polyline(latlngs, {
-        color: ROUTE_STYLE.main, weight: ROUTE_STYLE.mainWeight, opacity: 1,
-        lineJoin: 'round', lineCap: 'round',
-      }).addTo(map);
+      // 路由请求完成前保留轻量方向示意；成功后替换为所选出行方式的真实路网。
+      map.__createRouteLayers = [
+        L.polyline(latlngs, {
+          color: ROUTE_STYLE.casing, weight: ROUTE_STYLE.casingWeight, opacity: 0.42,
+          lineJoin: 'round', lineCap: 'round', dashArray: '7 9', interactive: false,
+        }).addTo(map),
+        L.polyline(latlngs, {
+          color: ROUTE_STYLE.main, weight: ROUTE_STYLE.mainWeight, opacity: 0.48,
+          lineJoin: 'round', lineCap: 'round', dashArray: '7 9', interactive: false,
+        }).addTo(map),
+      ];
     }
 
     points.forEach((p, i) => {
@@ -768,6 +763,37 @@ const MapCtl = {
 
     if (latlngs.length) this._fit(map, latlngs);
     else map.setView(this._conv(map, 30.05, 102.7), 7);
+
+    // 延迟请求，合并连续的点位编辑；驾驶、骑行、徒步分别使用各自路网。
+    if (points.length > 1 && typeof ROUTING !== 'undefined' && typeof ROUTING.fetchRoute === 'function') {
+      map.__createRouteTimer = setTimeout(async () => {
+        let route;
+        try { route = await ROUTING.fetchRoute(points, travelMode); }
+        catch (error) { return; }
+        const latest = this.__lastCreate;
+        if (!route || !route.ok || this.create !== map || !latest
+            || latest.requestId !== requestId || !map._container
+            || !document.body.contains(map._container)) return;
+
+        const routeLatLngs = route.coords.map(c => this._conv(map, c.lat, c.lon));
+        if (routeLatLngs.length < 2) return;
+        (map.__createRouteLayers || []).forEach(layer => { try { map.removeLayer(layer); } catch (e) {} });
+        map.__createRouteLayers = [
+          L.polyline(routeLatLngs, {
+            color: ROUTE_STYLE.casing, weight: ROUTE_STYLE.casingWeight, opacity: 0.94,
+            lineJoin: 'round', lineCap: 'round', interactive: false,
+          }).addTo(map),
+          L.polyline(routeLatLngs, {
+            color: ROUTE_STYLE.main, weight: ROUTE_STYLE.mainWeight, opacity: 1,
+            lineJoin: 'round', lineCap: 'round', interactive: false,
+          }).addTo(map),
+        ];
+        if (!map.__createUserMoved) this._fit(map, routeLatLngs);
+      }, 350);
+    }
+
+    // 如果用户缩放或拖动了地图，请求完成时不重置其视野。
+    map.on('dragstart zoomstart', () => { map.__createUserMoved = true; });
 
     this._observeResize(map, el);
     this._notifyLayer(map);
@@ -805,6 +831,7 @@ const MapCtl = {
   _destroy(which) {
     const map = this[which];
     if (map) {
+      if (map.__createRouteTimer) { clearTimeout(map.__createRouteTimer); map.__createRouteTimer = null; }
       if (map.__tileRetryTimer) { clearTimeout(map.__tileRetryTimer); map.__tileRetryTimer = null; }
       if (map.__ro) { try { map.__ro.disconnect(); } catch (e) {} }
       try { map.remove(); } catch (e) {}

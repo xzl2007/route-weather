@@ -577,7 +577,12 @@ function buildNavAdvice(points, route, departHour, mode) {
     out.push(`已采用${travelLabel}专用路网；时长按 ${route.speedKmh} km/h 估算，请结合个人体能与路线难度调整`);
   }
   if (route.duration / 3600 > 4) out.push('全程超过 4 小时，建议中途安排休息并复核后段天气');
-  out.push('时长按路网限速估算，山区实际车速通常更慢，建议按抵达时间预留 20–30% 余量');
+  if (mode === 'drive') {
+    out.push('自驾用时按汽车路网估算；山路实际车速可能更慢，建议按抵达时间预留 20–30% 余量');
+  } else {
+    const travelLabel = mode === 'hike' ? '徒步' : '骑行';
+    out.push(`${travelLabel}用时按 ${route.speedKmh} km/h 平均速度估算，未计入个人体能、休息与路线难度`);
+  }
   return out;
 }
 
