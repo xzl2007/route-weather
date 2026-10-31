@@ -1,12 +1,12 @@
 /* 路线天气体检 · Service Worker
  * ------------------------------------------------------------
  * 只缓存本站外壳（HTML/CSS/JS/字体图标），不缓存：
- *   · Open-Meteo / OSRM / 天地图的接口响应（由 localStorage 管缓存与过期）
+ *   · Open-Meteo / OSRM / BRouter / 天地图的接口响应（由 localStorage 管缓存与过期）
  *   · 地图瓦片（量大且随位置变化）
  * 导航请求走「网络优先」，保证更新能及时生效；断网时回落到缓存外壳。
  */
 
-const CACHE = 'rwc-shell-v69';
+const CACHE = 'rwc-shell-v70';
 
 const ASSETS = [
   './',

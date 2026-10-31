@@ -313,14 +313,13 @@ function initCreate() {
       $$('#segMode button').forEach(x => x.classList.remove('on'));
       b.classList.add('on');
       state.mode = b.dataset.mode;
-      // 徒步/骑行：OSRM 公共服务器只有汽车路网，必须提前告知
-      // 注意要点明是「哪种方式」的估算，且切回自驾时不应残留提示
+      markCreateMapDirty();
       const spd = ROUTING.SPEED[state.mode];
       if (spd) {
         const label = state.mode === 'hike' ? '徒步' : '骑行';
-        toast(`${label}模式：路线按公路网规划，时长按 ${spd} km/h 估算`, 3200);
+        toast(`${label}已切换到专用路网，时长按 ${spd} km/h 估算`, 3200);
       } else {
-        hideToast();   // 切回自驾时立刻收起旧提示
+        toast('自驾已切换到汽车道路路网', 2400);
       }
     });
   });
@@ -492,7 +491,7 @@ function markCreateMapDirty() {
 
 function ensureCreateMap() {
   if (state.view !== 'create') return;
-  const sig = state.points.map(p => `${p.lat},${p.lon}`).join('|');
+  const sig = `${state.mode}:${state.points.map(p => `${p.lat},${p.lon}`).join('|')}`;
   if (!createMapDirty && MapCtl.create && sig === lastCreateSig) return;
   createMapDirty = false;
   lastCreateSig = sig;
@@ -511,7 +510,7 @@ function ensureCreateMap() {
         toast('已识别地名：' + nm);
       }
     });
-  });
+  }, state.mode);
   if (map) map.on('dragstart', () => setPlannerSheetCollapsed(true));
 }
 
@@ -1493,6 +1492,9 @@ function renderNavReport(r, stale) {
   const arriveTotalMin = Math.round(arriveH * 60);
   const arriveHM = Math.floor(arriveTotalMin / 60);
   const arriveClock = `${p2(arriveHM % 24)}:${p2(arriveTotalMin % 60)}`;
+  const routeProvider = r.route.provider === 'BRouter'
+    ? '<a href="https://brouter.de/" target="_blank" rel="noopener">BRouter</a>'
+    : '<a href="https://project-osrm.org/" target="_blank" rel="noopener">OSRM</a>';
   const arriveDayOffset = Math.floor(arriveHM / 24);
   const arriveDate = addDays(r.date, arriveDayOffset);
   const arriveWeek = weekOf(arriveDate);
@@ -1541,7 +1543,7 @@ function renderNavReport(r, stale) {
         <section class="smart-report-section travel-advice-section"><div class="smart-section-heading"><div><span>TRAVEL ADVICE</span><h3>出行建议</h3></div><button type="button" data-report-target="weatherDetails">查看沿途天气 <b>↗</b></button></div><div class="smart-note-timeline">${renderNavAdviceHtml(r)}</div></section>
         <section class="smart-report-section smart-departure-section"><div class="smart-section-heading"><div><span>DEPARTURE WINDOW</span><h3>出发时段</h3></div></div><div class="departure-intro"><div class="departure-rec-card"><small>近期推荐出发</small><button class="smart-departure-time" id="btnUseSmartRec" type="button" ${rec ? '' : 'disabled'}>${rec ? `<strong>${minToHM(rec.hour * 60)} 出发</strong><small>点击切换</small>` : '<strong>暂无可用时段</strong>'}<p>${r.recommendedMin != null ? `路线最低点位评分 ${Math.round(r.recommendedMin)} 分 · ${modeText(r.travelMode)}` : '当前预报范围内没有完整可用的出发时段'}</p></div><div class="departure-current-card"><small>当前选择 · ${escapeHtml(r.date)}</small><strong>${minToHM(Math.round(r.departureHour * 60))}</strong><span>预计 ${arriveClock} 抵达 · 路网 ${Math.round(r.route.distanceKm)} km</span>${state.departOriginal != null && Math.abs(r.departureHour - state.departOriginal) > 0.01 ? `<button class="smart-restore-time" id="btnRestoreNavDeparture" type="button">恢复原时间 ${minToHM(Math.round(state.departOriginal * 60))}</button>` : ''}</div></div><div class="departure-grid-card"><div class="weather-timeline-head"><strong>72 小时出发时段</strong><span>颜色表示全程天气影响参考</span></div><div id="navHours">${renderNavHours(r)}</div></div></section>
         <div class="smart-report-actions">${shareBarHtml()}</div>
-        <details class="smart-data-details"><summary>数据来源与使用边界</summary><div class="smart-data-body"><p>天气按沿途等距采样点展示；采样点之间不逐点显示。</p><p>到达时刻按平均速度估算，未考虑堵车、休息、封路。</p><p>天气与到达时间用于行程安排；出行安全以官方预警和现场判断为准。</p><p>天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（CC BY 4.0）</p><p>路径规划：<a href="https://project-osrm.org/" target="_blank" rel="noopener">OSRM</a>（公共 demo 服务，路网数据 © OpenStreetMap contributors）</p><p>更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</p></div></details>
+        <details class="smart-data-details"><summary>数据来源与使用边界</summary><div class="smart-data-body"><p>天气按沿途等距采样点展示；采样点之间不逐点显示。</p><p>到达时刻按平均速度估算，未考虑堵车、休息、封路。</p><p>天气与到达时间用于行程安排；出行安全以官方预警和现场判断为准。</p><p>天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（CC BY 4.0）</p><p>路径规划：${routeProvider}（路网数据 © OpenStreetMap contributors）</p><p>更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</p></div></details>
         ${stale ? '<p class="smart-data-note">当前显示离线缓存的预报数据，请联网后刷新。</p>' : ''}
       </div>
     </section>
@@ -2536,7 +2538,10 @@ function reportSummaryText(r) {
     const texts = [...new Set((r.points || []).map(p => p.weatherText).filter(Boolean))].slice(0, 4);
     const maxPP = Math.max(...(r.points || []).map(p => p.pp == null ? 0 : p.pp));
     lines.push(`沿途天气：${texts.join('、') || '—'}；最高降水概率 ${Math.round(maxPP)}%`);
-    if (r.route && r.route.approx) lines.push(`徒步/骑行路线按公路网规划，时长按 ${r.route.speedKmh} km/h 估算`);
+    if (r.route && r.route.approx) {
+      const network = r.travelMode === 'hike' ? '徒步专用路网' : '骑行专用路网';
+      lines.push(`${network}规划路线，时长按 ${r.route.speedKmh} km/h 估算`);
+    }
     buildNavWeatherNotes(r).slice(0, 3).forEach(a => lines.push('· ' + a));
   } else {
     const worst = r.points && r.points[r.worstIndex];
