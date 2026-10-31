@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="css/style.css?v=14">
 <link rel="stylesheet" href="css/redesign.css?v=1">
 <link rel="stylesheet" href="css/product-ui.css?v=4">
-<link rel="stylesheet" href="css/immersive-ui.css?v=21">
+<link rel="stylesheet" href="css/immersive-ui.css?v=31">
 <link rel="icon" href="icons/routeweather.svg" type="image/svg+xml">
 <script>
 /* 早期错误捕获：把 JS 错误显示在页面上，避免"白屏无提示" */
@@ -47,13 +47,10 @@ window.addEventListener('error', function (e) {
   </a>
   <nav class="app-nav" aria-label="主导航">
     <button class="on" type="button" data-view="home">探索</button>
-    <button type="button" data-view="create">路线规划</button>
-    <button type="button" data-view="report">天气分析</button>
     <button type="button" data-view="saved">行程收藏</button>
   </nav>
   <div class="topbar-actions">
     <span class="topbar-context"><span class="status-dot"></span> 山地气象决策</span>
-    <button class="topbar-cta" type="button" data-view="create">开始规划 <span aria-hidden="true">↗</span></button>
   </div>
 </header>
 
@@ -85,9 +82,9 @@ window.addEventListener('error', function (e) {
             <span><i class="metric-icon">◷</i><b>到达时刻</b><small>逐小时预报</small></span>
             <span><i class="metric-icon">△</i><b>海拔变化</b><small>沿途采样</small></span>
           </div>
-          <button type="button" class="hero-route-link" data-home-demo>查看示例路线 <span>↗</span></button>
+          <div class="hero-route-link static">示例路线：雅安 → 天全 → 泸定</div>
         </div>
-        <div class="hero-weather-float"><span class="weather-float-icon">☀</span><span><small>山地出行</small><b>天气 · 路线 · 时段</b></span><span class="weather-float-arrow">→</span></div>
+        <div class="hero-weather-float"><span class="weather-float-icon">☀</span><span><small>山地出行</small><b>天气 · 路线 · 时段</b></span></div>
       </div>
     </div>
 
@@ -97,9 +94,9 @@ window.addEventListener('error', function (e) {
         <p>用可解释的数据，辅助每一次山区出行安排</p>
       </div>
       <div class="home-features">
-        <button class="feat" type="button" data-home-demo><span class="feat-index">01</span><div><b>沿途逐点分析</b><p>结合预计到达时间，查看不同路段的逐小时预报。</p></div><span class="feat-symbol">↗</span></button>
-        <button class="feat" type="button" data-view="report"><span class="feat-index">02</span><div><b>天气影响分段</b><p>在真实道路几何上标出天气变化区段，并可点击查看依据。</p></div><span class="feat-symbol">⌁</span></button>
-        <button class="feat" type="button" data-view="saved"><span class="feat-index">03</span><div><b>出发时间对比</b><p>保存、筛选与回看你的山地行程分析。</p></div><span class="feat-symbol">◷</span></button>
+        <article class="feat feat-static"><span class="feat-index">01</span><div><b>沿途逐点分析</b><p>结合预计到达时间，查看不同路段的逐小时预报。</p></div></article>
+        <article class="feat feat-static"><span class="feat-index">02</span><div><b>天气影响分段</b><p>在真实道路几何上标出天气变化区段。</p></div></article>
+        <article class="feat feat-static"><span class="feat-index">03</span><div><b>出发时间对比</b><p>保存、筛选与回看你的山地行程分析。</p></div></article>
       </div>
 
       <div class="home-trips-head"><div><p class="section-kicker">YOUR ROUTES</p><h2>最近行程</h2></div><button class="library-shortcut" type="button" data-view="saved">打开行程库 <span>↗</span></button></div>
@@ -107,12 +104,7 @@ window.addEventListener('error', function (e) {
         <span class="empty-mark">⌁</span><p>这里会显示你最近分析的行程</p><small>完成一次路线分析后，结果将保存在当前设备</small>
       </div>
 
-      <button class="trips-toggle hidden" id="tripsToggle" type="button" aria-expanded="false">
-        <span class="trips-title">查看已保存行程 <span class="trips-count" id="tripsCount">0</span></span>
-        <span class="trips-arrow" id="tripsArrow">↓</span>
-      </button>
-
-      <div id="homeList" class="list hidden">
+      <div id="homeList" class="list">
         <div id="historyList"></div>
       </div>
     </div>
@@ -272,8 +264,6 @@ window.addEventListener('error', function (e) {
 
 <nav class="mobile-nav" aria-label="主导航">
   <button class="on" type="button" data-view="home" aria-current="page"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg></span><small>探索</small></button>
-  <button type="button" data-view="create" aria-current="false"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><small>规划</small></button>
-  <button type="button" data-view="report" aria-current="false"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h16M8 15l3-4 3 2 5-7"/><circle cx="19" cy="6" r="1"/></svg></span><small>分析</small></button>
   <button type="button" data-view="saved" aria-current="false"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.8 8.7c0 5.1-8.8 10.3-8.8 10.3S3.2 13.8 3.2 8.7A4.7 4.7 0 0 1 12 6a4.7 4.7 0 0 1 8.8 2.7Z"/></svg></span><small>收藏</small></button>
 </nav>
 
@@ -308,12 +298,12 @@ window.addEventListener('error', function (e) {
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="js/points.js?v=14"></script>
 <script src="js/api.js?v=14"></script>
-<script src="js/routing.js?v=15"></script>
-<script src="js/scoring.js?v=15"></script>
+<script src="js/routing.js?v=14"></script>
+<script src="js/scoring.js?v=14"></script>
 <script src="js/storage.js?v=14"></script>
 <script src="js/geocode.js?v=14"></script>
 <script src="js/route-segments.js?v=1"></script>
 <script src="js/map.js?v=22"></script>
-<script src="js/app.js?v=30"></script>
+<script src="js/app.js?v=41"></script>
 </body>
 </html>

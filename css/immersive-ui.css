@@ -1286,3 +1286,335 @@ body.immersive-view #view-report { width: 100vw; margin: 0 calc(50% - 50vw); pad
   #view-create .planner-steps > button { gap: 4px; padding-inline: 2px; }
   #view-create .planner-steps > button span { font-size: 8px; }
 }
+
+/* Product revision: static home cards, direct recent trips, merged smart report */
+.hero-route-link.static { cursor: default; }
+.feat.feat-static { grid-template-columns: 35px 1fr !important; cursor: default; }
+.feat.feat-static:hover { transform: none; border-color: var(--line) !important; box-shadow: 0 8px 22px rgba(23,60,92,.045) !important; }
+.home-features .feat-static { padding-right: 20px !important; }
+.smart-report-actions { margin-top: 16px; }
+.smart-report-actions .share-bar { margin: 0; }
+.smart-data-details { margin-top: 14px; border: 1px solid #e2eaf0; border-radius: 15px; background: #fff; box-shadow: 0 8px 24px rgba(23,60,92,.045); }
+.smart-data-details summary { padding: 13px 15px; color: #42647e; font-size: 11px; font-weight: 700; cursor: pointer; }
+.smart-data-body { padding: 0 15px 14px; color: #6f8395; font-size: 10px; line-height: 1.7; }
+.smart-data-body p { margin: 8px 0 0; }
+.smart-data-body a { color: #1769b2; }
+#weatherDetails {
+  width: min(900px, calc(100vw - 48px));
+  margin-inline: auto;
+  padding-bottom: 64px;
+  box-sizing: border-box;
+}
+#weatherDetails .report-screen-heading {
+  align-items: flex-end;
+  min-height: 286px;
+  margin: 0;
+  padding: 80px clamp(24px, 4vw, 42px) 78px;
+  border-radius: 0 0 74px 17px;
+  background:
+    linear-gradient(90deg,rgba(8,43,72,.77),rgba(17,69,104,.38) 52%,rgba(15,55,81,.06)),
+    url('../assets/hero-alpine-road.png') center 52%/cover;
+  box-shadow: 0 22px 55px rgba(18,55,82,.18);
+}
+#weatherDetails .report-screen-heading .screen-back,
+#weatherDetails .report-screen-heading .report-favorite {
+  border-color: rgba(255,255,255,.55);
+  background: rgba(241,249,253,.2);
+  color: #fff;
+  backdrop-filter: blur(16px);
+}
+#weatherDetails .report-screen-heading .eyebrow { color: #b8e3f7; }
+#weatherDetails .report-screen-heading h2 {
+  color: #fff;
+  font-size: clamp(26px,3vw,38px);
+  text-shadow: 0 4px 20px rgba(5,25,41,.2);
+}
+#weatherDetails .report-screen-heading p { color: rgba(245,251,255,.82); font-size: 10px; }
+@media (max-width: 760px) {
+  #weatherDetails { width: 100%; padding-inline: 12px; }
+  #weatherDetails .report-screen-heading { padding: 85px 13px 68px; }
+  #weatherDetails .report-screen-heading h2 { font-size: 21px; }
+}
+@media (max-width: 760px) {
+  .mobile-nav { grid-template-columns: repeat(2,1fr); }
+}
+/* Final UI corrections requested after review */
+.home-features .feat-static { align-items: center !important; }
+.home-features .feat-static > div {
+  grid-column: 2 !important;
+  width: 100%;
+  min-width: 0;
+  align-self: center;
+}
+.home-features .feat-static b,
+.home-features .feat-static p { width: 100%; overflow-wrap: normal; }
+.saved-card-score:not(.nav) {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  line-height: 1;
+}
+.saved-card-score:not(.nav) b {
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.saved-card-score:not(.nav) small {
+  font-size: 7px;
+  line-height: 1;
+  color: rgba(255,255,255,.9);
+}
+#weatherDetails .weather-screen-grid { grid-template-columns: minmax(0,1fr); }
+.smart-departure-time {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  margin: 10px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+.smart-departure-time strong {
+  display: block;
+  color: #fff;
+  font-size: 27px;
+  line-height: 1.2;
+  letter-spacing: -.04em;
+}
+.smart-departure-time small {
+  display: inline-block;
+  margin-top: 5px;
+  color: #bdd7e9;
+  font-size: 8px;
+  letter-spacing: .08em;
+}
+.smart-departure-time:disabled { cursor: default; opacity: .78; }
+.smart-departure-time:not(:disabled):hover strong { text-decoration: underline; text-underline-offset: 4px; }
+.smart-restore-time {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border: 1px solid #dbe7ef;
+  border-radius: 9px;
+  background: #f7fafc;
+  color: #315f81;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.smart-restore-time:hover { border-color: #b9d4e8; background: #eef7fc; }
+@media (max-width: 760px) {
+  .home-features .feat-static > div { grid-column: 2 !important; }
+  .saved-card-score:not(.nav) { width: 43px; height: 43px; }
+}
+/* Static feature cards use two real tracks so copy fills the card. */
+.home-features .feat.feat-static {
+  grid-template-columns: 35px minmax(0,1fr) !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 20px !important;
+}
+.home-features .feat.feat-static::before { display: none !important; }
+.home-features .feat-static .feat-index {
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  width: 31px;
+  height: 31px;
+  transform: none !important;
+  align-self: center;
+}
+.home-features .feat-static > div { grid-column: 2 !important; width: 100%; }
+@media (max-width: 760px) {
+  .home-features .feat.feat-static { padding: 16px !important; }
+}
+
+/* Keep every weather point card on the same left edge and width. */
+#weatherDetails .weather-points-stack {
+  padding-left: 0 !important;
+  gap: 12px !important;
+}
+#weatherDetails .weather-points-stack::before,
+#weatherDetails .weather-points-stack .pt-card::before { display: none !important; }
+#weatherDetails .weather-points-stack .pt-card,
+#weatherDetails .weather-points-stack .pt-card:nth-child(even) {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+}
+#weatherDetails .weather-points-stack .pt-card {
+  border-radius: 22px 10px 22px 10px !important;
+}
+
+/* Put the report back button beside the report tabs. */
+#view-report .report-local-nav .report-nav-back {
+  display: grid;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  place-items: center;
+  border-radius: 50%;
+  background: #edf6fc;
+  color: #174d79;
+  font-size: 18px;
+  font-weight: 700;
+}
+#view-report .report-local-nav .report-nav-back:hover { background: #dff0fb; }
+@media (max-width: 760px) {
+  #view-report .report-local-nav .report-nav-back {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    min-height: 34px;
+    font-size: 16px;
+  }
+}
+
+
+/* Horizontal weather strips scroll with the mouse wheel and show no native scrollbar. */
+.hourly-strip,
+.ht-scroll,
+.rec-strip,
+.leg-list {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  overscroll-behavior-x: contain;
+  cursor: grab;
+}
+.hourly-strip::-webkit-scrollbar,
+.ht-scroll::-webkit-scrollbar,
+.rec-strip::-webkit-scrollbar,
+.leg-list::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.hourly-strip:active,
+.ht-scroll:active,
+.rec-strip:active,
+.leg-list:active { cursor: grabbing; }
+
+
+/* Reduce repaint overhead while horizontal strips are animating. */
+.hourly-strip,
+.ht-scroll,
+.rec-strip {
+  will-change: scroll-position;
+}
+
+
+/* Restore framed cards inside the navigation smart report. */
+#smartReport.nav-smart-report .smart-report-facts,
+#smartReport.nav-smart-report .smart-report-section,
+#smartReport.nav-smart-report .smart-report-actions,
+#smartReport.nav-smart-report .smart-data-details {
+  padding: 18px;
+  border: 1px solid rgba(110,157,188,.2);
+  border-radius: 27px 11px 27px 11px;
+  background: rgba(255,255,255,.88);
+  box-shadow: 0 16px 38px rgba(23,63,93,.08);
+}
+#smartReport.nav-smart-report .smart-report-section { margin-bottom: 18px; }
+#smartReport.nav-smart-report .smart-report-actions { margin-top: 16px; }
+#smartReport.nav-smart-report .smart-data-details { margin-top: 16px; }
+#smartReport.nav-smart-report .smart-report-actions .share-bar {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+#smartReport.nav-smart-report .smart-data-details summary { padding: 0; }
+#smartReport.nav-smart-report .smart-data-body { padding: 10px 0 0; }
+@media (max-width: 760px) {
+  #smartReport.nav-smart-report .smart-report-facts,
+  #smartReport.nav-smart-report .smart-report-section,
+  #smartReport.nav-smart-report .smart-report-actions,
+  #smartReport.nav-smart-report .smart-data-details { padding: 14px; border-radius: 22px 9px 22px 9px; }
+}
+
+
+/* Navigation smart-report travel advice cards. */
+#smartReport.nav-smart-report .travel-advice-section { padding-bottom: 20px; }
+.smart-note-timeline { display: grid; gap: 10px; }
+.smart-note-row {
+  display: grid;
+  grid-template-columns: 32px 30px minmax(0,1fr);
+  align-items: center;
+  gap: 11px;
+  padding: 13px 14px;
+  border: 1px solid rgba(112,158,191,.17);
+  border-radius: 18px 8px 18px 8px;
+  background: linear-gradient(135deg,rgba(246,251,254,.98),rgba(255,255,255,.94));
+  box-shadow: 0 8px 20px rgba(24,65,96,.055);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.smart-note-row:hover {
+  transform: translateY(-1px);
+  border-color: rgba(57,139,199,.3);
+  box-shadow: 0 12px 26px rgba(24,65,96,.09);
+}
+.smart-note-row:first-child {
+  border-color: rgba(27,133,209,.28);
+  background: linear-gradient(135deg,rgba(231,246,255,.98),rgba(248,252,255,.96));
+}
+.smart-note-index {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: #1684d0;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 5px 12px rgba(22,132,208,.2);
+}
+.smart-note-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 9px;
+  background: #eaf5fc;
+  color: #2c7fb6;
+  font-size: 16px;
+  font-weight: 700;
+}
+.smart-note-copy { min-width: 0; }
+.smart-note-copy strong {
+  display: block;
+  color: #1a405f;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.5;
+}
+.smart-note-copy small {
+  display: block;
+  margin-top: 3px;
+  color: #71889a;
+  font-size: 9px;
+  line-height: 1.55;
+}
+@media (max-width: 760px) {
+  .smart-note-row { grid-template-columns: 28px 26px minmax(0,1fr); gap: 8px; padding: 11px 10px; }
+  .smart-note-index,.smart-note-icon { width: 25px; height: 25px; }
+  .smart-note-copy strong { font-size: 11px; }
+  .smart-note-copy small { font-size: 8px; }
+}

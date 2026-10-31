@@ -11,7 +11,6 @@ const state = {
   departOriginal: null, // 用户原始出发时刻，用于“恢复原时间”
   planOriginalTimes: null, // 规划模式：平移前的原始时间
   planOriginalDate: null,  // 规划模式：平移前的原始日期
-  tripsOpen: false,     // 首页“我的行程”是否展开
   libraryFilter: 'all',
   libraryQuery: '',
   reportTab: 'routeAnalysis',
@@ -89,24 +88,15 @@ function hideToast() {
 function renderHome() {
   const list = loadHistory();
   const listEl = $('#historyList');
-  const toggle = $('#tripsToggle');
-  const count = $('#tripsCount');
+  const homeList = $('#homeList');
 
   if (!list.length) {
     $('#homeEmpty').classList.remove('hidden');
-    if (toggle) toggle.classList.add('hidden');
-    $('#homeList').classList.add('hidden');
+    homeList.classList.add('hidden');
     return;
   }
   $('#homeEmpty').classList.add('hidden');
-  if (toggle) {
-    toggle.classList.remove('hidden');
-    toggle.setAttribute('aria-expanded', String(!!state.tripsOpen));
-  }
-  if (count) count.textContent = String(list.length);
-  $('#homeList').classList.toggle('hidden', !state.tripsOpen);
-  const arrow = $('#tripsArrow');
-  if (arrow) arrow.textContent = state.tripsOpen ? '▴' : '▾';
+  homeList.classList.remove('hidden');
 
   listEl.innerHTML = list.map(t => {
     const isNav = t.checkMode === 'nav';
@@ -202,7 +192,7 @@ function renderSavedTrips() {
         </div>
         <div class="saved-card-cover-bottom">
           <span><small>${escapeHtml(t.date || '日期未设置')} · 山地行程</small><strong>${isNav && t.distanceKm ? Math.round(t.distanceKm) + ' km 路网' : '路线天气分析'}</strong></span>
-          <span class="saved-card-score${isNav ? ' nav' : ''}">${score == null ? '天气' : score + ' 分'}</span>
+          <span class="saved-card-score${isNav ? ' nav' : ''}">${score == null ? '天气' : `<b>${score}</b><small>分</small>`}</span>
         </div>
       </div>
       <div class="saved-card-body">
@@ -307,12 +297,6 @@ function modeText(m) {
   return ({ drive: '自驾', hike: '徒步', bike: '骑行' })[m] || '自驾';
 }
 
-function routeNetworkText(route) {
-  return route && route.provider && route.profile
-    ? `${route.provider}「${route.profile}」路网`
-    : '历史路网';
-}
-
 /* ============================================================
  * 创建行程
  * ============================================================ */
@@ -329,28 +313,19 @@ function initCreate() {
       $$('#segMode button').forEach(x => x.classList.remove('on'));
       b.classList.add('on');
       state.mode = b.dataset.mode;
-      // 切换方式时同步告知使用的专用路网，以及徒步/骑行的估算速度。
+      // 徒步/骑行：OSRM 公共服务器只有汽车路网，必须提前告知
+      // 注意要点明是「哪种方式」的估算，且切回自驾时不应残留提示
       const spd = ROUTING.SPEED[state.mode];
-      const routeConfig = ROUTING.configOf(state.mode);
       if (spd) {
         const label = state.mode === 'hike' ? '徒步' : '骑行';
-        toast(`${label}已切换至 ${routeConfig.provider}「${routeConfig.profile}」路网；时长按 ${spd} km/h 估算`, 4200);
+        toast(`${label}模式：路线按公路网规划，时长按 ${spd} km/h 估算`, 3200);
       } else {
-        toast(`自驾已切换至 OSRM「${routeConfig.profile}」道路网`, 2800);
+        hideToast();   // 切回自驾时立刻收起旧提示
       }
     });
   });
 
   $('#btnAddPoint').addEventListener('click', () => openSheet());
-
-  // 首页：我的行程折叠
-  const tripsToggle = $('#tripsToggle');
-  if (tripsToggle) {
-    tripsToggle.addEventListener('click', () => {
-      state.tripsOpen = !state.tripsOpen;
-      renderHome();
-    });
-  }
 
   // 首页：载入示例路线
   const homeDemo = $('#btnHomeDemo');
@@ -1298,7 +1273,6 @@ function decisionLeadHtml(r, stale) {
   const scoreText = rec && Number.isFinite(rec.score)
     ? `当前 ${curClock} 出发评分 ${r.routeScore}；推荐时段评分 ${rec.score}。`
     : `当前 ${curClock} 出发评分 ${r.routeScore}。`;
-  const canApply = r.mode === 'plan' && rec && !same;
   const score = r.routeScore == null ? 0 : Math.max(0, Math.min(100, Math.round(Number(r.routeScore) || 0)));
 
   return `
@@ -1313,7 +1287,6 @@ function decisionLeadHtml(r, stale) {
         <div class="decision-copy">${escapeHtml(scoreText)}</div>
         <div class="decision-risk"><span>最大风险</span>${escapeHtml(riskText)}</div>
         <div class="decision-fresh">${escapeHtml(dataAgeText(r.fetchedAt, !!stale))}</div>
-        ${canApply ? `<button class="btn btn-primary decision-btn" id="btnUsePlanRecHero" type="button">采用推荐时间</button>` : ''}
       </div>
     </div>`;
 }
@@ -1397,7 +1370,7 @@ function elevationProfileHtml(points) {
 }
 
 function reportScreenHeader(eyebrow, title, subtitle, trailing = '') {
-  return `<div class="report-screen-heading"><button class="screen-back" type="button" data-view="home" aria-label="返回探索">←</button><div class="screen-heading-copy"><div class="eyebrow">${eyebrow}</div><h2>${title}</h2><p>${subtitle}</p></div>${trailing}</div>`;
+  return `<div class="report-screen-heading"><div class="screen-heading-copy"><div class="eyebrow">${eyebrow}</div><h2>${title}</h2><p>${subtitle}</p></div>${trailing}</div>`;
 }
 
 function routeMapConsoleHtml({ routeName, date, mode, distance, duration, points, stale = false, note = '' }) {
@@ -1488,6 +1461,31 @@ function buildNavWeatherNotes(r) {
   return out;
 }
 
+
+function navAdviceIcon(text) {
+  if (text.includes('雷暴')) return '⛈';
+  if (text.includes('降水') || text.includes('雨') || text.includes('雪')) return '☂';
+  if (text.includes('雾')) return '≋';
+  if (text.includes('风')) return '≫';
+  if (text.includes('海拔') || text.includes('气温')) return '△';
+  if (text.includes('4 小时')) return '◷';
+  if (text.includes('刷新') || text.includes('预报')) return '↻';
+  return '◷';
+}
+
+function renderNavAdviceHtml(r) {
+  return buildNavWeatherNotes(r).map((text, i) => {
+    const pieces = text.split(/[，；]/).map(part => part.trim()).filter(Boolean);
+    const title = pieces.shift() || text;
+    const detail = pieces.join('，');
+    return `<div class="smart-note-row">
+      <span class="smart-note-index">${String(i + 1).padStart(2, '0')}</span>
+      <span class="smart-note-icon" aria-hidden="true">${navAdviceIcon(text)}</span>
+      <span class="smart-note-copy"><strong>${escapeHtml(title)}</strong>${detail ? `<small>${escapeHtml(detail)}</small>` : ''}</span>
+    </div>`;
+  }).join('');
+}
+
 function renderNavReport(r, stale) {
   const p2 = n => String(Math.floor(n)).padStart(2, '0');
   const routeName = state.points.map(p => p.name).join(' → ');
@@ -1503,25 +1501,22 @@ function renderNavReport(r, stale) {
   const keyIdx = r.points.length > 1 ? [0, r.points.length - 1] : [0];
   const legIdx = r.points.map((p, i) => i);
   const weatherLead = navWeatherOverviewHtml(r, stale);
+  const rec = recommendationForReport(r);
   const mapPoints = r.points.map(p => {
-    const out = Object.assign({}, p, {
-      level: { key: navWeatherKey(p) },
-      weatherDataAvailable: ['code', 'pp', 'precip', 'wind', 'temp'].some(k => p[k] != null && Number.isFinite(Number(p[k]))),
+    return Object.assign({}, p, {
+      level: p.level || levelOf(Number(p.score) || 0),
       weatherText: p.weatherText || wmoText(p.code),
       pinLabel: p.pinLabel,
     });
-    delete out.score;
-    return out;
   });
 
   $('#reportBody').innerHTML = `
     <nav class="report-local-nav" aria-label="报告章节">
+      <button class="report-nav-back" type="button" data-view="home" aria-label="返回探索">←</button>
       <span>本次行程</span>
       <button class="on" type="button" data-report-target="routeAnalysis" aria-pressed="true">路线地图</button>
-      <button type="button" data-report-target="smartReport" aria-pressed="false">天气总览</button>
+      <button type="button" data-report-target="smartReport" aria-pressed="false">智能报告</button>
       <button type="button" data-report-target="weatherDetails" aria-pressed="false">沿途天气 <span class="tab-count">${r.points.length}</span></button>
-      <button type="button" data-report-target="departurePlanner" aria-pressed="false">出发时段</button>
-      <button type="button" data-report-target="travelReport" aria-pressed="false">完整报告</button>
     </nav>
     <section class="report-screen is-active" id="routeAnalysis">
     ${reportScreenHeader('ROUTE WEATHER MAP', '沿途天气影响', `${escapeHtml(routeName)} · 点击路线点位查看天气`, '<button class="report-favorite" id="btnReportFavorite" type="button" aria-pressed="false">♡ <span>收藏</span></button>')}
@@ -1533,18 +1528,20 @@ function renderNavReport(r, stale) {
           <button class="map-btn" id="mapFull" type="button">⛶ 全屏</button>
         </div>
       </div>
-      <div class="map-hint">路线颜色表示该里程区间的天气影响；点击路线或采样点查看详情。天气影响不代表道路安全等级。</div>
+      <div class="map-hint">路线颜色表示该里程区间的天气影响；点击路线或采样点查看详情。</div>
     </div>
-    ${routeMapConsoleHtml({ routeName, date: r.date, mode: `${modeText(r.travelMode)} · 导航`, distance: r.route.distanceKm, duration: r.route.durationMin, points: r.points, stale, note: r.route.approx ? `${modeText(r.travelMode)}采用${escapeHtml(routeNetworkText(r.route))}；时长按${r.route.speedKmh} km/h估算，实际以现场为准。` : '自驾路线由 OSRM 道路网规划；颜色表示天气影响程度，实际通行请以现场路况与官方预警为准。' })}
+    ${routeMapConsoleHtml({ routeName, date: r.date, mode: `${modeText(r.travelMode)} · 导航`, distance: r.route.distanceKm, duration: r.route.durationMin, points: r.points, stale, note: r.route.approx ? `路线按${r.route.speedKmh} km/h 估算。` : '颜色表示天气影响程度。' })}
     </section>
 
-    <section class="report-screen smart-report-screen" id="smartReport">
+    <section class="report-screen smart-report-screen nav-smart-report" id="smartReport">
       ${reportScreenHeader('WEATHER OVERVIEW', '天气总览与行程建议', `${escapeHtml(routeName)} · ${r.date}`, '<button class="report-favorite" id="btnReportFavoriteOverview" type="button" aria-pressed="false">♡ <span>收藏行程</span></button>')}
       <div class="smart-report-content">
         ${weatherLead}
-        <div class="smart-overview-orbit-note"><span class="orbit-spark">✦</span><div><strong>整段行程的天气脉络</strong><p>按预计到达时刻逐点检查天气，地图页可查看每个点位与风险路段。</p></div></div>
         <div class="smart-report-facts"><div><small>路网距离</small><strong>${r.route.distanceKm.toFixed(0)} <i>km</i></strong></div><div><small>预计用时</small><strong>${fmtDuration(r.route.durationMin)}</strong></div><div><small>出发 / 抵达</small><strong>${minToHM(Math.round(r.departureHour * 60))} <i>→</i> ${arriveClock}</strong></div></div>
-        <section class="smart-report-section"><div class="smart-section-heading"><div><span>WATCH LIST</span><h3>出发前值得留意</h3></div><button type="button" data-report-target="weatherDetails">查看沿途天气 <b>↗</b></button></div><div class="smart-note-timeline">${buildNavWeatherNotes(r).map((a, i) => `<div class="smart-note-row"><span>${String(i + 1).padStart(2, '0')}</span><p>${escapeHtml(a)}</p><i>›</i></div>`).join('')}</div></section>
+        <section class="smart-report-section travel-advice-section"><div class="smart-section-heading"><div><span>TRAVEL ADVICE</span><h3>出行建议</h3></div><button type="button" data-report-target="weatherDetails">查看沿途天气 <b>↗</b></button></div><div class="smart-note-timeline">${renderNavAdviceHtml(r)}</div></section>
+        <section class="smart-report-section smart-departure-section"><div class="smart-section-heading"><div><span>DEPARTURE WINDOW</span><h3>出发时段</h3></div></div><div class="departure-intro"><div class="departure-rec-card"><small>近期推荐出发</small><button class="smart-departure-time" id="btnUseSmartRec" type="button" ${rec ? '' : 'disabled'}>${rec ? `<strong>${minToHM(rec.hour * 60)} 出发</strong><small>点击切换</small>` : '<strong>暂无可用时段</strong>'}<p>${r.recommendedMin != null ? `路线最低点位评分 ${Math.round(r.recommendedMin)} 分 · ${modeText(r.travelMode)}` : '当前预报范围内没有完整可用的出发时段'}</p></div><div class="departure-current-card"><small>当前选择 · ${escapeHtml(r.date)}</small><strong>${minToHM(Math.round(r.departureHour * 60))}</strong><span>预计 ${arriveClock} 抵达 · 路网 ${Math.round(r.route.distanceKm)} km</span>${state.departOriginal != null && Math.abs(r.departureHour - state.departOriginal) > 0.01 ? `<button class="smart-restore-time" id="btnRestoreNavDeparture" type="button">恢复原时间 ${minToHM(Math.round(state.departOriginal * 60))}</button>` : ''}</div></div><div class="departure-grid-card"><div class="weather-timeline-head"><strong>72 小时出发时段</strong><span>颜色表示全程天气影响参考</span></div><div id="navHours">${renderNavHours(r)}</div></div></section>
+        <div class="smart-report-actions">${shareBarHtml()}</div>
+        <details class="smart-data-details"><summary>数据来源与使用边界</summary><div class="smart-data-body"><p>天气按沿途等距采样点展示；采样点之间不逐点显示。</p><p>到达时刻按平均速度估算，未考虑堵车、休息、封路。</p><p>天气与到达时间用于行程安排；出行安全以官方预警和现场判断为准。</p><p>天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（CC BY 4.0）</p><p>路径规划：<a href="https://project-osrm.org/" target="_blank" rel="noopener">OSRM</a>（公共 demo 服务，路网数据 © OpenStreetMap contributors）</p><p>更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</p></div></details>
         ${stale ? '<p class="smart-data-note">当前显示离线缓存的预报数据，请联网后刷新。</p>' : ''}
       </div>
     </section>
@@ -1556,13 +1553,6 @@ function renderNavReport(r, stale) {
         <div class="weather-points-stack" id="pointCards">
           ${keyIdx.map(i => renderNavPointCard(r.points[i], i, state.expandIdx === i)).join('')}
         </div>
-        <aside class="weather-side-note">
-          <div class="weather-note-kicker">TRIP WEATHER NOTES</div>
-          <h3>出发前值得留意</h3>
-          <div class="card advice">
-            ${buildNavWeatherNotes(r).map((a, i) => `<div class="advice-item"><span class="advice-index">${String(i + 1).padStart(2, '0')}</span><p>${escapeHtml(a)}</p></div>`).join('')}
-          </div>
-        </aside>
       </div>
 
     ${legIdx.length ? `
@@ -1594,32 +1584,6 @@ function renderNavReport(r, stale) {
     </div>` : ''}
     </section>
 
-    <section class="report-screen" id="departurePlanner">
-      ${reportScreenHeader('DEPARTURE WINDOW', '换一个时刻，整段行程会怎样？', '比较未来三天的整条路线天气评分；选择时刻后将重新计算沿途预报。')}
-      <div class="departure-intro">
-        <div class="departure-rec-card"><small>近期推荐出发</small><strong>${r.recommendedHour != null ? `${minToHM(Math.round(r.recommendedHour * 60))} 出发` : '暂无可用时段'}</strong><p>${r.recommendedMin != null ? `路线最低点位评分 ${Math.round(r.recommendedMin)} 分 · ${modeText(r.travelMode)}` : '当前预报范围内没有完整可用的出发时段'}</p></div>
-        <div class="departure-current-card"><small>当前选择 · ${escapeHtml(r.date)}</small><strong>${minToHM(Math.round(r.departureHour * 60))}</strong><span>预计 ${arriveClock} 抵达 · 路网 ${Math.round(r.route.distanceKm)} km</span></div>
-      </div>
-      <div class="departure-grid-card"><div class="weather-timeline-head"><strong>72 小时出发时段</strong><span>颜色表示全程天气影响参考</span></div><div id="navHours">${renderNavHours(r)}</div><p class="departure-grid-note">选择一个有效时段可切换整条路线的到达天气。评分是天气决策辅助信息，不代表道路安全等级；实际通行请以官方预警与现场情况为准。</p></div>
-    </section>
-
-    <section class="report-screen report-details" id="travelReport">
-      ${reportScreenHeader('TRIP REPORT', '行程依据与使用边界', '天气来自公开预报，路线与时长采用公开路网服务估算。')}
-      <div class="report-detail-actions">${shareBarHtml()}<button class="report-favorite" id="btnReportFavoriteDetails" type="button">♡ <span>收藏行程</span></button></div>
-      <div class="card boundary">
-      <div class="bd-title">⚠️ 使用边界</div>
-      <div class="bd-item">天气按沿途等距采样点展示；采样点之间不逐点显示。</div>
-      <div class="bd-item">到达时刻按<b>平均速度估算</b>，未考虑堵车、休息、封路等实际情况。</div>
-      <div class="bd-item">天气来自公开气象预报，<b>不构成安全保证</b>，不替代官方预警与现场判断。</div>
-      </div>
-
-      <div class="card source">
-        <div class="src-line">天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（CC BY 4.0）</div>
-        <div class="src-line">路径规划：自驾使用 <a href="https://project-osrm.org/" target="_blank" rel="noopener">OSRM 道路网</a>；骑行与徒步使用 <a href="https://brouter.de/" target="_blank" rel="noopener">BRouter 专用 profile</a>（路网数据 © OpenStreetMap contributors）</div>
-        <div class="src-line">更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</div>
-      </div>
-      <div class="report-bottom-actions"><button class="btn btn-ghost" type="button" data-view="home">返回探索</button><button class="btn btn-primary" type="button" data-view="create">规划下一段 <span>↗</span></button></div>
-    </section>
   `;
 
   bindReportNav();
@@ -1627,6 +1591,25 @@ function renderNavReport(r, stale) {
   if (state.reportTab !== 'routeAnalysis') activateReportScreen(state.reportTab, false);
   $$('#pointCards .pt-card').forEach(card => bindCard(card, r, 'nav'));
   bindNavCompare(r);
+  const navUseSmartRec = $('#btnUseSmartRec');
+  if (navUseSmartRec) navUseSmartRec.addEventListener('click', () => {
+    const next = recommendationForReport(r);
+    if (!next) return;
+    state.date = next.date;
+    state.departHour = next.hour;
+    const inp = $('#inpDate');
+    if (inp) inp.value = state.date;
+    toast(`已切换到 ${next.date} ${pad(next.hour)}:00 出发，重新检查…`);
+    checkupNavigation();
+  });
+  const restoreNav = $('#btnRestoreNavDeparture');
+  if (restoreNav) restoreNav.addEventListener('click', () => {
+    state.departHour = state.departOriginal;
+    const sel = $('#selDepart');
+    if (sel) sel.value = String(state.departHour);
+    toast('已恢复原出发时间，重新检查…');
+    checkupNavigation();
+  });
 
   const mapToggle = $('#mapToggle');
   if (mapToggle) {
@@ -1783,7 +1766,7 @@ function renderNavPointCard(p, i, expanded) {
   const selHour = state.hourSel[i] != null ? state.hourSel[i] : p.hour;
   const sel = (p.hourly || []).find(h => h.hour === selHour) || null;
   const cur = sel ? Object.assign({ elev: p.elev }, sel) : p;
-  const tone = navWeatherKey(cur);
+  const lv = cur.level || levelOf(Number(cur.score) || 0);
   const p2 = n => String(Math.floor(n)).padStart(2, '0');
   const arriveTotalMin = Math.round(p.arriveAbs * 60);
   const arriveDayOffset = Math.floor(arriveTotalMin / 1440);
@@ -1794,11 +1777,13 @@ function renderNavPointCard(p, i, expanded) {
     ? (isStart ? `出发时刻 ${arriveLabel}` : `预计 ${arriveLabel} 到达`)
     : `正在查看 ${p2(selHour)}:00 · ${isStart ? '出发' : '到达'} ${arriveLabel}`;
   const resetBtn = isArrival ? '' : `<button class="arr-reset" data-back="${i}">回到${isStart ? '出发' : '到达'}时刻</button>`;
-  const chips = navWeatherChips(cur);
+  const good = cur.score >= 80;
+  const chips = good ? buildHighlights(cur) : (cur.deductions || []).slice(0, 3).map(d => d.label);
   const chipHtml = chips.length
-    ? chips.map(c => `<span class="ded ${c.key}">${escapeHtml(c.text)}</span>`).join('')
-    : '<span class="ded none">天气平稳</span>';
+    ? chips.map(c => `<span class="ded ${good ? 'up' : lv.key}">${good ? '✓ ' : ''}${escapeHtml(c)}</span>`).join('')
+    : `<span class="ded none">${good ? '天气条件良好' : '—'}</span>`;
   const meta = [
+    wmoText(cur.code),
     cur.temp != null ? `${cur.temp.toFixed(1)}℃` : null,
     cur.wind != null ? `风速 ${Math.round(cur.wind)} km/h` : null,
     p.elev != null ? `${p.elev} m` : null,
@@ -1814,7 +1799,8 @@ function renderNavPointCard(p, i, expanded) {
           </div>
         </div>
         <div class="pc-right">
-          <span class="pc-weather ${tone}">${wmoIcon(cur.code)} ${escapeHtml(wmoText(cur.code))}</span>
+          <span class="pc-score ${lv.key}">${cur.score}</span>
+          <span class="pc-lv ${lv.key}">${lv.text}</span>
         </div>
       </div>
 
@@ -1826,7 +1812,7 @@ function renderNavPointCard(p, i, expanded) {
 
       <div class="pc-deds">${chipHtml}</div>
 
-      ${expanded ? renderHourly(p, i, selHour) : renderHourlyStrip(p, i, selHour, true)}
+      ${expanded ? renderHourly(p, i, selHour) : renderHourlyStrip(p, i, selHour)}
     </div>`;
 }
 
@@ -2041,16 +2027,16 @@ function renderReport(r, stale) {
   const dzNote = dz.summary === 'block' ? '按下面的建议调整后再出发'
     : dz.summary === 'warn' ? '整体可行，把时间微调一下会更稳'
     : (r.routeScore < 80 ? '有一处把总分拉低了' : '各点位的时间安排与天气都匹配');
-  const tripAdvice = buildTripAdvice(r);
+
+  const planTimeChanged = !!state.planOriginalTimes && (state.planOriginalDate !== state.date || state.times.some((v, i) => Math.round(v) !== Math.round(state.planOriginalTimes[i])));
 
   $('#reportBody').innerHTML = `
     <nav class="report-local-nav" aria-label="报告章节">
+      <button class="report-nav-back" type="button" data-view="home" aria-label="返回探索">←</button>
       <span>本次行程</span>
       <button class="on" type="button" data-report-target="routeAnalysis" aria-pressed="true">路线地图</button>
       <button type="button" data-report-target="smartReport" aria-pressed="false">智能报告</button>
       <button type="button" data-report-target="weatherDetails" aria-pressed="false">沿途天气 <span class="tab-count">${r.points.length}</span></button>
-      <button type="button" data-report-target="departurePlanner" aria-pressed="false">出发时段</button>
-      <button type="button" data-report-target="travelReport" aria-pressed="false">完整报告</button>
     </nav>
     <section class="report-screen is-active" id="routeAnalysis">
     ${reportScreenHeader('ROUTE WEATHER MAP', '沿途天气影响', `${escapeHtml(routeName)} · 点击路线点位查看天气`, '<button class="report-favorite" id="btnReportFavorite" type="button" aria-pressed="false">♡ <span>收藏</span></button>')}
@@ -2062,9 +2048,9 @@ function renderReport(r, stale) {
           <button class="map-btn" id="mapFull" type="button">⛶ 全屏</button>
         </div>
       </div>
-      <div class="map-hint">规划模式按关键点位连线估算，不代表真实道路路径。点击地图点位可查看对应天气信息。</div>
+      <div class="map-hint">点击地图点位查看对应天气信息。</div>
     </div>
-    ${routeMapConsoleHtml({ routeName, date: r.date, mode: modeText(r.mode), distance: totalKm, duration: totalMin, points: r.points, stale, note: '路线为关键点位间的天气影响示意，实际道路走向与通行情况请以现场为准。' })}
+    ${routeMapConsoleHtml({ routeName, date: r.date, mode: modeText(r.mode), distance: totalKm, duration: totalMin, points: r.points, stale, note: '颜色表示沿途天气影响。' })}
     </section>
 
     <section class="report-screen smart-report-screen" id="smartReport">
@@ -2072,13 +2058,16 @@ function renderReport(r, stale) {
       <div class="smart-report-content">
         ${decisionLead}
         <div class="smart-recommendation-spotlight"><div class="recommendation-clock">◷</div><div><span>推荐出发时间</span><strong>${rec ? `${escapeHtml(rec.date.slice(5).replace('-', '/'))} · ${pad(rec.hour)}:00` : '暂无可用推荐时段'}</strong><small>${rec ? `整段天气评分 ${rec.score} 分 · ${same ? '当前时刻已是推荐时段' : '根据沿途天气窗口计算'}` : '可调整日期或路线后重新评估'}</small></div><i>✦</i></div>
-        <section class="smart-report-section"><div class="smart-section-heading"><div><span>WEATHER RISKS</span><h3>重点风险提示</h3></div><button type="button" data-report-target="travelReport">查看分析依据 <b>↗</b></button></div>
-          <div class="diagnosis-board smart-diagnosis-board"><div class="diagnosis-board-head"><span>SMART TRIP CHECK</span><strong>${escapeHtml(dzText)}</strong><p>${escapeHtml(dzNote)}</p></div><div class="diagnosis-list">${dz.items.length ? dz.items.slice(0, 3).map(renderDx).join('') : '<div class="diagnosis-clear"><span>✓</span><b>目前没有需要调整的诊断项</b><small>建议在出发前重新检查预报更新。</small></div>'}</div></div>
+        <section class="smart-report-section"><div class="smart-section-heading"><div><span>WEATHER RISKS</span><h3>重点风险提示</h3></div><button type="button" data-report-target="weatherDetails">查看沿途天气 <b>↗</b></button></div>
+          <div class="diagnosis-board smart-diagnosis-board"><div class="diagnosis-board-head"><span>SMART TRIP CHECK</span><strong>${escapeHtml(dzText)}</strong><p>${escapeHtml(dzNote)}</p></div><div class="diagnosis-list">${dz.items.length ? dz.items.slice(0, 3).map(renderDx).join('') : '<div class="diagnosis-clear"><span>✓</span><b>当前没有需要调整的诊断项</b></div>'}</div></div>
         </section>
         <section class="smart-report-section smart-route-risk"><div class="smart-section-heading"><div><span>ROUTE WATCH · TOP 3</span><h3>沿途重点路段</h3></div><button type="button" data-report-target="weatherDetails">查看全部点位 <b>↗</b></button></div>
-          <div class="smart-segment-timeline">${riskRows.length ? riskRows.map(({ p, i }, rank) => { const segmentLevel = levelOf(Number(p.score)); return `<button class="smart-segment-row ${segmentLevel.key}" type="button" data-risk-sample="${i}"><span class="segment-rank">0${rank + 1}</span><span class="segment-copy"><strong>${escapeHtml(p.name || `沿线采样点 ${rank + 1}`)}</strong><small>${Number.isFinite(Number(p.cumKm)) ? `${Number(p.cumKm).toFixed(0)} km · ` : ''}${escapeHtml(p.weatherText || wmoText(p.code))}${p.elev != null ? ` · ${Math.round(p.elev)} m` : ''}</small></span><span class="segment-score">${Math.round(Number(p.score))}<small>分</small></span><span class="segment-arrow">↗</span></button>`; }).join('') : '<p class="smart-empty-note">目前没有足够的沿途评分数据，地图与天气点位仍可查看。</p>'}</div>
+          <div class="smart-segment-timeline">${riskRows.length ? riskRows.map(({ p, i }, rank) => { const segmentLevel = levelOf(Number(p.score)); return `<button class="smart-segment-row ${segmentLevel.key}" type="button" data-risk-sample="${i}"><span class="segment-rank">0${rank + 1}</span><span class="segment-copy"><strong>${escapeHtml(p.name || `沿线采样点 ${rank + 1}`)}</strong><small>${Number.isFinite(Number(p.cumKm)) ? `${Number(p.cumKm).toFixed(0)} km · ` : ''}${escapeHtml(p.weatherText || wmoText(p.code))}${p.elev != null ? ` · ${Math.round(p.elev)} m` : ''}</small></span><span class="segment-score">${Math.round(Number(p.score))}<small>分</small></span><span class="segment-arrow">↗</span></button>`; }).join('') : '<p class="smart-empty-note">暂无沿途评分数据。</p>'}</div>
         </section>
         ${elevationProfileHtml(r.points)}
+        <section class="smart-report-section smart-departure-section"><div class="smart-section-heading"><div><span>DEPARTURE WINDOW</span><h3>出发时段</h3></div></div><div class="departure-intro"><div class="departure-rec-card"><small>当前预报窗口内推荐</small><button class="smart-departure-time" id="btnUseSmartRec" type="button" ${rec ? '' : 'disabled'}>${rec ? `<strong>${escapeHtml(rec.date.slice(5).replace('-', '/'))} ${pad(rec.hour)}:00</strong><small>点击切换</small>` : '<strong>暂无可用时段</strong>'}<p>${rec ? `整条路线天气评分 ${rec.score} 分 · ${departureChangeText(currentDepartureMinute(r), rec.hour * 60) || '保持当前安排'}` : '可尝试调整日期或路线后重新分析'}</p></div><div class="departure-current-card"><small>当前行程安排</small><strong>${minToHM(Math.round((currentDepartureMinute(r) || 0)))}</strong><span>路线天气评分 ${r.routeScore} 分 · ${fmtDuration(totalMin)} 预计用时</span></div></div><div class="departure-grid-card"><div class="weather-timeline-head"><strong>未来出发时段</strong><span>点击时段即可重新检查</span></div><div id="planHours">${renderNavHours(r)}</div>${planTimeChanged ? `<div class="restore-plan"><button class="btn btn-ghost" id="btnRestorePlan" type="button">恢复原时间</button></div>` : ''}</div></section>
+        <div class="smart-report-actions">${shareBarHtml()}</div>
+        <details class="smart-data-details"><summary>数据来源与使用边界</summary><div class="smart-data-body"><p>沿途按约 8 km 采样，共 ${r.points.length} 处；采样点之间不逐米评估。规划路径按关键点位连线估算。</p><p>到达时刻按平均速度估算，未考虑堵车、休息、封路。</p><p>评分用于比较天气影响；出行安全以官方预警和现场判断为准。</p><p>天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（CC BY 4.0）</p><p>评分与行程结论由本产品计算生成。</p><p>更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</p><p>预报数据缓存 1 小时。</p></div></details>
         ${stale ? '<p class="smart-data-note">当前显示离线缓存的预报数据，请联网后刷新。</p>' : ''}
       </div>
     </section>
@@ -2090,13 +2079,6 @@ function renderReport(r, stale) {
         <div class="weather-points-stack" id="pointCards">
           ${keyRows.map(x => renderPointCard(x.p, x.i, state.expandIdx === x.i)).join('')}
         </div>
-        <aside class="weather-side-note">
-          <div class="weather-note-kicker">TRIP WEATHER NOTES</div>
-          <h3>行程诊断建议</h3>
-          <div class="card advice">
-            ${tripAdvice.length ? tripAdvice.map((a, i) => `<div class="advice-item"><span class="advice-index">${String(i + 1).padStart(2, '0')}</span><p>${escapeHtml(a)}</p></div>`).join('') : '<div class="advice-item"><span class="advice-index">01</span><p>当前计划与沿途天气较匹配，仍建议出发前复核最新预报。</p></div>'}
-          </div>
-        </aside>
       </div>
 
     ${legRows.length ? `
@@ -2121,37 +2103,6 @@ function renderReport(r, stale) {
     </div>` : ''}
     </section>
 
-    <section class="report-screen" id="departurePlanner">
-      ${reportScreenHeader('DEPARTURE WINDOW', '选择更合适的出发时段', '每个时段都重新评估整条行程，不只查看起点天气。')}
-      <div class="departure-intro">
-        <div class="departure-rec-card"><small>当前预报窗口内推荐</small><strong>${rec ? `${escapeHtml(rec.date.slice(5).replace('-', '/'))} ${pad(rec.hour)}:00` : '暂无可用时段'}</strong><p>${rec ? `整条路线天气评分 ${rec.score} 分 · ${departureChangeText(currentDepartureMinute(r), rec.hour * 60) || '保持当前安排'}` : '可尝试调整日期或路线后重新分析'}</p>${rec && !same ? '<button class="departure-apply" id="btnUsePlanRec" type="button">采用推荐时段 <span>↗</span></button>' : ''}</div>
-        <div class="departure-current-card"><small>当前行程安排</small><strong>${minToHM(Math.round((currentDepartureMinute(r) || 0)))}</strong><span>路线天气评分 ${r.routeScore} 分 · ${fmtDuration(totalMin)} 预计用时</span></div>
-      </div>
-      <div class="departure-grid-card"><div class="weather-timeline-head"><strong>未来出发时段</strong><span>点击时段即可重新检查</span></div><div id="planHours">${renderNavHours(r)}</div>${state.planOriginalTimes ? `<div class="restore-plan"><button class="btn btn-ghost" id="btnRestorePlan" type="button">恢复原时间</button></div>` : ''}<p class="departure-grid-note">颜色仅表示天气适宜度参考。采样点之间不逐米评估；实际通行请以官方预警和现场情况为准。</p></div>
-    </section>
-
-    <section class="report-screen report-details" id="travelReport">
-      ${reportScreenHeader('TRIP REPORT', '分析依据与使用边界', '查看具体诊断、预报来源和当前行程的计算范围。')}
-      <div class="report-detail-actions">${shareBarHtml()}<button class="report-favorite" id="btnReportFavoriteDetails" type="button">♡ <span>收藏行程</span></button></div>
-      <div class="diagnosis-board"><div class="diagnosis-board-head"><span>SMART TRIP CHECK</span><strong>${escapeHtml(dzText)}</strong><p>${escapeHtml(dzNote)}</p></div><div class="diagnosis-list">${dz.items.length ? dz.items.map(renderDx).join('') : '<div class="diagnosis-clear"><span>✓</span><b>目前没有需要调整的诊断项</b><small>建议在出发前重新检查预报更新。</small></div>'}</div></div>
-
-    <div class="card boundary">
-      <div class="bd-title">⚠️ 使用边界</div>
-      <div class="bd-item">沿途按约 8 km 采样，共 ${r.points.length} 处；采样点之间不逐米评估。</div>
-      <div class="bd-item">结果为基于公开气象预报的<b>参考性评估</b>，<b>不构成安全保证</b>，不替代官方预警信息与现场判断。</div>
-      <div class="bd-item">预报数据来自全球模型，<b>山区局地精度有限</b>。</div>
-    </div>
-
-    <div class="card source">
-      <div class="src-line">
-        天气数据来源：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（CC BY 4.0）
-      </div>
-      <div class="src-line">适宜度评分与行程结论由本作品计算生成</div>
-      <div class="src-line">更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</div>
-      <div class="src-line dim">预报数据缓存 1 小时</div>
-    </div>
-      <div class="report-bottom-actions"><button class="btn btn-ghost" type="button" data-view="home">返回探索</button><button class="btn btn-primary" type="button" data-view="create">规划下一段 <span>↗</span></button></div>
-    </section>
   `;
 
   bindReportNav();
@@ -2271,12 +2222,13 @@ function renderReport(r, stale) {
 
   bindShareBar(r);
   bindShiftChips(r);
-  $$('#btnUsePlanRecHero, #btnUsePlanRec').forEach(usePlanRec => usePlanRec.addEventListener('click', () => {
+  const useSmartRec = $('#btnUseSmartRec');
+  if (useSmartRec) useSmartRec.addEventListener('click', () => {
     const rec = recommendationForReport(r);
     if (!rec) return;
-    toast(`已采用 ${rec.date} ${pad(rec.hour)}:00 出发，重新体检…`);
+    toast(`已切换到 ${rec.date} ${pad(rec.hour)}:00 出发，重新体检…`);
     applyPlanDeparture(rec.date, rec.hour);
-  }));
+  });
   syncReportFullscreen();
 
   runDiag();
@@ -2584,7 +2536,7 @@ function reportSummaryText(r) {
     const texts = [...new Set((r.points || []).map(p => p.weatherText).filter(Boolean))].slice(0, 4);
     const maxPP = Math.max(...(r.points || []).map(p => p.pp == null ? 0 : p.pp));
     lines.push(`沿途天气：${texts.join('、') || '—'}；最高降水概率 ${Math.round(maxPP)}%`);
-    if (r.route && r.route.approx) lines.push(`${modeText(r.travelMode)}路线采用${routeNetworkText(r.route)}，时长按 ${r.route.speedKmh} km/h 估算`);
+    if (r.route && r.route.approx) lines.push(`徒步/骑行路线按公路网规划，时长按 ${r.route.speedKmh} km/h 估算`);
     buildNavWeatherNotes(r).slice(0, 3).forEach(a => lines.push('· ' + a));
   } else {
     const worst = r.points && r.points[r.worstIndex];
@@ -2701,6 +2653,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
   bindProductNavigation();
   initCreate();
+  // Smooth horizontal wheel scrolling with inertial interpolation.
+  const horizontalScrollState = new WeakMap();
+  const animateHorizontalScroll = (scroller) => {
+    const state = horizontalScrollState.get(scroller);
+    if (!state) return;
+    const diff = state.target - scroller.scrollLeft;
+    if (Math.abs(diff) < 0.6) {
+      scroller.scrollLeft = state.target;
+      horizontalScrollState.delete(scroller);
+      return;
+    }
+    scroller.scrollLeft += diff * 0.22;
+    state.raf = requestAnimationFrame(() => animateHorizontalScroll(scroller));
+  };
+  document.addEventListener('wheel', (event) => {
+    const scroller = event.target.closest('.hourly-strip, .ht-scroll, .rec-strip, .leg-list');
+    if (!scroller) return;
+    const max = scroller.scrollWidth - scroller.clientWidth;
+    if (max <= 1) return;
+    const raw = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+    if (!raw) return;
+    const unit = event.deltaMode === 1 ? 16 : (event.deltaMode === 2 ? scroller.clientWidth : 1);
+    const delta = raw * unit;
+    const state = horizontalScrollState.get(scroller);
+    const baseTarget = state ? state.target : scroller.scrollLeft;
+    if ((delta > 0 && baseTarget >= max - 0.5) || (delta < 0 && baseTarget <= 0.5)) return;
+    event.preventDefault();
+    const target = Math.max(0, Math.min(max, baseTarget + delta * 1.15));
+    if (state) {
+      state.target = target;
+      return;
+    }
+    horizontalScrollState.set(scroller, { target, raf: 0 });
+    animateHorizontalScroll(scroller);
+  }, { passive: false });
+
   $('#btnNew').addEventListener('click', () => {
     state.points = [];
     state.reportTab = 'routeAnalysis';
