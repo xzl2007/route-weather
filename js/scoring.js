@@ -765,6 +765,127 @@ function planLeg(a, b, mode) {
   return { km, minutes: km / spd * 60 };
 }
 
+/**
+ * 规划模式：沿真实路网几何展开点位与沿途采样点。
+ * 用户仍负责关键点位时间，系统按各段真实里程比例分配沿途点时间。
+ */
+function buildPlanSamplesOnRoute(points, times, mode, route, maxTotal) {
+  maxTotal = maxTotal || 20;
+  const coords = route && Array.isArray(route.coords) ? route.coords : [];
+  if (!coords.length || coords.length < 2 || !points || points.length < 2) {
+    return buildPlanSamples(points, times, mode, maxTotal);
+  }
+
+  const cum = [0];
+  for (let i = 1; i < coords.length; i++) {
+    cum.push(cum[i - 1] + haversineKm(coords[i - 1], coords[i]) * 1000);
+  }
+  const totalM = cum[cum.length - 1];
+  if (!(totalM > 0)) return buildPlanSamples(points, times, mode, maxTotal);
+
+  const keyIdx = [0];
+  let searchFrom = 0;
+  for (let i = 1; i < points.length; i++) {
+    let best = searchFrom;
+    let bestDist = Infinity;
+    for (let j = searchFrom; j < coords.length; j++) {
+      const d = haversineKm(coords[j], points[i]);
+      if (d < bestDist) { bestDist = d; best = j; }
+    }
+    if (i === points.length - 1) best = coords.length - 1;
+    if (best <= searchFrom) best = Math.min(coords.length - 1, searchFrom + 1);
+    keyIdx.push(best);
+    searchFrom = best;
+  }
+  keyIdx[0] = 0;
+  keyIdx[keyIdx.length - 1] = coords.length - 1;
+
+  const totalKm = totalM / 1000;
+  const totalNeeded = Number(route.duration) > 0
+    ? route.duration / 60
+    : totalKm / (PLAN_SPEED[mode] || PLAN_SPEED.drive) * 60;
+
+  const legRaw = [];
+  for (let i = 1; i < points.length; i++) {
+    const startIdx = keyIdx[i - 1];
+    const endIdx = keyIdx[i];
+    const startM = cum[startIdx];
+    const endM = cum[endIdx];
+    const km = Math.max(0, (endM - startM) / 1000);
+    legRaw.push({
+      from: points[i - 1].name, to: points[i].name,
+      km,
+      needed: totalKm > 0 ? totalNeeded * km / totalKm : 0,
+      planned: times[i] - times[i - 1],
+      a: coords[startIdx], b: coords[endIdx],
+      t0: times[i - 1], t1: times[i], cumStart: startM / 1000,
+      startIdx, endIdx, startM, endM,
+    });
+  }
+
+  const budget = Math.max(0, maxTotal - points.length);
+  const counts = legRaw.map(L => Math.min(12, Math.max(0, Math.round(L.km / 8))));
+  let totalSamples = counts.reduce((a, b) => a + b, 0);
+  while (totalSamples > budget) {
+    let idx = -1, best = 0;
+    counts.forEach((c, i) => { if (c > best) { best = c; idx = i; } });
+    if (idx < 0) break;
+    counts[idx]--;
+    totalSamples--;
+  }
+
+  const coordAt = (L, targetM) => {
+    let i = L.startIdx;
+    while (i < L.endIdx - 1 && cum[i + 1] < targetM) i++;
+    const span = cum[i + 1] - cum[i];
+    const f = span > 0 ? (targetM - cum[i]) / span : 0;
+    return {
+      lat: coords[i].lat + (coords[i + 1].lat - coords[i].lat) * f,
+      lon: coords[i].lon + (coords[i + 1].lon - coords[i].lon) * f,
+    };
+  };
+
+  const samples = [];
+  samples.push({
+    name: points[0].name, lat: coords[0].lat, lon: coords[0].lon,
+    minute: times[0], kind: 'point', pointIdx: 0, legIndex: -1,
+    ratio: 0, cumKm: 0,
+  });
+
+  legRaw.forEach((L, i) => {
+    const n = counts[i] || 0;
+    const legM = L.endM - L.startM;
+    for (let k = 1; k <= n; k++) {
+      const f = k / (n + 1);
+      const targetM = L.startM + legM * f;
+      const pos = coordAt(L, targetM);
+      samples.push({
+        name: L.from + '→' + L.to + ' K' + Math.max(1, Math.round((targetM - L.startM) / 1000)),
+        lat: pos.lat, lon: pos.lon,
+        minute: L.t0 + (L.t1 - L.t0) * f,
+        kind: 'leg', pointIdx: -1, legIndex: i,
+        ratio: totalM > 0 ? targetM / totalM : 0,
+        cumKm: targetM / 1000,
+      });
+    }
+    samples.push({
+      name: L.to, lat: coords[L.endIdx].lat, lon: coords[L.endIdx].lon,
+      minute: L.t1, kind: 'point', pointIdx: i + 1, legIndex: i,
+      ratio: totalM > 0 ? L.endM / totalM : 1,
+      cumKm: L.endM / 1000,
+    });
+  });
+
+  return {
+    samples,
+    legs: legRaw.map(L => ({
+      from: L.from, to: L.to, km: L.km,
+      needed: L.needed, planned: L.planned,
+    })),
+    totalKm,
+  };
+}
+
 /** 取某点位在指定分钟对应的那一小时数据 */
 function hourAtMinute(series, minute) {
   if (!series || !series.hours) return null;
@@ -1448,7 +1569,7 @@ function buildPlanAdvice(entries, legs, diagnosis, profile) {
 /* ---------------- 导出（供 node 测试） ---------------- */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { scoreHour, levelOf, analyze, analyzeNavigation, analyzePlan, analyzePlanRoute,
-    buildPlanSamples, buildProfile, diagnosePlan, concretizeItem, bestHourOf,
+    buildPlanSamples, buildPlanSamplesOnRoute, buildProfile, diagnosePlan, concretizeItem, bestHourOf,
     combineRouteScore, goodWindowsOf, fmtWindow,
     findBestDeparture, departureMatrix, scoreAtDeparture, diagnoseNav, planLeg, minToHM, minToLabel, hourAtMinute, hmToMin,
     wmoText, wmoIcon, WMO };

@@ -138,11 +138,11 @@ console.log('\n【用例5】采样密度与徒步/骑行近似');
 }
 {
   const series = makeSeries(6, () => ({ pp: 0, precip: 0, wind: 5, code: 0, temp: 18 }));
-  const approxRoute = { distance: 120000, duration: 8 * 3600, approx: true, profile: 'foot' };
+  const approxRoute = { distance: 120000, duration: 8 * 3600, approx: true, profile: 'trekking', speedKmh: 4 };
   const r = analyzeNavigation(series, ELEVS, SAMPLES, approxRoute, 8, '2030-01-01', 'hike');
-  const hasWarn = r.advice.some(a => a.includes('公路网估算'));
-  console.log('  提示:', r.advice.find(a => a.includes('公路网')) || '(无)');
-  check('approx=true 时给出估算提示', hasWarn);
+  const hasWarn = r.advice.some(a => a.includes('徒步专用路网') && a.includes('4 km/h'));
+  console.log('  提示:', r.advice.find(a => a.includes('专用路网')) || '(无)');
+  check('approx=true 时说明专用路网与速度估算', hasWarn);
   check('route.approx 透传', r.route.approx === true);
 }
 

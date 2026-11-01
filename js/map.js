@@ -564,6 +564,7 @@ const MapCtl = {
 
     // 起点用「起」气泡、终点用「终」气泡，中间采样点用数字
     points.forEach((p, i) => {
+      if (p.__showMarker === false) return;
       const mk = L.marker(this._conv(map, p.lat, p.lon), {
         icon: this._iconFor(i, points.length, p.level ? p.level.key : 'neutral', false, p.pinLabel),
         keyboard: false,

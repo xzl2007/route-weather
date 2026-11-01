@@ -621,7 +621,7 @@ function ensureTimes() {
   state.times = out;
 }
 
-/** 两点之间的近似里程与耗时（直线 × 1.25，按出行方式取速度） */
+/** 输入页预填用：两点之间的近似里程与耗时；生成报告后以实际路网为准。 */
 function legInfo(a, b) {
   const R = 6371, toRad = d => d * Math.PI / 180;
   const dLat = toRad(b.lat - a.lat), dLon = toRad(b.lon - a.lon);
@@ -658,7 +658,7 @@ function renderLegs() {
   const el = $('#planLegs');
   if (!el) return;
   if (state.points.length < 2) { el.innerHTML = ''; return; }
-  let html = '<div class="leg-title">点间时间核对（直线距离 ×1.25 估算，未含停留）</div>';
+  let html = '<div class="leg-title">点间时间核对（按直线距离预填，生成报告后以实际路网核算；未含停留）</div>';
   for (let i = 1; i < state.points.length; i++) {
     const L = legInfo(state.points[i - 1], state.points[i]);
     const planned = state.times[i] - state.times[i - 1];
@@ -931,13 +931,28 @@ async function checkupPoints() {
   btn.textContent = '体检中…';
   showView('report');
   ensureTimes();
-  const built = buildPlanSamples(state.points, state.times, state.mode, 20);
-  const pts = built.samples.map(s => ({ name: s.name, lat: s.lat, lon: s.lon }));
-
-  $('#reportBody').innerHTML = skeletonHtml(
-    `正在获取 ${pts.length} 个采样点（${state.points.length} 个点位 + ${pts.length - state.points.length} 个沿途点）的逐小时预报…`);
+  $('#reportBody').innerHTML = skeletonHtml(`正在规划${modeText(state.mode)}路线…`);
 
   try {
+    const route = await ROUTING.fetchRoute(state.points, state.mode);
+    if (!route.ok) {
+      $('#reportBody').innerHTML = errHtml('路径规划失败',
+        route.error || '请确认起点与终点之间有待评估路网，或稍后重试。');
+      return;
+    }
+    if (route.overHorizon) {
+      const routeDays = route.travelDays;
+      $('#reportBody').innerHTML = errHtml('行程超出天气预报有效范围',
+        `预计行程约 ${routeDays < 10 ? routeDays.toFixed(1) : Math.round(routeDays)} 天，当前评估使用未来 ${route.horizonDays} 天预报。请缩短路线或改用更快的出行方式。`);
+      return;
+    }
+
+    const built = buildPlanSamplesOnRoute(state.points, state.times, state.mode, route, 20);
+    const pts = built.samples.map(s => ({ name: s.name, lat: s.lat, lon: s.lon }));
+    $('#reportBody').innerHTML = skeletonHtml(
+      `已规划 ${(route.distance / 1000).toFixed(0)} km / 约 ${Math.round(route.duration / 60)} 分钟，`
+      + `正在获取 ${pts.length} 个采样点（${state.points.length} 个点位 + ${pts.length - state.points.length} 个沿途点）的逐小时预报…`);
+
     const maxMin = built.samples.reduce((m, s2) => Math.max(m, s2.minute), 0);
     const days = Math.max(3, Math.min(5, Math.ceil((maxMin + 60) / 1440)));
     const [series, elevations] = await Promise.all([
@@ -971,10 +986,19 @@ async function checkupPoints() {
 
     report.stale = series.stale;
     report.fetchedAt = series.at;
+    report.routeCoords = route.coords;
+    report.route = {
+      distanceKm: route.distance / 1000,
+      durationMin: route.duration / 60,
+      approx: !!route.approx,
+      provider: route.provider,
+      profile: route.profile,
+      speedKmh: route.speedKmh,
+    };
     // 全程逐小时出发评分：每个格子都重新计算整条路线，而不是只看起点
     const hourScores = buildPlanHourScoresFromSeries({
       series: series.series, elevations, points: state.points, times: state.times,
-      mode: state.mode, baseDate: state.date, sun: series.sun,
+      mode: state.mode, baseDate: state.date, sun: series.sun, route,
     });
     const bestHour = pickBestHourRow(hourScores.rows);
     report.hourScores = hourScores.rows;
@@ -1002,6 +1026,9 @@ async function checkupPoints() {
       worstElev: report.points[report.worstIndex].elev,
       advice: report.advice,
       window: report.window,
+      distanceKm: report.route.distanceKm,
+      routeProvider: report.route.provider,
+      routeProfile: report.route.profile,
       savedAt: Date.now(),
     };
     upsertTrip(trip);
@@ -1179,7 +1206,7 @@ function pickBestHourRow(rows) {
  * 规划模式的每个候选出发小时都重新计算整条路线。
  * 这样顶部数字代表“这个时刻出发的全程评分”，而不是起点单点天气。
  */
-function buildPlanHourScoresFromSeries({ series, elevations, points, times, mode, baseDate, sun }) {
+function buildPlanHourScoresFromSeries({ series, elevations, points, times, mode, baseDate, sun, route }) {
   if (!series || !series.length || !series[0].hours || !times || !times.length) return { rows: [] };
   const dayCount = Math.min(3, Math.floor(series[0].hours.length / 24));
   const startMinute = times[0] == null ? 8 * 60 : times[0];
@@ -1190,7 +1217,7 @@ function buildPlanHourScoresFromSeries({ series, elevations, points, times, mode
       const targetMinute = dayOffset * 1440 + hour * 60;
       const delta = targetMinute - startMinute;
       const shiftedTimes = times.map(t => (t == null ? startMinute : t) + delta);
-      const built = buildPlanSamples(points, shiftedTimes, mode, 20);
+      const built = buildPlanSamplesOnRoute(points, shiftedTimes, mode, route, 20);
       let report = null;
       try {
         report = analyzePlanRoute({
@@ -1532,7 +1559,7 @@ function renderNavReport(r, stale) {
       </div>
       <div class="map-hint">路线颜色表示该里程区间的天气影响；点击路线或采样点查看详情。</div>
     </div>
-    ${routeMapConsoleHtml({ routeName, date: r.date, mode: `${modeText(r.travelMode)} · 导航`, distance: r.route.distanceKm, duration: r.route.durationMin, points: r.points, stale, note: r.route.approx ? `路线按${r.route.speedKmh} km/h 估算。` : '颜色表示天气影响程度。' })}
+    ${routeMapConsoleHtml({ routeName, date: r.date, mode: `${modeText(r.travelMode)} · 导航`, distance: r.route.distanceKm, duration: r.route.durationMin, points: r.points, stale, note: r.route.approx ? `路网时长按 ${r.route.speedKmh} km/h 估算。` : '颜色表示天气影响程度。' })}
     </section>
 
     <section class="report-screen smart-report-screen nav-smart-report" id="smartReport">
@@ -2003,7 +2030,7 @@ function renderReport(r, stale) {
     && Math.abs(rec.hour * 60 - (((currentMinute % 1440) + 1440) % 1440)) < 5;
   const worst = r.points[r.worstIndex];
   const keyRows = r.points.map((p, i) => ({ p, i })).filter(x => x.p.kind !== 'leg');
-  const totalKm = (r.legs || []).reduce((s2, L) => s2 + L.km * 1.25, 0);
+  const totalKm = (r.legs || []).reduce((s2, L) => s2 + L.km, 0);
   const totalMin = r.points.length > 1 ? (r.points[r.points.length - 1].minute - r.points[0].minute) : 0;
   const legRows = r.points.map((p, i) => ({ p, i }));   // 关键点位 + 沿途采样，按行程顺序
   const riskCandidates = r.points.map((p, i) => ({ p, i }))
@@ -2052,11 +2079,11 @@ function renderReport(r, stale) {
       </div>
       <div class="map-hint">点击地图点位查看对应天气信息。</div>
     </div>
-    ${routeMapConsoleHtml({ routeName, date: r.date, mode: modeText(r.mode), distance: totalKm, duration: totalMin, points: r.points, stale, note: '颜色表示沿途天气影响。' })}
+    ${routeMapConsoleHtml({ routeName, date: r.date, mode: modeText(r.travelMode), distance: totalKm, duration: r.route ? r.route.durationMin : totalMin, points: r.points, stale, note: r.route && r.route.approx ? `路网时长按 ${r.route.speedKmh} km/h 估算。` : '颜色表示沿途天气影响。' })}
     </section>
 
     <section class="report-screen smart-report-screen" id="smartReport">
-      ${reportScreenHeader('SMART JOURNEY REPORT', '智能行程报告', `${escapeHtml(routeName)} · ${r.date} · ${modeText(r.mode)}`, '<button class="report-favorite" id="btnReportFavoriteOverview" type="button" aria-pressed="false">♡ <span>收藏行程</span></button>')}
+      ${reportScreenHeader('SMART JOURNEY REPORT', '智能行程报告', `${escapeHtml(routeName)} · ${r.date} · ${modeText(r.travelMode)}`, '<button class="report-favorite" id="btnReportFavoriteOverview" type="button" aria-pressed="false">♡ <span>收藏行程</span></button>')}
       <div class="smart-report-content">
         ${decisionLead}
         <div class="smart-recommendation-spotlight"><div class="recommendation-clock">◷</div><div><span>推荐出发时间</span><strong>${rec ? `${escapeHtml(rec.date.slice(5).replace('-', '/'))} · ${pad(rec.hour)}:00` : '暂无可用推荐时段'}</strong><small>${rec ? `整段天气评分 ${rec.score} 分 · ${same ? '当前时刻已是推荐时段' : '根据沿途天气窗口计算'}` : '可调整日期或路线后重新评估'}</small></div><i>✦</i></div>
@@ -2069,7 +2096,7 @@ function renderReport(r, stale) {
         ${elevationProfileHtml(r.points)}
         <section class="smart-report-section smart-departure-section"><div class="smart-section-heading"><div><span>DEPARTURE WINDOW</span><h3>出发时段</h3></div></div><div class="departure-intro"><div class="departure-rec-card"><small>当前预报窗口内推荐</small><button class="smart-departure-time" id="btnUseSmartRec" type="button" ${rec ? '' : 'disabled'}>${rec ? `<strong>${escapeHtml(rec.date.slice(5).replace('-', '/'))} ${pad(rec.hour)}:00</strong><small>点击切换</small>` : '<strong>暂无可用时段</strong>'}<p>${rec ? `整条路线天气评分 ${rec.score} 分 · ${departureChangeText(currentDepartureMinute(r), rec.hour * 60) || '保持当前安排'}` : '可尝试调整日期或路线后重新分析'}</p></div><div class="departure-current-card"><small>当前行程安排</small><strong>${minToHM(Math.round((currentDepartureMinute(r) || 0)))}</strong><span>路线天气评分 ${r.routeScore} 分 · ${fmtDuration(totalMin)} 预计用时</span></div></div><div class="departure-grid-card"><div class="weather-timeline-head"><strong>未来出发时段</strong><span>点击时段即可重新检查</span></div><div id="planHours">${renderNavHours(r)}</div>${planTimeChanged ? `<div class="restore-plan"><button class="btn btn-ghost" id="btnRestorePlan" type="button">恢复原时间</button></div>` : ''}</div></section>
         <div class="smart-report-actions">${shareBarHtml()}</div>
-        <details class="smart-data-details"><summary>数据来源与使用边界</summary><div class="smart-data-body"><p>沿途按约 8 km 采样，共 ${r.points.length} 处；采样点之间不逐米评估。规划路径按关键点位连线估算。</p><p>到达时刻按平均速度估算，未考虑堵车、休息、封路。</p><p>评分用于比较天气影响；出行安全以官方预警和现场判断为准。</p><p>天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（CC BY 4.0）</p><p>评分与行程结论由本产品计算生成。</p><p>更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</p><p>预报数据缓存 1 小时。</p></div></details>
+        <details class="smart-data-details"><summary>数据来源与使用边界</summary><div class="smart-data-body"><p>沿途按约 8 km 采样，共 ${r.points.length} 处；采样点之间不逐米评估。规划路径按所选出行方式的真实路网展开，并在关键点位时间之间分配沿途到达时刻。</p><p>到达时刻按平均速度估算，未考虑堵车、休息、封路。</p><p>评分用于比较天气影响；出行安全以官方预警和现场判断为准。</p><p>天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（CC BY 4.0）</p><p>评分与行程结论由本产品计算生成。</p><p>更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</p><p>预报数据缓存 1 小时。</p></div></details>
         ${stale ? '<p class="smart-data-note">当前显示离线缓存的预报数据，请联网后刷新。</p>' : ''}
       </div>
     </section>
@@ -2178,7 +2205,7 @@ function renderReport(r, stale) {
         pinLabel: keyIndex < 0 ? '' : (keyIndex === 0 ? '起' : (keyIndex === keyRows.length - 1 ? '终' : '途')),
       });
     });
-    MapCtl.renderReport('reportMap', mapRows, (i) => {
+    const pickMapPoint = (i) => {
       const realIdx = mapRows[i] ? mapRows[i].__i : i;
       MapCtl.highlight(i);
       activateReportScreen('weatherDetails', false);
@@ -2199,7 +2226,9 @@ function renderReport(r, stale) {
           row.classList.add('flash');
         }
       }
-    });
+    };
+    if (r.routeCoords && r.routeCoords.length) MapCtl.renderNavigation('reportMap', r.routeCoords, mapRows, pickMapPoint);
+    else MapCtl.renderReport('reportMap', mapRows, pickMapPoint);
   } catch (e) {
     console.warn('[map] 地图渲染失败：', e);
     const wrap = document.querySelector('#reportMap')?.parentElement;

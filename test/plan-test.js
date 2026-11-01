@@ -5,7 +5,7 @@
  * ============================================================ */
 
 const path = require('path');
-const { analyzePlan, analyzePlanRoute, buildPlanSamples, buildProfile, diagnosePlan, planLeg, minToHM, hmToMin, combineRouteScore, goodWindowsOf, fmtWindow, minToLabel, hourAtMinute } = require(path.join(__dirname, '..', 'js', 'scoring.js'));
+const { analyzePlan, analyzePlanRoute, buildPlanSamples, buildPlanSamplesOnRoute, buildProfile, diagnosePlan, planLeg, minToHM, hmToMin, combineRouteScore, goodWindowsOf, fmtWindow, minToLabel, hourAtMinute } = require(path.join(__dirname, '..', 'js', 'scoring.js'));
 
 const p2 = n => String(n).padStart(2, '0');
 
@@ -216,5 +216,29 @@ console.log('\n【用例14】跨天：时间标签、取数与诊断');
   ok('命中「单段过长」', r.diagnosis.items.some(x => x.tag === '单段过长'));
   ok('命中「夜间到达」', r.diagnosis.items.some(x => x.tag === '夜间到达'));
 }
+
+console.log('\n【用例15】规划模式沿真实路网几何采样');
+{
+  const two = [{ name: 'A', lat: 30, lon: 103 }, { name: 'B', lat: 30, lon: 103.1 }];
+  const route = {
+    coords: [
+      { lat: 30, lon: 103 },
+      { lat: 30.02, lon: 103.025 },
+      { lat: 30.04, lon: 103.06 },
+      { lat: 30, lon: 103.1 },
+    ],
+    distance: 15000,
+    duration: 1800,
+  };
+  const b = buildPlanSamplesOnRoute(two, [480, 600], 'drive', route, 20);
+  ok('真实路网采样非空', !!b && b.samples.length >= 2);
+  ok('起点保持 A', b.samples[0].name === 'A');
+  ok('终点保持 B', b.samples[b.samples.length - 1].name === 'B');
+  ok('终点时间保持 10:00', b.samples[b.samples.length - 1].minute === 600);
+  ok('总里程按路网几何统计', b.totalKm > 10, b.totalKm);
+  ok('采样里程单调', b.samples.every((s, i) => i === 0 || s.cumKm >= b.samples[i - 1].cumKm));
+  ok('采样时间单调', b.samples.every((s, i) => i === 0 || s.minute >= b.samples[i - 1].minute));
+}
+
 console.log('\n结果: ' + pass + ' 通过, ' + fail + ' 失败\n');
 process.exit(fail ? 1 : 0);
