@@ -1111,13 +1111,15 @@ body.home-active .topbar::before { background: rgba(255,255,255,.92); box-shadow
   --shadow-card: 0 2px 12px rgba(0, 0, 0, .35);
   --shadow-float: 0 6px 20px rgba(0, 0, 0, .5);
 }
+html { color-scheme: light; }
 html, body { background: var(--bg); color: var(--ink); }
 .topbar { background: var(--bg); border-bottom: 1px solid var(--line); }
 .topbar h1 { color: var(--ink); }
 .btn-ghost { background: var(--card); color: var(--ink-2); border-color: var(--line); }
 .btn-ghost:active { background: var(--field); }
 input, select, textarea { background: var(--field); color: var(--ink); border-color: var(--line); }
-input[type="date"], input[type="time"] { color-scheme: dark; }
+input[type="date"], input[type="time"], input[type="datetime-local"] { color-scheme: light; }
+input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-date-and-time-value { color: var(--ink); }
 .seg button.on { background: var(--brand-soft); color: var(--brand); box-shadow: none; }
 .pt-row, .feat, .trips-toggle, .sheet-panel, .dx-item, .hs-col,
 .arr-reset, .source, .empty-inline, .home-demo, .leg, .rec-day {

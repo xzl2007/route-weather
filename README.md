@@ -25,6 +25,7 @@ RouteWeather 把天气预报、路线、海拔和出发时间放进同一份行�
 - **路线规划**：搜索地名、地图选点或使用示例路线；支持自驾、骑行、徒步，以及规划和导航两种分析模式。
 - **路网地图**：普通、地形、影像三种底图；导航模式按实际路线展示天气影响区段，点击路线点位可查看对应天气。
 - **沿途天气**：结合路线采样、海拔和预计到达时间，查看点位天气、风雨变化与重点路段。
+- **沿途推荐**：结合出行方式、预计经过时段和绕行距离，推荐景点、住宿、美食与加油/充电地点。
 - **出发时间**：比较不同出发时刻的天气表现，并查看推荐时间和行程建议。
 - **行程收藏**：保存、筛选和回看本机记录，也可复制分享链接、摘要或打印报告。
 
@@ -63,7 +64,7 @@ RouteWeather 把天气预报、路线、海拔和出发时间放进同一份行�
 | 天气与海拔 | [Open-Meteo](https://open-meteo.com/)（CC BY 4.0） |
 | 自驾路线 | [OSRM](https://project-osrm.org/) 与 OpenStreetMap |
 | 骑行、徒步路线 | [BRouter](https://brouter.de/) 与 OpenStreetMap |
-| 地图与地名搜索 | [天地图](https://www.tianditu.gov.cn/)；备用底图来自 OpenStreetMap / Esri |
+| 地图、地名与沿途地点 | [天地图](https://www.tianditu.gov.cn/)；备用底图来自 OpenStreetMap / Esri |
 
 无需注册。行程记录保存在当前浏览器；查询天气和路线时，应用会向相应服务发送所需的地点坐标。分享链接包含行程点位和时间。
 
@@ -84,6 +85,7 @@ python -m http.server 8000
 ```powershell
 node test/nav-test.js
 node test/plan-test.js
+node test/poi-test.js
 node test/edge-test.js
 ```
 
@@ -101,7 +103,7 @@ node test/edge-test.js
 | `css/` | 首页、规划页、地图和报告的界面样式 |
 | `js/app.js` | 页面状态、交互和行程流程 |
 | `js/map.js`、`js/route-segments.js` | Leaflet 地图、路线分段与天气点位联动 |
-| `js/routing.js`、`js/scoring.js` | 出行路网、天气评分与建议 |
+| `js/routing.js`、`js/scoring.js`、`js/poi.js` | 出行路网、天气评分与沿途地点推荐 |
 | `js/api.js`、`js/geocode.js`、`js/points.js` | 天气/海拔请求、地点搜索与内置点位 |
 | `js/storage.js`、`js/config.js` | 本机行程记录与地图服务配置 |
 | `assets/`、`icons/`、`shots/` | 品牌图片、应用图标与界面预览 |

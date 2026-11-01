@@ -761,9 +761,21 @@ function bindDragReorder(container) {
 
 let sheetRegion = '全部';
 
+/** 软键盘会缩小 visualViewport，但不一定改变布局视口；搜索层要跟随真实可视高度。 */
+function syncSheetViewport() {
+  const vv = window.visualViewport;
+  const height = vv && vv.height ? Math.round(vv.height) : window.innerHeight;
+  const top = vv && Number.isFinite(vv.offsetTop) ? Math.round(vv.offsetTop) : 0;
+  document.documentElement.style.setProperty('--sheet-vvh', `${height}px`);
+  document.documentElement.style.setProperty('--sheet-vvtop', `${top}px`);
+}
+
 function openSheet() {
   if (state.points.length >= 5) { toast('最多 5 个点位'); return; }
+  document.body.classList.add('sheet-open');
   $('#sheet').classList.remove('hidden');
+  syncSheetViewport();
+  window.setTimeout(syncSheetViewport, 80);
   $('#sheetSearch').value = '';
   const rb = $('#sheetRemote');
   if (rb) rb.innerHTML = '';
@@ -773,6 +785,7 @@ function openSheet() {
 }
 
 function closeSheet() {
+  document.body.classList.remove('sheet-open');
   $('#sheet').classList.add('hidden');
   clearTimeout(remoteTimer);
   remoteToken++;
@@ -923,6 +936,20 @@ async function runCheckup() {
   return checkupPoints();
 }
 
+/** 将地点候选按当前路线、出行方式和出发时刻转换为个性化推荐。 */
+function attachRouteRecommendations(report, poiResult, route, mode, startMinute) {
+  if (!report || !RoutePois) return;
+  const distanceKm = route && route.distance != null ? Number(route.distance) / 1000 : Number(route && route.distanceKm) || 0;
+  const durationMin = route && route.duration != null ? Number(route.duration) / 60 : Number(route && route.durationMin) || 0;
+  report.recommendations = RoutePois.personalize((poiResult && poiResult.items) || [], {
+    mode,
+    totalKm: distanceKm,
+    durationMin,
+    startMinute,
+  });
+  report.recommendationMeta = (poiResult && poiResult.meta) || { ok: false, degraded: false };
+}
+
 /* ---------------- 点位模式 ---------------- */
 
 async function checkupPoints() {
@@ -955,9 +982,13 @@ async function checkupPoints() {
 
     const maxMin = built.samples.reduce((m, s2) => Math.max(m, s2.minute), 0);
     const days = Math.max(3, Math.min(5, Math.ceil((maxMin + 60) / 1440)));
-    const [series, elevations] = await Promise.all([
+    const [series, elevations, poiResult] = await Promise.all([
       fetchHourly(pts, state.date, days),
       fetchElevations(pts),
+      RoutePois.fetchAlongRoute(route.coords, state.mode, { count: 60, limit: 160 }).catch(e => {
+        console.warn('[poi] 沿途地点获取失败：', e);
+        return { ok: false, items: [], meta: { ok: false, degraded: true, reason: 'request-failed' } };
+      }),
     ]);
 
     if (!series.ok || !series.series.length) {
@@ -1006,6 +1037,7 @@ async function checkupPoints() {
     report.recommendedDate = bestHour ? bestHour.date : null;
     report.recommendedHour = bestHour ? bestHour.hour : null;
     report.recommendedMin = bestHour ? bestHour.score : null;
+    attachRouteRecommendations(report, poiResult, route, state.mode, state.times[0]);
     state.planCtx = { baseDate: state.date };
     state.currentReport = report;
     state.expandIdx = -1;
@@ -1127,9 +1159,13 @@ async function checkupNavigation() {
     const baseDiff = Math.round((new Date(state.date + 'T00:00:00') - new Date(baseDate + 'T00:00:00')) / 86400000);
     const needHours = Math.max(72, baseDiff * 24 + 48) + route.duration / 3600;
     const days = Math.max(3, Math.min(16, Math.ceil(needHours / 24)));
-    const [series, elevations] = await Promise.all([
+    const [series, elevations, poiResult] = await Promise.all([
       fetchHourly(pts, baseDate, days),
       fetchElevations(pts),
+      RoutePois.fetchAlongRoute(route.coords, state.mode, { count: 60, limit: 160 }).catch(e => {
+        console.warn('[poi] 沿途地点获取失败：', e);
+        return { ok: false, items: [], meta: { ok: false, degraded: true, reason: 'request-failed' } };
+      }),
     ]);
     if (!series.ok || !series.series.length) {
       $('#reportBody').innerHTML = errHtml('暂时取不到天气数据',
@@ -1153,6 +1189,7 @@ async function checkupNavigation() {
     report.stale = series.stale;
     report.fetchedAt = series.at;
     report.routeCoords = route.coords;
+    attachRouteRecommendations(report, poiResult, route, state.mode, Math.round(report.departureHour * 60));
     const compareWindow = recWindow(state.date);
     const forecastHours = Math.min(72, ...tripSeries.map(point => (point.hours || []).length));
     const hourScores = departureMatrix(samples, tripSeries, elevations, route.duration, compareWindow.startIdx, Math.min(compareWindow.endIdx, forecastHours));
@@ -1163,6 +1200,7 @@ async function checkupNavigation() {
       elevations,
       samples,
       route,
+      poiResult,
       hourScores: report.hourScores,
       stale: series.stale,
       at: series.at,
@@ -1512,6 +1550,74 @@ function renderNavAdviceHtml(r) {
   }).join('');
 }
 
+function recommendationSectionHtml(r) {
+  const rec = r && r.recommendations;
+  if (!rec || !RoutePois) return '';
+  const meta = r.recommendationMeta || {};
+  const all = Array.isArray(rec.items) ? rec.items : [];
+  const categories = ['attraction', 'food', 'lodging', 'supply'];
+  const counts = {};
+  categories.forEach(category => { counts[category] = all.filter(item => item.category === category).length; });
+  const available = categories.filter(category => counts[category] > 0);
+  let filter = state.poiFilter || 'all';
+  if (filter !== 'all' && !available.includes(filter)) filter = 'all';
+  state.poiFilter = filter;
+  const filtered = filter === 'all' ? all : all.filter(item => item.category === filter);
+  const visible = filtered.slice(0, filter === 'all' ? 8 : 6);
+  const serviceNote = meta.ok === false
+    ? '地点服务暂时不可用，天气与路线分析不受影响。'
+    : meta.degraded
+      ? '部分地点请求未返回，展示已获取的结果。'
+      : '地点信息来自天地图；排序结合出行方式、预计经过时段与绕行距离。';
+
+  const filters = available.length ? `<div class="poi-filter-bar" role="group" aria-label="沿途推荐分类">
+    <button type="button" class="poi-filter ${filter === 'all' ? 'on' : ''}" data-poi-filter="all" aria-pressed="${filter === 'all'}">全部 <span>${all.length}</span></button>
+    ${available.map(category => {
+      const info = RoutePois.CATEGORY_META[category];
+      return `<button type="button" class="poi-filter ${filter === category ? 'on' : ''}" data-poi-filter="${category}" aria-pressed="${filter === category}">${info.icon} ${info.label} <span>${counts[category]}</span></button>`;
+    }).join('')}
+  </div>` : '';
+
+  const cards = visible.map(item => {
+    const info = RoutePois.CATEGORY_META[item.category] || { label: '地点', icon: '·', className: 'neutral' };
+    const badge = item.tags && item.tags[0] ? `<span class="poi-badge">${escapeHtml(item.tags[0])}</span>` : '';
+    return `<article class="poi-card poi-${info.className}">
+      <div class="poi-card-top"><span class="poi-kind">${info.icon} ${info.label}</span>${badge}</div>
+      <h4>${escapeHtml(item.name)}</h4>
+      <p class="poi-reason">${escapeHtml(item.reason || '位于路线附近，可顺路停留。')}</p>
+      <div class="poi-meta"><span>第 ${Math.round(Number(item.routeKm) || 0)} km</span><span>距路线 ${escapeHtml(item.distanceLabel || '')}</span><span>预计 ${escapeHtml(item.etaLabel || '')} 经过</span></div>
+      ${item.address ? `<small class="poi-address">${escapeHtml(item.address)}</small>` : ''}
+    </article>`;
+  }).join('');
+
+  const empty = meta.ok === false
+    ? '<div class="poi-empty"><strong>暂时没有取到沿途地点</strong><span>稍后重新生成分析即可再试，天气和路线结果仍可正常使用。</span></div>'
+    : '<div class="poi-empty"><strong>这条路线附近暂无可展示地点</strong><span>可以更换路线，或稍后重新生成分析。</span></div>';
+
+  return `<section class="smart-report-section route-poi-section" id="poiRecommendations">
+    <div class="smart-section-heading"><div><span>ROUTE PICKS</span><h3>沿途推荐</h3></div><span class="poi-mode">${escapeHtml(rec.modeLabel || modeText(r.travelMode))}</span></div>
+    <p class="poi-summary">${escapeHtml(rec.note || '按预计经过时段与绕行距离排序')} · 推荐范围约 ${Math.round((rec.radiusM || 0) / 100) / 10} km</p>
+    ${filters}
+    ${visible.length ? `<div class="poi-grid">${cards}</div>` : empty}
+    <p class="poi-source-note">${serviceNote}</p>
+  </section>`;
+}
+
+function bindRecommendationFilters(r) {
+  const section = document.querySelector('#poiRecommendations');
+  if (!section) return;
+  section.querySelectorAll('[data-poi-filter]').forEach(button => {
+    button.addEventListener('click', () => {
+      const next = button.dataset.poiFilter || 'all';
+      if (next === state.poiFilter) return;
+      state.poiFilter = next;
+      const current = document.querySelector('#poiRecommendations');
+      if (!current) return;
+      current.outerHTML = recommendationSectionHtml(r);
+      bindRecommendationFilters(r);
+    });
+  });
+}
 function renderNavReport(r, stale) {
   const p2 = n => String(Math.floor(n)).padStart(2, '0');
   const routeName = state.points.map(p => p.name).join(' → ');
@@ -1568,9 +1674,10 @@ function renderNavReport(r, stale) {
         ${weatherLead}
         <div class="smart-report-facts"><div><small>路网距离</small><strong>${r.route.distanceKm.toFixed(0)} <i>km</i></strong></div><div><small>预计用时</small><strong>${fmtDuration(r.route.durationMin)}</strong></div><div><small>出发 / 抵达</small><strong>${minToHM(Math.round(r.departureHour * 60))} <i>→</i> ${arriveClock}</strong></div></div>
         <section class="smart-report-section travel-advice-section"><div class="smart-section-heading"><div><span>TRAVEL ADVICE</span><h3>出行建议</h3></div><button type="button" data-report-target="weatherDetails">查看沿途天气 <b>↗</b></button></div><div class="smart-note-timeline">${renderNavAdviceHtml(r)}</div></section>
+        ${recommendationSectionHtml(r)}
         <section class="smart-report-section smart-departure-section"><div class="smart-section-heading"><div><span>DEPARTURE WINDOW</span><h3>出发时段</h3></div></div><div class="departure-intro"><div class="departure-rec-card"><small>近期推荐出发</small><button class="smart-departure-time" id="btnUseSmartRec" type="button" ${rec ? '' : 'disabled'}>${rec ? `<strong>${minToHM(rec.hour * 60)} 出发</strong><small>点击切换</small>` : '<strong>暂无可用时段</strong>'}<p>${r.recommendedMin != null ? `路线最低点位评分 ${Math.round(r.recommendedMin)} 分 · ${modeText(r.travelMode)}` : '当前预报范围内没有完整可用的出发时段'}</p></div><div class="departure-current-card"><small>当前选择 · ${escapeHtml(r.date)}</small><strong>${minToHM(Math.round(r.departureHour * 60))}</strong><span>预计 ${arriveClock} 抵达 · 路网 ${Math.round(r.route.distanceKm)} km</span>${state.departOriginal != null && Math.abs(r.departureHour - state.departOriginal) > 0.01 ? `<button class="smart-restore-time" id="btnRestoreNavDeparture" type="button">恢复原时间 ${minToHM(Math.round(state.departOriginal * 60))}</button>` : ''}</div></div><div class="departure-grid-card"><div class="weather-timeline-head"><strong>72 小时出发时段</strong><span>颜色表示全程天气影响参考</span></div><div id="navHours">${renderNavHours(r)}</div></div></section>
         <div class="smart-report-actions">${shareBarHtml()}</div>
-        <details class="smart-data-details"><summary>数据来源与使用边界</summary><div class="smart-data-body"><p>天气按沿途等距采样点展示；采样点之间不逐点显示。</p><p>到达时刻按平均速度估算，未考虑堵车、休息、封路。</p><p>天气与到达时间用于行程安排；出行安全以官方预警和现场判断为准。</p><p>天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（CC BY 4.0）</p><p>路径规划：${routeProvider}（路网数据 © OpenStreetMap contributors）</p><p>更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</p></div></details>
+        <details class="smart-data-details"><summary>数据来源与使用边界</summary><div class="smart-data-body"><p>天气按沿途等距采样点展示；采样点之间不逐点显示。</p><p>到达时刻按平均速度估算，未考虑堵车、休息、封路。</p><p>天气与到达时间用于行程安排；出行安全以官方预警和现场判断为准。</p><p>天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（CC BY 4.0）</p><p>路径规划：${routeProvider}（路网数据 © OpenStreetMap contributors）</p><p>沿途推荐地点：<a href="https://www.tianditu.gov.cn/" target="_blank" rel="noopener">天地图</a> POI 搜索；推荐排序由本产品计算。</p><p>更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</p></div></details>
         ${stale ? '<p class="smart-data-note">当前显示离线缓存的预报数据，请联网后刷新。</p>' : ''}
       </div>
     </section>
@@ -1693,6 +1800,7 @@ function renderNavReport(r, stale) {
   }
 
   bindShareBar(r);
+  bindRecommendationFilters(r);
   syncReportFullscreen();
 }
 
@@ -1776,6 +1884,7 @@ function bindNavCompare(r) {
       rep.fetchedAt = ctx.at;
       rep.routeCoords = ctx.route.coords;
       rep.hourScores = ctx.hourScores;
+      attachRouteRecommendations(rep, ctx.poiResult, ctx.route, state.mode, hour * 60);
       state.date = date;
       state.departHour = hour;
       const inp = $('#inpDate');
@@ -2093,10 +2202,11 @@ function renderReport(r, stale) {
         <section class="smart-report-section smart-route-risk"><div class="smart-section-heading"><div><span>ROUTE WATCH · TOP 3</span><h3>沿途重点路段</h3></div><button type="button" data-report-target="weatherDetails">查看全部点位 <b>↗</b></button></div>
           <div class="smart-segment-timeline">${riskRows.length ? riskRows.map(({ p, i }, rank) => { const segmentLevel = levelOf(Number(p.score)); return `<button class="smart-segment-row ${segmentLevel.key}" type="button" data-risk-sample="${i}"><span class="segment-rank">0${rank + 1}</span><span class="segment-copy"><strong>${escapeHtml(p.name || `沿线采样点 ${rank + 1}`)}</strong><small>${Number.isFinite(Number(p.cumKm)) ? `${Number(p.cumKm).toFixed(0)} km · ` : ''}${escapeHtml(p.weatherText || wmoText(p.code))}${p.elev != null ? ` · ${Math.round(p.elev)} m` : ''}</small></span><span class="segment-score">${Math.round(Number(p.score))}<small>分</small></span><span class="segment-arrow">↗</span></button>`; }).join('') : '<p class="smart-empty-note">暂无沿途评分数据。</p>'}</div>
         </section>
+        ${recommendationSectionHtml(r)}
         ${elevationProfileHtml(r.points)}
         <section class="smart-report-section smart-departure-section"><div class="smart-section-heading"><div><span>DEPARTURE WINDOW</span><h3>出发时段</h3></div></div><div class="departure-intro"><div class="departure-rec-card"><small>当前预报窗口内推荐</small><button class="smart-departure-time" id="btnUseSmartRec" type="button" ${rec ? '' : 'disabled'}>${rec ? `<strong>${escapeHtml(rec.date.slice(5).replace('-', '/'))} ${pad(rec.hour)}:00</strong><small>点击切换</small>` : '<strong>暂无可用时段</strong>'}<p>${rec ? `整条路线天气评分 ${rec.score} 分 · ${departureChangeText(currentDepartureMinute(r), rec.hour * 60) || '保持当前安排'}` : '可尝试调整日期或路线后重新分析'}</p></div><div class="departure-current-card"><small>当前行程安排</small><strong>${minToHM(Math.round((currentDepartureMinute(r) || 0)))}</strong><span>路线天气评分 ${r.routeScore} 分 · ${fmtDuration(totalMin)} 预计用时</span></div></div><div class="departure-grid-card"><div class="weather-timeline-head"><strong>未来出发时段</strong><span>点击时段即可重新检查</span></div><div id="planHours">${renderNavHours(r)}</div>${planTimeChanged ? `<div class="restore-plan"><button class="btn btn-ghost" id="btnRestorePlan" type="button">恢复原时间</button></div>` : ''}</div></section>
         <div class="smart-report-actions">${shareBarHtml()}</div>
-        <details class="smart-data-details"><summary>数据来源与使用边界</summary><div class="smart-data-body"><p>沿途按约 8 km 采样，共 ${r.points.length} 处；采样点之间不逐米评估。规划路径按所选出行方式的真实路网展开，并在关键点位时间之间分配沿途到达时刻。</p><p>到达时刻按平均速度估算，未考虑堵车、休息、封路。</p><p>评分用于比较天气影响；出行安全以官方预警和现场判断为准。</p><p>天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（CC BY 4.0）</p><p>评分与行程结论由本产品计算生成。</p><p>更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</p><p>预报数据缓存 1 小时。</p></div></details>
+        <details class="smart-data-details"><summary>数据来源与使用边界</summary><div class="smart-data-body"><p>沿途按约 8 km 采样，共 ${r.points.length} 处；采样点之间不逐米评估。规划路径按所选出行方式的真实路网展开，并在关键点位时间之间分配沿途到达时刻。</p><p>到达时刻按平均速度估算，未考虑堵车、休息、封路。</p><p>评分用于比较天气影响；出行安全以官方预警和现场判断为准。</p><p>天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（CC BY 4.0）</p><p>评分与行程结论由本产品计算生成。</p><p>沿途推荐地点：<a href="https://www.tianditu.gov.cn/" target="_blank" rel="noopener">天地图</a> POI 搜索；推荐排序由本产品计算。</p><p>更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</p><p>预报数据缓存 1 小时。</p></div></details>
         ${stale ? '<p class="smart-data-note">当前显示离线缓存的预报数据，请联网后刷新。</p>' : ''}
       </div>
     </section>
@@ -2253,6 +2363,7 @@ function renderReport(r, stale) {
 
   bindShareBar(r);
   bindShiftChips(r);
+  bindRecommendationFilters(r);
   const useSmartRec = $('#btnUseSmartRec');
   if (useSmartRec) useSmartRec.addEventListener('click', () => {
     const rec = recommendationForReport(r);
@@ -2730,9 +2841,26 @@ document.addEventListener('DOMContentLoaded', () => {
     showView('create');
   });
   $('#sheetClose').addEventListener('click', closeSheet);
+  $('#sheetSearch').addEventListener('focus', () => {
+    window.setTimeout(syncSheetViewport, 80);
+    window.setTimeout(syncSheetViewport, 280);
+  });
+  $('#sheetSearch').addEventListener('blur', () => window.setTimeout(syncSheetViewport, 120));
   $('#sheetSearch').addEventListener('input', () => {
     renderSheetList();
     scheduleRemoteSearch();
+    window.setTimeout(syncSheetViewport, 40);
+  });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', () => {
+      if (!$('#sheet')?.classList.contains('hidden')) syncSheetViewport();
+    });
+    window.visualViewport.addEventListener('scroll', () => {
+      if (!$('#sheet')?.classList.contains('hidden')) syncSheetViewport();
+    });
+  }
+  window.addEventListener('resize', () => {
+    if (!$('#sheet')?.classList.contains('hidden')) syncSheetViewport();
   });
   $('#sheet').addEventListener('click', e => {
     if (e.target.id === 'sheet') closeSheet();

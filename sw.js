@@ -6,7 +6,7 @@
  * 导航请求走「网络优先」，保证更新能及时生效；断网时回落到缓存外壳。
  */
 
-const CACHE = 'rwc-shell-v71';
+const CACHE = 'rwc-shell-v73';
 
 const ASSETS = [
   './',
@@ -23,6 +23,7 @@ const ASSETS = [
   'js/storage.js',
   'js/geocode.js',
   'js/route-segments.js',
+  'js/poi.js',
   'js/map.js',
   'js/app.js',
   'vendor/leaflet/leaflet.js',
