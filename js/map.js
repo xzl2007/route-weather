@@ -227,6 +227,28 @@ function weatherPopupHtml(point, index) {
   </div>`;
 }
 
+const POI_MAP_STYLE = {
+  attraction: { icon: '◇', label: '景点', color: '#2A9D8F', className: 'attraction' },
+  food: { icon: '⌁', label: '美食', color: '#E49A28', className: 'food' },
+  lodging: { icon: '⌂', label: '住宿', color: '#4384C4', className: 'lodging' },
+  supply: { icon: '⚡', label: '加油充电', color: '#3B9B69', className: 'supply' },
+};
+
+function poiPopupHtml(item) {
+  const info = POI_MAP_STYLE[item && item.category] || { icon: '·', label: '地点', color: '#2A91CF', className: 'neutral' };
+  const name = mapEscape(item && item.name || '沿途地点');
+  const address = item && item.address ? mapEscape(item.address) : '地址未提供';
+  const location = item && Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon))
+    ? `${Number(item.lat).toFixed(4)}, ${Number(item.lon).toFixed(4)}` : '—';
+  return `<div class="poi-map-popup poi-${info.className}">
+    <div class="poi-popup-eyebrow"><span>${info.icon} ${info.label}</span><em>第 ${Math.round(Number(item.routeKm) || 0)} km</em></div>
+    <div class="poi-popup-heading"><strong>${name}</strong></div>
+    <p class="poi-popup-reason">${mapEscape(item.reason || '位于路线附近，可顺路停留。')}</p>
+    <div class="popup-grid"><span>预计经过<b>${mapEscape(item.etaLabel || '—')}</b></span><span>距路线<b>${mapEscape(item.distanceLabel || '—')}</b></span><span>路线位置<b>第 ${Math.round(Number(item.routeKm) || 0)} km</b></span><span>坐标<b>${location}</b></span></div>
+    <div class="popup-evidence"><small>地点信息</small><span>${address}</span></div>
+  </div>`;
+}
+
 const MapCtl = {
   report: null,
   create: null,
@@ -601,6 +623,7 @@ const MapCtl = {
       map.reportMarkers[i] = mk;
     });
 
+    if (this.__lastPoiItems && this.__lastPoiItems.length) this.showPoiMarkers(this.__lastPoiItems);
     this._fit(map, line);
     this._observeResize(map, el);
     this._notifyLayer(map);
@@ -715,6 +738,62 @@ const MapCtl = {
     if (openPopup) marker.openPopup();
     const nav = this.__lastNav;
     if (nav && typeof nav.onPick === 'function') nav.onPick(index, { source: 'map' });
+    return true;
+  },
+
+  /** 在报告地图上绘制当前筛选后的沿途推荐地点。 */
+  showPoiMarkers(items) {
+    this.__lastPoiItems = Array.isArray(items) ? items.slice() : [];
+    const map = this.report;
+    if (!map) return [];
+    (map.__poiMarkers || []).forEach(marker => {
+      try { map.removeLayer(marker); } catch (e) {}
+    });
+    map.__poiMarkers = [];
+    const added = [];
+
+    this.__lastPoiItems.forEach((item, index) => {
+      const lat = Number(item && item.lat);
+      const lon = Number(item && item.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+      const info = POI_MAP_STYLE[item.category] || { icon: '·', label: '地点', color: '#2A91CF', className: 'neutral' };
+      const icon = L.divIcon({
+        className: 'poi-map-marker-wrap',
+        html: `<div class="poi-map-marker poi-${info.className}" style="--poi-color:${info.color}"><span>${info.icon}</span></div>`,
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
+        popupAnchor: [0, -17],
+      });
+      const marker = L.marker(this._conv(map, lat, lon), {
+        icon,
+        keyboard: true,
+        riseOnHover: true,
+        zIndexOffset: 600 + index,
+        title: `${info.label}：${item.name || '沿途地点'}`,
+      }).addTo(map);
+      marker.bindTooltip(`${info.icon} ${mapEscape(item.name || '沿途地点')}`, {
+        direction: 'top', offset: [0, -15], opacity: 1, className: 'route-tip poi-map-tip',
+      });
+      marker.bindPopup(poiPopupHtml(item), {
+        maxWidth: 310,
+        minWidth: 250,
+        closeButton: true,
+        className: 'weather-popup-shell poi-map-popup-shell',
+      });
+      added.push(marker);
+    });
+    map.__poiMarkers = added;
+    return added;
+  },
+
+  /** 点击路线地图上的推荐卡片时，定位到对应推荐地点。 */
+  focusPoi(index, openPopup) {
+    const map = this.report;
+    const marker = map && map.__poiMarkers && map.__poiMarkers[index];
+    if (!map || !marker) return false;
+    const targetZoom = Math.max(map.getZoom(), 10);
+    map.setView(marker.getLatLng(), targetZoom, { animate: true, duration: 0.45 });
+    if (openPopup) marker.openPopup();
     return true;
   },
 

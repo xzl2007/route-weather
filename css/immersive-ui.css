@@ -1906,6 +1906,7 @@ body.sheet-open { overflow: hidden; }
 .map-poi-cards::-webkit-scrollbar { width: 0; height: 0; }
 .map-poi-card {
   position: relative;
+  cursor: pointer;
   flex: 0 0 238px;
   min-width: 0;
   padding: 10px 11px 9px 13px;
@@ -1913,6 +1914,13 @@ body.sheet-open { overflow: hidden; }
   border: 1px solid rgba(112,154,181,.18);
   border-radius: 15px 7px 15px 7px;
   background: #fbfdff;
+  transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+.map-poi-card:hover, .map-poi-card:focus-visible {
+  transform: translateY(-1px);
+  border-color: #b8d9eb;
+  box-shadow: 0 7px 15px rgba(19,64,95,.08);
+  outline: none;
 }
 .map-poi-card::before {
   content: '';
@@ -1939,3 +1947,51 @@ body.sheet-open { overflow: hidden; }
   .map-poi-card { flex-basis: 208px; }
   .map-poi-cards { margin-right: -13px; padding-right: 13px; }
 }
+/* Recommendation markers on the route map. */
+.poi-map-marker-wrap { background: transparent; border: 0; }
+.poi-map-marker {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 2.5px solid #fff;
+  border-radius: 50% 50% 50% 14%;
+  background: var(--poi-color, #2296d0);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 5px 14px rgba(11,48,75,.28);
+  transform: rotate(-18deg) scale(.92);
+  transform-origin: center bottom;
+  transition: transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .18s ease;
+  cursor: pointer;
+}
+.poi-map-marker span { transform: rotate(18deg); }
+.poi-map-marker-wrap:hover .poi-map-marker,
+.poi-map-marker-wrap:focus-within .poi-map-marker {
+  transform: rotate(-18deg) scale(1.12);
+  box-shadow: 0 8px 20px rgba(11,48,75,.38);
+}
+.poi-map-tip { max-width: 210px; }
+.poi-map-popup-shell .leaflet-popup-content { margin: 15px 17px 14px; }
+.poi-map-popup { color: #183f5b; }
+.poi-popup-eyebrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #5b7a90; font-size: 8px; font-weight: 800; letter-spacing: .08em; }
+.poi-popup-eyebrow em { color: #7892a4; font-style: normal; font-weight: 700; letter-spacing: 0; }
+.poi-popup-heading { margin-top: 4px; }
+.poi-popup-heading strong { display: block; padding-right: 18px; color: #143a58; font-size: 16px; line-height: 1.35; }
+.poi-popup-reason { margin: 7px 0 10px; color: #526f83; font-size: 10px; line-height: 1.65; }
+.poi-map-popup .popup-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.poi-map-popup .popup-grid span { color: #71899b; font-size: 8px; }
+.poi-map-popup .popup-grid b { color: #234a67; font-size: 9px; }
+.poi-map-popup .popup-evidence { margin-top: 9px; padding-top: 8px; border-top: 1px solid #e5eef3; }
+.map-poi-cards {
+  cursor: grab;
+  touch-action: pan-x;
+  will-change: scroll-position;
+}
+.map-poi-cards.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+.map-poi-filters { cursor: grab; }
+.map-poi-filters:active { cursor: grabbing; }

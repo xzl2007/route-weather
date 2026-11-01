@@ -1550,6 +1550,21 @@ function renderNavAdviceHtml(r) {
   }).join('');
 }
 
+function mapPoiItemsForView(r, limit) {
+  const items = r && r.recommendations && Array.isArray(r.recommendations.items) ? r.recommendations.items : [];
+  let filter = state.poiFilter || 'all';
+  const available = ['attraction', 'food', 'lodging', 'supply'].filter(category => items.some(item => item.category === category));
+  if (filter !== 'all' && !available.includes(filter)) filter = 'all';
+  const filtered = filter === 'all' ? items : items.filter(item => item.category === filter);
+  return filtered.slice(0, limit || 8);
+}
+
+function syncMapPoiMarkers(r) {
+  if (typeof MapCtl === 'undefined' || typeof MapCtl.showPoiMarkers !== 'function') return;
+  if (!MapCtl.report) return;
+  MapCtl.showPoiMarkers(mapPoiItemsForView(r, 6));
+}
+
 function mapRecommendationDrawerHtml(r) {
   const rec = r && r.recommendations;
   if (!rec || !RoutePois) return '';
@@ -1561,12 +1576,12 @@ function mapRecommendationDrawerHtml(r) {
   let filter = state.poiFilter || 'all';
   if (filter !== 'all' && !available.includes(filter)) filter = 'all';
   const filtered = filter === 'all' ? all : all.filter(item => item.category === filter);
-  const visible = filtered.slice(0, 8);
+  const visible = filtered.slice(0, 6);
   const topNames = all.slice(0, 3).map(item => item.name).join(' · ');
   const openAttr = state.mapPoiOpen ? ' open' : '';
-  const cards = visible.map(item => {
+  const cards = visible.map((item, index) => {
     const info = RoutePois.CATEGORY_META[item.category] || { icon: '·', label: '地点', className: 'neutral' };
-    return `<article class="map-poi-card poi-${info.className}">
+    return `<article class="map-poi-card poi-${info.className}" data-map-poi-index="${index}" role="button" tabindex="0" aria-label="在地图查看 ${escapeHtml(item.name)}">
       <div class="map-poi-card-top"><span>${info.icon} ${info.label}</span><em>${escapeHtml(item.etaLabel || '')}</em></div>
       <strong>${escapeHtml(item.name)}</strong>
       <p>${escapeHtml(item.reason || '位于路线附近，可顺路停留。')}</p>
@@ -1611,8 +1626,60 @@ function bindMapRecommendationDrawer(r) {
       bindMapRecommendationDrawer(r);
     });
   });
-}
 
+  drawer.querySelectorAll('[data-map-poi-index]').forEach(card => {
+    const focus = () => {
+      if (drawer.querySelector('.map-poi-cards')?.dataset.dragMoved === 'true') return;
+      const index = Number(card.dataset.mapPoiIndex);
+      if (!Number.isFinite(index)) return;
+      drawer.open = false;
+      state.mapPoiOpen = false;
+      window.setTimeout(() => {
+        if (typeof MapCtl !== 'undefined' && typeof MapCtl.focusPoi === 'function') MapCtl.focusPoi(index, true);
+      }, 60);
+    };
+    card.addEventListener('click', focus);
+    card.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); focus(); }
+    });
+  });
+
+  const rail = drawer.querySelector('.map-poi-cards');
+  if (rail && rail.dataset.dragBound !== 'true') {
+    rail.dataset.dragBound = 'true';
+    let startX = 0;
+    let startLeft = 0;
+    let pressed = false;
+    let moved = false;
+    rail.addEventListener('pointerdown', event => {
+      if (event.pointerType !== 'mouse' || event.button !== 0) return;
+      pressed = true;
+      moved = false;
+      startX = event.clientX;
+      startLeft = rail.scrollLeft;
+      rail.dataset.dragMoved = 'false';
+      rail.classList.add('is-dragging');
+    });
+    rail.addEventListener('pointermove', event => {
+      if (!pressed) return;
+      const delta = event.clientX - startX;
+      if (Math.abs(delta) < 6 && !moved) return;
+      moved = true;
+      rail.dataset.dragMoved = 'true';
+      rail.scrollLeft = startLeft - delta;
+    });
+    const stopDrag = () => {
+      if (!pressed && !moved) return;
+      pressed = false;
+      rail.classList.remove('is-dragging');
+      window.setTimeout(() => { rail.dataset.dragMoved = 'false'; }, 0);
+    };
+    rail.addEventListener('pointerup', stopDrag);
+    rail.addEventListener('pointercancel', stopDrag);
+    rail.addEventListener('pointerleave', stopDrag);
+  }
+  syncMapPoiMarkers(r);
+}
 function recommendationSectionHtml(r) {
   const rec = r && r.recommendations;
   if (!rec || !RoutePois) return '';
@@ -1641,7 +1708,7 @@ function recommendationSectionHtml(r) {
     }).join('')}
   </div>` : '';
 
-  const cards = visible.map(item => {
+  const cards = visible.map((item, index) => {
     const info = RoutePois.CATEGORY_META[item.category] || { label: '地点', icon: '·', className: 'neutral' };
     const badge = item.tags && item.tags[0] ? `<span class="poi-badge">${escapeHtml(item.tags[0])}</span>` : '';
     return `<article class="poi-card poi-${info.className}">
@@ -1678,6 +1745,7 @@ function bindRecommendationFilters(r) {
       if (!current) return;
       current.outerHTML = recommendationSectionHtml(r);
       bindRecommendationFilters(r);
+      syncMapPoiMarkers(r);
     });
   });
 }
@@ -2878,7 +2946,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.raf = requestAnimationFrame(() => animateHorizontalScroll(scroller));
   };
   document.addEventListener('wheel', (event) => {
-    const scroller = event.target.closest('.hourly-strip, .ht-scroll, .rec-strip, .leg-list');
+    const scroller = event.target.closest('.hourly-strip, .ht-scroll, .rec-strip, .leg-list, .map-poi-cards, .map-poi-filters');
     if (!scroller) return;
     const max = scroller.scrollWidth - scroller.clientWidth;
     if (max <= 1) return;
