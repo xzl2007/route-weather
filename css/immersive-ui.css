@@ -1828,3 +1828,114 @@ body.sheet-open { overflow: hidden; }
   .poi-reason { min-height: 0; }
   .poi-summary { font-size: 9px; }
 }
+/* Route-map recommendation drawer and clickable weather segments. */
+.route-weather-line { cursor: pointer; transition: filter .16s ease, opacity .16s ease; }
+.route-weather-line:hover { filter: brightness(1.1) drop-shadow(0 2px 4px rgba(12,47,72,.22)); }
+.map-poi-drawer {
+  margin-top: 10px;
+  border-top: 1px solid rgba(112,149,175,.16);
+}
+.map-poi-drawer summary {
+  display: grid;
+  grid-template-columns: 30px minmax(0,1fr) 22px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 2px 5px;
+  list-style: none;
+  cursor: pointer;
+}
+.map-poi-drawer summary::-webkit-details-marker { display: none; }
+.map-poi-summary-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 9px;
+  background: #e8f5fd;
+  color: #167fc7;
+  font-size: 13px;
+}
+.map-poi-summary-copy { min-width: 0; display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: baseline; }
+.map-poi-summary-copy small { grid-column: 1 / -1; color: #7691a5; font-size: 7px; font-weight: 800; letter-spacing: .12em; }
+.map-poi-summary-copy strong { color: #173f5f; font-size: 11px; }
+.map-poi-summary-copy strong b {
+  display: inline-grid;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 4px;
+  padding: 0 4px;
+  place-items: center;
+  border-radius: 999px;
+  background: #e8f5fd;
+  color: #167fc7;
+  font-size: 8px;
+}
+.map-poi-summary-copy em { min-width: 0; overflow: hidden; color: #849aab; font-size: 8px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.map-poi-chevron { color: #397896; font-size: 15px; font-style: normal; text-align: center; transition: transform .18s ease; }
+.map-poi-drawer[open] .map-poi-chevron { transform: rotate(180deg); }
+.map-poi-body { padding: 8px 0 1px; }
+.map-poi-filters {
+  display: flex;
+  gap: 6px;
+  padding: 0 0 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.map-poi-filters::-webkit-scrollbar { width: 0; height: 0; }
+.map-poi-filters button {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border: 1px solid #deebf3;
+  border-radius: 999px;
+  background: #f7fbfd;
+  color: #557387;
+  font: inherit;
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.map-poi-filters button.on { border-color: #9ccbe8; background: #e8f5fd; color: #176aa4; }
+.map-poi-cards {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 0 0 4px;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.map-poi-cards::-webkit-scrollbar { width: 0; height: 0; }
+.map-poi-card {
+  position: relative;
+  flex: 0 0 238px;
+  min-width: 0;
+  padding: 10px 11px 9px 13px;
+  overflow: hidden;
+  border: 1px solid rgba(112,154,181,.18);
+  border-radius: 15px 7px 15px 7px;
+  background: #fbfdff;
+}
+.map-poi-card::before {
+  content: '';
+  position: absolute;
+  inset: 8px auto 8px 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: #2a91cf;
+}
+.map-poi-card.poi-attraction::before { background: #2a9d8f; }
+.map-poi-card.poi-food::before { background: #e49a28; }
+.map-poi-card.poi-lodging::before { background: #4384c4; }
+.map-poi-card.poi-supply::before { background: #3b9b69; }
+.map-poi-card-top { display: flex; align-items: center; justify-content: space-between; gap: 7px; margin-bottom: 3px; color: #56778d; font-size: 7px; font-weight: 800; }
+.map-poi-card-top em { color: #7e98aa; font-size: 7px; font-style: normal; font-weight: 600; }
+.map-poi-card > strong { display: block; overflow: hidden; color: #183f5c; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.map-poi-card > p { display: -webkit-box; min-height: 27px; margin: 4px 0 5px; overflow: hidden; color: #627d90; font-size: 8px; line-height: 1.6; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.map-poi-card > small { color: #8a9eae; font-size: 7px; }
+.map-poi-note, .map-poi-empty { margin: 6px 0 0; color: #8a9eae; font-size: 7px; line-height: 1.55; }
+@media (max-width: 760px) {
+  .map-poi-drawer summary { grid-template-columns: 27px minmax(0,1fr) 20px; gap: 8px; padding-top: 8px; }
+  .map-poi-summary-icon { width: 25px; height: 25px; }
+  .map-poi-summary-copy em { max-width: 52vw; }
+  .map-poi-card { flex-basis: 208px; }
+  .map-poi-cards { margin-right: -13px; padding-right: 13px; }
+}

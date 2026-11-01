@@ -1437,7 +1437,7 @@ function reportScreenHeader(eyebrow, title, subtitle, trailing = '') {
   return `<div class="report-screen-heading"><div class="screen-heading-copy"><div class="eyebrow">${eyebrow}</div><h2>${title}</h2><p>${subtitle}</p></div>${trailing}</div>`;
 }
 
-function routeMapConsoleHtml({ routeName, date, mode, distance, duration, points, stale = false, note = '' }) {
+function routeMapConsoleHtml({ routeName, date, mode, distance, duration, points, stale = false, note = '', recommendations = '' }) {
   const counts = { good: 0, fair: 0, caution: 0, bad: 0, neutral: 0 };
   (points || []).forEach(point => {
     const key = point && point.score != null && Number.isFinite(Number(point.score))
@@ -1453,7 +1453,7 @@ function routeMapConsoleHtml({ routeName, date, mode, distance, duration, points
     <div class="route-map-console-head"><div><span class="map-console-kicker">ROUTE WEATHER · ${escapeHtml(String(mode || '行程规划'))}</span><div class="map-console-route"><strong>${escapeHtml(start)}</strong><svg viewBox="0 0 96 16" aria-hidden="true"><path d="M2 12 C16 2 22 14 34 7 S53 2 62 9 79 12 94 3"/><circle cx="3" cy="12" r="2.5"/><circle cx="93" cy="3" r="2.5"/></svg><strong>${escapeHtml(end)}</strong></div></div><span class="map-console-date">${escapeHtml(date || '')}${stale ? ' · 缓存数据' : ''}</span></div>
     <div class="route-map-console-foot"><div class="map-console-metrics"><div><small>路线距离</small><strong>${Math.round(Number(distance) || 0)}<i> km</i></strong></div><div><small>预计用时</small><strong>${escapeHtml(fmtDuration(Number(duration) || 0))}</strong></div><div class="map-console-risk"><small>需留意采样点</small><strong>${flagged}<i> / ${counts.bad + counts.caution + counts.good + counts.fair + counts.neutral}</i></strong></div></div>
       <div class="map-impact-legend" aria-label="路线颜色表示天气影响"><span><i class="good"></i>较小</span><span><i class="fair"></i>一般</span><span><i class="caution"></i>关注</span><span><i class="bad"></i>较强</span></div>
-    </div>${note ? `<p class="map-console-note">${escapeHtml(note)}</p>` : ''}</aside>`;
+    </div>${note ? `<p class="map-console-note">${escapeHtml(note)}</p>` : ''}${recommendations}</aside>`;
 }
 
 function navWeatherOverviewHtml(r, stale) {
@@ -1548,6 +1548,69 @@ function renderNavAdviceHtml(r) {
       <span class="smart-note-copy"><strong>${escapeHtml(title)}</strong>${detail ? `<small>${escapeHtml(detail)}</small>` : ''}</span>
     </div>`;
   }).join('');
+}
+
+function mapRecommendationDrawerHtml(r) {
+  const rec = r && r.recommendations;
+  if (!rec || !RoutePois) return '';
+  const all = Array.isArray(rec.items) ? rec.items : [];
+  const categories = ['attraction', 'food', 'lodging', 'supply'];
+  const counts = {};
+  categories.forEach(category => { counts[category] = all.filter(item => item.category === category).length; });
+  const available = categories.filter(category => counts[category] > 0);
+  let filter = state.poiFilter || 'all';
+  if (filter !== 'all' && !available.includes(filter)) filter = 'all';
+  const filtered = filter === 'all' ? all : all.filter(item => item.category === filter);
+  const visible = filtered.slice(0, 8);
+  const topNames = all.slice(0, 3).map(item => item.name).join(' · ');
+  const openAttr = state.mapPoiOpen ? ' open' : '';
+  const cards = visible.map(item => {
+    const info = RoutePois.CATEGORY_META[item.category] || { icon: '·', label: '地点', className: 'neutral' };
+    return `<article class="map-poi-card poi-${info.className}">
+      <div class="map-poi-card-top"><span>${info.icon} ${info.label}</span><em>${escapeHtml(item.etaLabel || '')}</em></div>
+      <strong>${escapeHtml(item.name)}</strong>
+      <p>${escapeHtml(item.reason || '位于路线附近，可顺路停留。')}</p>
+      <small>第 ${Math.round(Number(item.routeKm) || 0)} km · 距路线 ${escapeHtml(item.distanceLabel || '')}</small>
+    </article>`;
+  }).join('');
+
+  return `<details class="map-poi-drawer" id="mapPoiDrawer"${openAttr}>
+    <summary>
+      <span class="map-poi-summary-icon">✦</span>
+      <span class="map-poi-summary-copy">
+        <small>ROUTE PICKS · ${escapeHtml(rec.modeLabel || modeText(r.travelMode))}</small>
+        <strong>沿途推荐 <b>${all.length}</b></strong>
+        <em>${escapeHtml(topNames || '正在整理路线附近地点')}</em>
+      </span>
+      <span class="map-poi-chevron">⌄</span>
+    </summary>
+    <div class="map-poi-body">
+      ${available.length ? `<div class="map-poi-filters" role="group" aria-label="地图沿途推荐分类">
+        <button type="button" class="${filter === 'all' ? 'on' : ''}" data-map-poi-filter="all">全部 ${all.length}</button>
+        ${available.map(category => { const info = RoutePois.CATEGORY_META[category]; return `<button type="button" class="${filter === category ? 'on' : ''}" data-map-poi-filter="${category}">${info.icon} ${info.label} ${counts[category]}</button>`; }).join('')}
+      </div>` : ''}
+      ${visible.length ? `<div class="map-poi-cards">${cards}</div>` : '<p class="map-poi-empty">当前没有可展示的沿途地点。</p>'}
+      <p class="map-poi-note">${escapeHtml(rec.note || '按预计经过时段与绕行距离排序')}；点击地面路段可查看该段沿途天气。</p>
+    </div>
+  </details>`;
+}
+
+function bindMapRecommendationDrawer(r) {
+  const drawer = document.querySelector('#mapPoiDrawer');
+  if (!drawer) return;
+  drawer.addEventListener('toggle', () => { state.mapPoiOpen = drawer.open; });
+  drawer.querySelectorAll('[data-map-poi-filter]').forEach(button => {
+    button.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      state.poiFilter = button.dataset.mapPoiFilter || 'all';
+      state.mapPoiOpen = true;
+      const current = document.querySelector('#mapPoiDrawer');
+      if (!current) return;
+      current.outerHTML = mapRecommendationDrawerHtml(r);
+      bindMapRecommendationDrawer(r);
+    });
+  });
 }
 
 function recommendationSectionHtml(r) {
@@ -1665,7 +1728,7 @@ function renderNavReport(r, stale) {
       </div>
       <div class="map-hint">路线颜色表示该里程区间的天气影响；点击路线或采样点查看详情。</div>
     </div>
-    ${routeMapConsoleHtml({ routeName, date: r.date, mode: `${modeText(r.travelMode)} · 导航`, distance: r.route.distanceKm, duration: r.route.durationMin, points: r.points, stale, note: r.route.approx ? `路网时长按 ${r.route.speedKmh} km/h 估算。` : '颜色表示天气影响程度。' })}
+    ${routeMapConsoleHtml({ routeName, date: r.date, mode: `${modeText(r.travelMode)} · 导航`, distance: r.route.distanceKm, duration: r.route.durationMin, points: r.points, stale, note: r.route.approx ? `路网时长按 ${r.route.speedKmh} km/h 估算。` : '颜色表示天气影响程度。', recommendations: mapRecommendationDrawerHtml(r) })}
     </section>
 
     <section class="report-screen smart-report-screen nav-smart-report" id="smartReport">
@@ -1801,6 +1864,7 @@ function renderNavReport(r, stale) {
 
   bindShareBar(r);
   bindRecommendationFilters(r);
+  bindMapRecommendationDrawer(r);
   syncReportFullscreen();
 }
 
@@ -2188,7 +2252,7 @@ function renderReport(r, stale) {
       </div>
       <div class="map-hint">点击地图点位查看对应天气信息。</div>
     </div>
-    ${routeMapConsoleHtml({ routeName, date: r.date, mode: modeText(r.travelMode), distance: totalKm, duration: r.route ? r.route.durationMin : totalMin, points: r.points, stale, note: r.route && r.route.approx ? `路网时长按 ${r.route.speedKmh} km/h 估算。` : '颜色表示沿途天气影响。' })}
+    ${routeMapConsoleHtml({ routeName, date: r.date, mode: modeText(r.travelMode), distance: totalKm, duration: r.route ? r.route.durationMin : totalMin, points: r.points, stale, note: r.route && r.route.approx ? `路网时长按 ${r.route.speedKmh} km/h 估算。` : '颜色表示沿途天气影响。', recommendations: mapRecommendationDrawerHtml(r) })}
     </section>
 
     <section class="report-screen smart-report-screen" id="smartReport">
@@ -2364,6 +2428,7 @@ function renderReport(r, stale) {
   bindShareBar(r);
   bindShiftChips(r);
   bindRecommendationFilters(r);
+  bindMapRecommendationDrawer(r);
   const useSmartRec = $('#btnUseSmartRec');
   if (useSmartRec) useSmartRec.addEventListener('click', () => {
     const rec = recommendationForReport(r);

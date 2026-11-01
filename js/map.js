@@ -541,7 +541,9 @@ const MapCtl = {
         className: `route-weather-line route-${section.level || 'neutral'}`,
       }).addTo(map);
       lineLayer.on('click', () => {
-        if (section.index >= 0) this.focusSample(section.index, true);
+        if (section.index < 0) return;
+        const focused = this.focusSample(section.index, true);
+        if (!focused && typeof onPick === 'function') onPick(section.index, { source: 'route' });
       });
       map.__routeSections.push(lineLayer);
     });
