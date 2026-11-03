@@ -2011,6 +2011,56 @@ body.map-fullscreen #view-report.view.active #routeAnalysis.is-active #navMap {
 }
 body.map-fullscreen #view-report.view.active #routeAnalysis.is-active .report-screen-heading { z-index: 10000 !important; }
 
+/* Restore the route-picks panel and compact map-provider links from the earlier mobile layout. */
+#smartReport .route-poi-section { margin-top: 18px; }
+#smartReport .route-poi-section .report-collapse {
+  padding: 22px 24px 20px; border: 1px solid rgba(168,194,211,.32); border-radius: 27px 13px 27px 13px;
+  background: linear-gradient(145deg,rgba(255,255,255,.98),rgba(247,251,253,.96));
+  box-shadow: 0 16px 42px rgba(25,58,83,.09);
+}
+#smartReport .route-poi-section .report-collapse-summary { gap: 12px; }
+#smartReport .route-poi-section .smart-section-heading { flex: 1; align-items: center; gap: 12px; }
+#smartReport .route-poi-section .smart-section-heading > div > span { color: #7b9aad; letter-spacing: .18em; }
+#smartReport .route-poi-section .smart-section-heading h3 { color: #183f5d; }
+#smartReport .route-poi-section .poi-mode { flex: 0 0 auto; padding: 7px 13px; border: 1px solid #d4e6f0; border-radius: 999px; background: #f2f9fc; color: #326b8b; }
+#smartReport .route-poi-section .collapse-chevron { flex: 0 0 38px; width: 38px; height: 38px; border-radius: 50%; background: #e7f4fa; color: #2479a8; }
+#smartReport .route-poi-section .poi-summary { margin: 12px 0 20px; color: #71889a; line-height: 1.7; }
+#smartReport .route-poi-section .poi-filter-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+#smartReport .route-poi-section .poi-filter { min-height: 40px; padding: 0 15px; border: 1px solid #dce7ed; border-radius: 999px; background: #f7fafc; color: #4c6578; }
+#smartReport .route-poi-section .poi-filter.on { border-color: #8ec7e1; background: #eaf6fb; color: #176a9f; box-shadow: inset 0 0 0 1px rgba(72,156,197,.12); }
+#smartReport .route-poi-section .poi-filter span { margin-left: 5px; padding: 2px 6px; border-radius: 999px; background: rgba(75,115,143,.1); color: #5d788c; }
+#smartReport .route-poi-section .poi-grid { grid-template-columns: minmax(0,1fr); gap: 12px; }
+#smartReport .route-poi-section .poi-card { padding: 18px 18px 16px 21px; border-color: #dce8ef; border-radius: 20px 12px 20px 12px; box-shadow: 0 7px 20px rgba(25,58,83,.06); }
+#smartReport .route-poi-section .poi-card::before { inset: 12px auto 12px 0; width: 4px; }
+#smartReport .route-poi-section .poi-card h4 { color: #183f5d; font-size: 16px; }
+#smartReport .route-poi-section .poi-reason { color: #61798b; font-size: 13px; }
+#smartReport .route-poi-section .poi-meta { gap: 6px 8px; font-size: 11px; }
+#smartReport .route-poi-section .poi-address { color: #8195a4; font-size: 11px; }
+#smartReport .route-poi-section .poi-links { gap: 8px; }
+#smartReport .route-poi-section .poi-links a { min-height: 38px; padding: 5px 13px; border-color: #d5e4ec; background: #f7fbfd; color: #286d98; font-size: 13px; font-weight: 700; }
+
+.route-nav-links { gap: 10px; padding: 5px 0 0; border: 0; color: #243b4d; font-size: 12px; }
+.route-nav-links a { min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: #146fbd !important; font-size: 13px; text-decoration: underline; text-underline-offset: 2px; }
+.route-nav-links a:hover { border: 0; background: transparent; color: #0d568f !important; }
+
+@media (max-width: 760px) {
+  #smartReport .route-poi-section { margin-top: 14px; }
+  #smartReport .route-poi-section .report-collapse { padding: 17px 15px 15px; border-radius: 23px 12px 23px 12px; }
+  #smartReport .route-poi-section .smart-section-heading h3 { font-size: 19px; }
+  #smartReport .route-poi-section .smart-section-heading > div > span { font-size: 10px; }
+  #smartReport .route-poi-section .poi-mode { padding: 6px 10px; font-size: 12px; }
+  #smartReport .route-poi-section .collapse-chevron { flex-basis: 34px; width: 34px; height: 34px; }
+  #smartReport .route-poi-section .poi-summary { margin: 10px 0 16px; font-size: 13px; }
+  #smartReport .route-poi-section .poi-filter-bar { gap: 7px; margin-bottom: 14px; }
+  #smartReport .route-poi-section .poi-filter { min-height: 38px; padding: 0 12px; font-size: 13px; }
+  #smartReport .route-poi-section .poi-card { padding: 15px 14px 14px 18px; }
+  #smartReport .route-poi-section .poi-card h4 { font-size: 16px; }
+  #smartReport .route-poi-section .poi-reason { font-size: 13px; }
+  #smartReport .route-poi-section .poi-links a { min-height: 36px; padding: 4px 10px; font-size: 12px; }
+  .route-map-console .route-nav-links { flex-wrap: wrap; gap: 5px 10px; font-size: 11px; }
+  .route-map-console .route-nav-links a { font-size: 12px; }
+}
+
 .weather-impact-cta {
   display: inline-flex; align-items: center; justify-content: center; min-height: 40px;
   padding: 0 14px; border: 1px solid #b9d8eb; border-radius: 999px;
