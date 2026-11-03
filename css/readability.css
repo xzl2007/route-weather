@@ -582,3 +582,20 @@ body.map-fullscreen #routeAnalysis .leaflet-control-attribution {
   body { --ink-2: #2c3e4d; --ink-3: #51687a; }
   .poi-source-note, .gear-note, .energy-note { color: #455f72 !important; }
 }
+
+/* Mobile type scale: lift tiny labels while preserving the original typeface and desktop rhythm. */
+@media (max-width: 760px) {
+  body { -webkit-text-size-adjust: 100%; }
+  .brand-copy small, .mobile-nav button small, .topbar-context { font-size: 11px !important; }
+  .home-sub { font-size: 15px !important; line-height: 1.65 !important; }
+  .home-hint, .home-demo-link, .planning-heading > p, .planner-controls .small,
+  #fieldPoints .small, .planner-sheet > .hint, .planner-advanced > summary { font-size: 12px !important; }
+  .planner-controls .field > label, #fieldPoints > label, .planner-controls .seg button { font-size: 13px !important; }
+  .planner-controls input, .planner-controls select, #fieldCoords input { font-size: 16px !important; }
+  #routeAnalysis .report-screen-heading h2 { font-size: 15px !important; }
+  #routeAnalysis .summary .decision-copy, #routeAnalysis .summary .kv { font-size: 11px !important; }
+  #routeAnalysis .summary .decision-risk, #routeAnalysis .summary .decision-btn { font-size: 10px !important; }
+  .map-hint, .map-btn, .report-local-nav button, .report-favorite { font-size: 12px !important; }
+  .weather-side-note, .advice-item, .dx-item, .poi-source-note, .energy-note { font-size: 12px !important; }
+  .nav-leg-list .lr-name { font-size: 15px !important; }
+}

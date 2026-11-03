@@ -1995,3 +1995,63 @@ body.sheet-open { overflow: hidden; }
 }
 .map-poi-filters { cursor: grab; }
 .map-poi-filters:active { cursor: grabbing; }
+
+/* Keep map immersive controls reliable even when the final readability layer changes. */
+body.create-map-fullscreen #view-create.view.active {
+  position: fixed !important; inset: 0 !important; z-index: 9990 !important;
+  display: block !important; width: 100vw !important; height: 100dvh !important; overflow: hidden !important;
+}
+body.map-fullscreen #view-report.view.active #routeAnalysis.is-active .map-card {
+  position: fixed !important; inset: 0 !important; z-index: 9990 !important;
+  display: block !important; width: 100vw !important; height: 100dvh !important; margin: 0 !important;
+}
+body.map-fullscreen #view-report.view.active #routeAnalysis.is-active #reportMap,
+body.map-fullscreen #view-report.view.active #routeAnalysis.is-active #navMap {
+  position: absolute !important; inset: 0 !important; width: 100% !important; height: 100dvh !important;
+}
+body.map-fullscreen #view-report.view.active #routeAnalysis.is-active .report-screen-heading { z-index: 10000 !important; }
+
+.weather-impact-cta {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 40px;
+  padding: 0 14px; border: 1px solid #b9d8eb; border-radius: 999px;
+  background: #eff8fd; color: #176a9f; font: inherit; font-weight: 700; cursor: pointer;
+}
+.weather-impact-cta:hover, .weather-impact-cta:focus-visible { background: #dff1fb; outline: 2px solid #75b6dc; outline-offset: 2px; }
+
+/* Present the navigation samples as a readable trip timeline on phones. */
+@media (max-width: 760px) {
+  #routeAnalysis .report-screen-heading { display: flex; align-items: center; }
+  #routeAnalysis .weather-impact-cta { min-height: 36px; padding: 0 11px; }
+  .nav-leg-list { padding: 10px !important; overflow: visible !important; }
+  .nav-leg-list .leg-head { display: none !important; }
+  .nav-leg-list .route-sample-row {
+    position: relative; display: grid !important; grid-template-columns: minmax(0,1fr) auto;
+    min-width: 0 !important; gap: 6px 10px !important; margin: 0 0 9px; padding: 12px 12px 12px 20px !important;
+    border: 1px solid #e1ebf1 !important; border-radius: 16px !important;
+    background: linear-gradient(135deg,#fff,#f6fafc); box-shadow: 0 5px 16px rgba(19,57,82,.06);
+    font-size: 13px !important; text-align: left;
+  }
+  .nav-leg-list .route-sample-row::before {
+    content: ''; position: absolute; top: 14px; bottom: 14px; left: 9px; width: 3px;
+    border-radius: 3px; background: linear-gradient(#72b9df,#347eac);
+  }
+  .nav-leg-list .route-sample-row .lr-name { grid-column: 1; font-size: 15px; font-weight: 750; white-space: normal; }
+  .nav-leg-list .route-sample-row .lr-time { grid-column: 2; grid-row: 1; color: #315e7a; font-size: 13px; font-weight: 700; }
+  .nav-leg-list .route-sample-row .lr-wx { grid-column: 1; white-space: normal; font-size: 13px; }
+  .nav-leg-list .route-sample-row .lr-temp,
+  .nav-leg-list .route-sample-row .lr-precip,
+  .nav-leg-list .route-sample-row .lr-impact { grid-column: 2; text-align: right; font-size: 12px; }
+  .nav-leg-list .route-sample-row .lr-impact { color: #41647c; font-weight: 700; }
+  .nav-leg-list .leg-note { padding: 8px 3px; font-size: 12px; }
+  #routeAnalysis .elevation-card { max-height: none; padding: 12px 14px; }
+  #routeAnalysis .elevation-head { align-items: flex-start; }
+  #routeAnalysis .elevation-head h3 { margin: 0; font-size: 14px; }
+  #routeAnalysis .elevation-head p,
+  #routeAnalysis .elevation-range,
+  #routeAnalysis .elevation-note { display: flex; }
+  #routeAnalysis .elevation-head p { font-size: 11px; }
+  #routeAnalysis .elevation-range { gap: 9px; font-size: 11px; }
+  #routeAnalysis .elevation-range b { font-size: 12px; }
+  #routeAnalysis .elevation-chart { height: 118px; }
+  #routeAnalysis .elevation-note { font-size: 10px; }
+}

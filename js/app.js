@@ -2165,7 +2165,7 @@ function renderNavReport(r, stale) {
       <button type="button" data-report-target="weatherDetails" aria-pressed="false">沿途天气 <span class="tab-count">${r.points.length}</span></button>
     </nav>
     <section class="report-screen is-active" id="routeAnalysis">
-    ${reportScreenHeader('ROUTE WEATHER MAP', '沿途天气影响', `${escapeHtml(routeName)} · 点击路线点位查看天气`, '<button class="report-favorite" id="btnReportFavorite" type="button" aria-pressed="false">♡ <span>收藏</span></button>')}
+    ${reportScreenHeader('ROUTE WEATHER MAP', '沿途天气影响', `${escapeHtml(routeName)} · 点击路线点位查看天气`, '<button class="weather-impact-cta" type="button" data-report-target="weatherDetails">查看天气点位 ↓</button><button class="report-favorite" id="btnReportFavorite" type="button" aria-pressed="false">♡ <span>收藏</span></button>')}
     ${routeOptionsBarHtml(r)}
     <div class="card map-card">
       <div class="map-wrap">
@@ -2719,7 +2719,7 @@ function renderReport(r, stale) {
       <button type="button" data-report-target="weatherDetails" aria-pressed="false">沿途天气 <span class="tab-count">${r.points.length}</span></button>
     </nav>
     <section class="report-screen is-active" id="routeAnalysis">
-    ${reportScreenHeader('ROUTE WEATHER MAP', '沿途天气影响', `${escapeHtml(routeName)} · 点击路线点位查看天气`, '<button class="report-favorite" id="btnReportFavorite" type="button" aria-pressed="false">♡ <span>收藏</span></button>')}
+    ${reportScreenHeader('ROUTE WEATHER MAP', '沿途天气影响', `${escapeHtml(routeName)} · 点击路线点位查看天气`, '<button class="weather-impact-cta" type="button" data-report-target="weatherDetails">查看天气点位 ↓</button><button class="report-favorite" id="btnReportFavorite" type="button" aria-pressed="false">♡ <span>收藏</span></button>')}
     <div class="card map-card">
       <div class="map-wrap">
         <div id="reportMap" class="map map-report"></div>
@@ -2728,7 +2728,7 @@ function renderReport(r, stale) {
           <button class="map-btn" id="mapFull" type="button">⛶ 全屏</button>
         </div>
       </div>
-      <div class="map-hint">点击地图点位查看对应天气信息。</div>
+      <div class="map-hint">彩色路线表示各路段天气影响；点击路线段或采样点可查看依据，点“查看天气点位”可浏览全程详情。</div>
     </div>
     ${routeMapConsoleHtml({ routeName, date: r.date, mode: modeText(r.travelMode), distance: totalKm, duration: r.route ? r.route.durationMin : totalMin, points: r.points, stale, note: r.route && r.route.approx ? `路网时长按 ${r.route.speedKmh} km/h 估算。` : '颜色表示沿途天气影响。', navLinks: routeNavLinksHtml(r) })}
     </section>
