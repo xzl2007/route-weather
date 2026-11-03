@@ -81,5 +81,16 @@ console.log('\n【用例5】路线包围盒');
   ok('MapBound 为四段坐标', bounds.mapBound.split(',').length === 4);
 }
 
+console.log('\n【用例6】分散推荐不重复，且不遗漏同区段的剩余地点');
+{
+  const places = [['A', 0, 0], ['B', 10, 10], ['C', 40, 30]].map(([name, routeKm, distanceM]) => ({
+    name, category: 'attraction', lat: 30 + routeKm / 1000, lon: 103, routeKm, distanceM,
+  }));
+  const result = POI.personalize(places, { mode: 'drive', totalKm: 100, durationMin: 120, startMinute: 480 });
+  ok('三个候选都保留且只出现一次', new Set(result.items.map(item => item.name)).size === 3 && result.items.length === 3);
+  const duplicate = POI.personalize(places.concat({ ...places[0] }), { mode: 'drive', totalKm: 100, durationMin: 120 });
+  ok('重复来源候选不会重复显示', duplicate.items.length === 3);
+}
+
 console.log('\n结果: ' + pass + ' 通过, ' + fail + ' 失败\n');
 process.exit(fail ? 1 : 0);

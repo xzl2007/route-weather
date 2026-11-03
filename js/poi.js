@@ -550,7 +550,7 @@
       hike: { attraction: 12, food: 10, lodging: 13 },
     }[mode] || {};
 
-    const scored = (items || []).filter(item => item && CATEGORY_META[item.category]).map(item => {
+    const scored = dedupe((items || []).filter(item => item && CATEGORY_META[item.category])).map(item => {
       const routeKm = Number(item.routeKm) || 0;
       const ratio = totalKm > 0 ? Math.max(0, Math.min(1, routeKm / totalKm)) : 0;
       const etaAbs = startMinute + durationMin * ratio;
@@ -623,8 +623,9 @@
         const bucket = groups[category] || [];
         // 同一轮尽量避开已用过的 30 km 区段，避免 6 张卡全挤在一个镇上
         let item = bucket.find(x => !usedSegments.has(`${category}:${Math.floor((x.routeKm || 0) / 30)}`));
-        if (!item) item = bucket[round];
+        if (!item) item = bucket[0];
         if (!item) return;
+        bucket.splice(bucket.indexOf(item), 1);
         usedSegments.add(`${category}:${Math.floor((item.routeKm || 0) / 30)}`);
         diversified.push(item);
       });
