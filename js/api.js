@@ -17,6 +17,8 @@ const API = {
 const HOURLY_FIELDS = [
   'temperature_2m',
   'apparent_temperature',
+  'relative_humidity_2m',
+  'uv_index',
   'precipitation_probability',
   'precipitation',
   'wind_speed_10m',
@@ -26,11 +28,13 @@ const HOURLY_FIELDS = [
 
 /* ---------------- 请求封装（带超时，离线/弱网时不至于一直转圈） ---------------- */
 
-async function fetchJson(url, timeoutMs) {
+async function fetchJson(url, timeoutMs, options) {
   const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timer = ctl ? setTimeout(() => ctl.abort(), timeoutMs || 12000) : null;
   try {
-    const res = await fetch(url, ctl ? { signal: ctl.signal } : undefined);
+    const init = Object.assign({}, options || {});
+    if (ctl) init.signal = ctl.signal;
+    const res = await fetch(url, init);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return await res.json();
   } finally {
@@ -107,7 +111,7 @@ async function fetchHourly(points, dateStr, days) {
   const endDate = days > 1 ? addDays(dateStr, days - 1) : dateStr;
   const lat = points.map(p => p.lat).join(',');
   const lon = points.map(p => p.lon).join(',');
-  const key = cacheKey('fc', [lat, lon, dateStr, days]);
+  const key = cacheKey('fc:v2', [lat, lon, dateStr, days]);
 
   const hit = readCache(key);
   if (hit) return { ok: true, stale: false, at: hit.at, series: normalizeSeries(hit.data, points), sun: normalizeSun(hit.data, points) };
@@ -145,6 +149,8 @@ function normalizeSeries(json, points) {
       hour: Number(t.slice(11, 13)),
       temp: num(h.temperature_2m, k),
       appTemp: num(h.apparent_temperature, k),
+      humidity: num(h.relative_humidity_2m, k),
+      uv: num(h.uv_index, k),
       pp: num(h.precipitation_probability, k),
       precip: num(h.precipitation, k),
       wind: num(h.wind_speed_10m, k),

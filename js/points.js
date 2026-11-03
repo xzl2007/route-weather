@@ -34,6 +34,18 @@ const POINT_LIBRARY = [
   { name: '稻城',       lat: 29.0400, lon: 100.3000, region: '川藏南线' },
   { name: '巴塘',       lat: 30.0050, lon: 99.1050,  region: '川藏南线' },
 
+  { name: '黑水',       lat: 32.0639, lon: 102.9882, region: '川北' },
+  { name: '达古冰川',   lat: 32.2470, lon: 102.7580, region: '川北' },
+  { name: '奶子沟',     lat: 32.1250, lon: 102.8650, region: '川北' },
+  { name: '色尔古藏寨', lat: 32.0250, lon: 103.2100, region: '川北' },
+  { name: '茂县',       lat: 31.6817, lon: 103.8538, region: '川北' },
+  { name: '理县',       lat: 31.4361, lon: 103.1667, region: '川北' },
+  { name: '毕棚沟',     lat: 31.2960, lon: 102.9500, region: '川西环线' },
+  { name: '巴朗山',     lat: 30.8700, lon: 102.9000, region: '川西环线' },
+  { name: '夹金山',     lat: 30.7400, lon: 102.6200, region: '川西环线' },
+  { name: '塔公草原',   lat: 30.3000, lon: 101.5200, region: '川西环线' },
+  { name: '八美',       lat: 30.5000, lon: 101.6500, region: '川西环线' },
+
   // ---- 川北 ----
   { name: '松潘',       lat: 32.6530, lon: 103.5980, region: '川北' },
   { name: '九寨沟',     lat: 33.2600, lon: 103.9200, region: '川北' },

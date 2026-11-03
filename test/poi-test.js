@@ -59,7 +59,7 @@ console.log('\n【用例3】按绕行距离筛选');
 console.log('\n【用例4】出行方式与时段排序');
 {
   const food = { name: '山野餐厅', category: 'food', lat: 30, lon: 103.02, distanceM: 180, routeKm: 2, routeRatio: 0.2 };
-  const supply = { name: '中途加油站', category: 'supply', lat: 30, lon: 103.05, distanceM: 250, routeKm: 50, routeRatio: 0.5 };
+  const supply = { name: '中途加油站', category: 'fuel', lat: 30, lon: 103.05, distanceM: 250, routeKm: 50, routeRatio: 0.5 };
   const lodging = { name: '终点民宿', category: 'lodging', lat: 30, lon: 103.09, distanceM: 220, routeKm: 8, routeRatio: 0.8 };
   const attraction = { name: '河谷观景台', category: 'attraction', lat: 30, lon: 103.06, distanceM: 320, routeKm: 6, routeRatio: 0.6 };
   const foodResult = POI.personalize([food], { mode: 'drive', totalKm: 100, durationMin: 120, startMinute: 11 * 60 });
@@ -70,7 +70,7 @@ console.log('\n【用例4】出行方式与时段排序');
   ok('长途中段补给获得标签', supplyResult.items[0].tags.includes('长途中段补给'), supplyResult.items[0].reason);
   const hikeResult = POI.personalize([attraction], { mode: 'hike', totalKm: 20, durationMin: 300, startMinute: 9 * 60 });
   ok('徒步路线景点可推荐', hikeResult.items.length === 1 && hikeResult.modeLabel === '徒步');
-  ok('徒步配置不请求加油站', POI.MODE_SETTINGS.hike.queries.supply.length === 0);
+  ok('徒步配置不请求加油站或充电站', !POI.MODE_SETTINGS.hike.queries.fuel && !POI.MODE_SETTINGS.hike.queries.charging);
 }
 
 console.log('\n【用例5】路线包围盒');

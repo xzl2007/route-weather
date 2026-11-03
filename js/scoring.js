@@ -396,7 +396,8 @@ function scoreAtDeparture(samples, series, elevations, durationSec, departHour) 
       const s2 = scoreHour(x, elev);
       return {
         hour: x.hour, time: x.time, score: s2.score, level: s2.level, deductions: s2.deductions,
-        temp: x.temp, pp: x.pp, precip: x.precip, wind: x.wind, code: x.code,
+        temp: x.temp, appTemp: x.appTemp, humidity: x.humidity, uv: x.uv,
+        pp: x.pp, precip: x.precip, wind: x.wind, code: x.code,
       };
     });
 
@@ -417,6 +418,9 @@ function scoreAtDeparture(samples, series, elevations, durationSec, departHour) 
       level: sc.level,
       deductions: sc.deductions,
       temp: h.temp,
+      appTemp: h.appTemp,
+      humidity: h.humidity,
+      uv: h.uv,
       code: h.code,
       pp: h.pp,
       precip: h.precip,
@@ -1055,7 +1059,8 @@ function analyzePlanRoute(opts) {
       const s2 = scoreHour(x, elev);
       return {
         hour: x.hour, time: x.time, score: s2.score, level: s2.level, deductions: s2.deductions,
-        temp: x.temp, pp: x.pp, precip: x.precip, wind: x.wind, code: x.code,
+        temp: x.temp, appTemp: x.appTemp, humidity: x.humidity, uv: x.uv,
+        pp: x.pp, precip: x.precip, wind: x.wind, code: x.code,
       };
     });
     const sc = scoreHour(h, elev);
@@ -1065,6 +1070,7 @@ function analyzePlanRoute(opts) {
       kind: sm.kind, pointIdx: sm.pointIdx, legIndex: sm.legIndex, ratio: sm.ratio, cumKm: sm.cumKm,
       score: sc.score, level: sc.level, deductions: sc.deductions,
       temp: h.temp, code: h.code, pp: h.pp, precip: h.precip, wind: h.wind,
+      appTemp: h.appTemp, humidity: h.humidity, uv: h.uv,
       weatherText: wmoText(h.code), icon: wmoIcon(h.code),
       hourly,
     });
@@ -1119,7 +1125,8 @@ function analyzePlan(series, elevations, points, times, sun, dateStr, mode) {
       const s2 = scoreHour(x, elev);
       return {
         hour: x.hour, time: x.time, score: s2.score, level: s2.level, deductions: s2.deductions,
-        temp: x.temp, pp: x.pp, precip: x.precip, wind: x.wind, code: x.code,
+        temp: x.temp, appTemp: x.appTemp, humidity: x.humidity, uv: x.uv,
+        pp: x.pp, precip: x.precip, wind: x.wind, code: x.code,
       };
     });
     const sc = scoreHour(h, elev);
@@ -1132,6 +1139,7 @@ function analyzePlan(series, elevations, points, times, sun, dateStr, mode) {
       hour: h.hour,
       score: sc.score, level: sc.level, deductions: sc.deductions,
       temp: h.temp, code: h.code, pp: h.pp, precip: h.precip, wind: h.wind,
+      appTemp: h.appTemp, humidity: h.humidity, uv: h.uv,
       weatherText: wmoText(h.code),
       hourly,
     });
@@ -1566,11 +1574,194 @@ function buildPlanAdvice(entries, legs, diagnosis, profile) {
   return out;
 }
 
+/* ---------------- 穿衣 / 户外防护 / 高海拔含氧量 ---------------- */
+
+/**
+ * 等效含氧量：以海平面为 100%，按标准大气压随海拔衰减估算。
+ * 例如 3000 m ≈ 70%，4000 m ≈ 61%，4500 m ≈ 57%，5000 m ≈ 53%。
+ * 这不是血氧饱和度，而是空气氧分压相对海平面的比例。
+ */
+function oxygenAt(elev) {
+  const h = Math.max(0, Math.min(9000, Number(elev) || 0));
+  const ratio = Math.pow(1 - 2.25577e-5 * h, 5.25588);
+  const percent = Math.round(ratio * 1000) / 10;
+  const level = h >= 4500 ? { key: 'severe', text: '极高海拔', color: '#B42318' }
+    : h >= 3500 ? { key: 'high', text: '高海拔', color: '#D9480F' }
+    : h >= 2800 ? { key: 'mid', text: '中高海拔', color: '#B7791F' }
+    : h >= 2000 ? { key: 'mild', text: '轻度海拔', color: '#2F855A' }
+    : { key: 'low', text: '低海拔', color: '#2B6CB0' };
+  return {
+    elev: Math.round(h),
+    ratio,
+    percent,
+    level,
+    seaLevelOxygen: 20.95,
+    partial: Math.round(20.95 * ratio * 10) / 10,
+    text: `海拔 ${Math.round(h)} m 的空气氧分压约为海平面的 ${percent}%`,
+  };
+}
+
+function oxygenAdvice(elev) {
+  const o = oxygenAt(elev);
+  if (o.elev < 2000) {
+    return {
+      headline: '全程海拔较低，一般不需要担心高反',
+      detail: `最高点约 ${o.elev} m，等效含氧量约 ${o.percent}%，与平原差别不大。`,
+      tips: ['正常补水与休息即可', '如对海拔敏感，仍建议避免剧烈奔跑'],
+    };
+  }
+  if (o.elev < 2800) {
+    return {
+      headline: '进入轻度海拔区，注意节奏',
+      detail: `最高点约 ${o.elev} m，等效含氧量约 ${o.percent}%，多数人无明显不适。`,
+      tips: ['初到当天减少剧烈运动', '多喝水、少饮酒，保证睡眠', '如出现头痛、恶心，及时下撤到低处'],
+    };
+  }
+  if (o.elev < 3500) {
+    return {
+      headline: '中高海拔，建议预留适应时间',
+      detail: `最高点约 ${o.elev} m，等效含氧量约 ${o.percent}%，爬升快时可能出现轻微高反。`,
+      tips: ['当天不要直接剧烈爬升，先在半程适应', '随身带温水与糖分，避免空腹', '头痛加重或呕吐时立即下撤'],
+    };
+  }
+  if (o.elev < 4500) {
+    return {
+      headline: '高海拔路段，含氧量明显下降',
+      detail: `最高点约 ${o.elev} m，等效含氧量约 ${o.percent}%（约为海平面的 ${o.percent}%）。`,
+      tips: ['控制上升速度，每升高 500 m 留出适应时间', '避免饮酒、熬夜和剧烈运动', '可备便携氧气罐；有心脏病、高血压、哮喘者谨慎前往', '结伴同行，出现步态不稳、意识模糊立即下撤'],
+    };
+  }
+  return {
+    headline: '极高海拔，务必谨慎',
+    detail: `最高点约 ${o.elev} m，等效含氧量仅约 ${o.percent}%，高反风险高。`,
+    tips: ['不建议未经适应直接到达', '备氧气、保暖与应急通讯', '有高原病史或心肺疾病者不要前往', '任何严重高反症状都应立即下撤并就医'],
+  };
+}
+
+function gearSummary(report) {
+  const points = (report && report.points) || [];
+  const nums = (key) => points.map(p => p && p[key]).filter(v => v != null && isFinite(Number(v))).map(Number);
+  const temps = points.map(p => (p && p.appTemp != null ? p.appTemp : p && p.temp)).filter(v => v != null && isFinite(Number(v))).map(Number);
+  const elevs = nums('elev');
+  const winds = nums('wind');
+  const pps = nums('pp');
+  const uvs = nums('uv');
+  return {
+    minTemp: temps.length ? Math.min(...temps) : null,
+    maxTemp: temps.length ? Math.max(...temps) : null,
+    maxElev: elevs.length ? Math.max(...elevs) : null,
+    maxWind: winds.length ? Math.max(...winds) : null,
+    maxPP: pps.length ? Math.max(...pps) : null,
+    maxUV: uvs.length ? Math.max(...uvs) : null,
+    hasRain: points.some(p => p && ((p.pp != null && p.pp >= 50) || (p.code != null && p.code >= 51))),
+    hasSnow: points.some(p => p && ((p.code >= 71 && p.code <= 77) || (p.code >= 85 && p.code <= 86) || (p.temp != null && p.temp <= 1))),
+    hasStorm: points.some(p => p && p.code >= 95),
+    hasClear: points.some(p => p && (p.code === 0 || p.code === 1)),
+  };
+}
+
+/** 结构化穿衣建议：按体感温度分层，而不是只看气温 */
+function clothingAdvice(report) {
+  const s = gearSummary(report);
+  const t = s.minTemp;
+  const items = [];
+  if (t == null) {
+    return {
+      summary: '天气数据不足，按季节常规装备准备',
+      items: [{ icon: '🧥', title: '分层穿衣', text: '山区昼夜温差大，建议速干内层 + 抓绒中层 + 防风外层。' }],
+    };
+  }
+  const cold = t < 0;
+  const cool = t >= 0 && t < 8;
+  const mild = t >= 8 && t < 15;
+  const warm = t >= 15;
+
+  items.push(cold
+    ? { icon: '🥶', title: '内层 · 保暖排汗', text: '美利奴/速干保暖内衣，避免纯棉贴身；再加一件厚抓绒。' }
+    : cool
+      ? { icon: '🧣', title: '内层 · 长袖速干 + 抓绒', text: '长袖速干打底，外面加薄抓绒或羊毛衫，方便随时增减。' }
+      : mild
+        ? { icon: '👕', title: '内层 · 长袖速干', text: '长袖速干衣即可，早晚加一件薄外套。' }
+        : { icon: '👕', title: '内层 · 短袖速干', text: '短袖速干 + 防晒衣，避免纯棉出汗后失温。' });
+
+  items.push(cold
+    ? { icon: '🧥', title: '外层 · 厚羽绒 / 防风冲锋衣', text: '厚羽绒或棉服 + 防风防水冲锋衣；下装加绒冲锋裤。' }
+    : cool
+      ? { icon: '🧥', title: '外层 · 轻薄羽绒 + 冲锋衣', text: '轻薄羽绒或抓绒 + 防风外套，山口风大时穿上。' }
+      : mild
+        ? { icon: '🧥', title: '外层 · 薄外套 / 软壳', text: '薄冲锋衣或软壳，防风防小雨。' }
+        : { icon: '🧴', title: '外层 · 防晒衣', text: '轻薄防晒衣 + 速干长裤，避免暴晒。' });
+
+  items.push(s.hasRain
+    ? { icon: '🌧️', title: '雨具 · 防水层', text: '防水冲锋衣 + 防水裤，背包带防雨罩；比雨伞更适合山路。' }
+    : { icon: '☂️', title: '雨具 · 轻量备用', text: '带一件轻量雨衣或折叠伞，山区阵雨来得快。' });
+
+  items.push(s.hasSnow
+    ? { icon: '🥾', title: '鞋袜 · 防滑防水', text: '防滑防水徒步鞋 + 羊毛袜，备一双干袜子；低温路段可加冰爪。' }
+    : { icon: '🥾', title: '鞋袜 · 防滑徒步鞋', text: '防滑徒步鞋/运动鞋，袜子选速干或羊毛，不要穿新鞋走长线。' });
+
+  const extras = [];
+  if (cold || cool) extras.push('保暖帽、手套、围脖');
+  if (s.maxWind != null && s.maxWind >= 30) extras.push('防风帽/风镜');
+  if (s.maxUV != null && s.maxUV >= 6) extras.push('墨镜、防晒霜、遮阳帽');
+  if (s.maxElev != null && s.maxElev >= 3000) extras.push('保暖中层、润唇膏、保温杯');
+  if (s.hasRain) extras.push('防水袋/手机防水套');
+  if (extras.length) items.push({ icon: '🎒', title: '配件 · 别漏带', text: extras.join('、') + '。' });
+
+  return {
+    summary: `体感温度约 ${Math.round(s.minTemp)}–${Math.round(s.maxTemp)}℃，${s.hasRain ? '有降水可能' : '降水概率不高'}${s.maxWind != null ? `，最大风速约 ${Math.round(s.maxWind)} km/h` : ''}。`,
+    items,
+  };
+}
+
+/** 结构化户外防护建议 */
+function protectionAdvice(report) {
+  const s = gearSummary(report);
+  const items = [];
+  if (s.maxUV != null && (s.maxUV >= 6 || (s.hasClear && s.maxElev != null && s.maxElev >= 2500))) {
+    items.push({ icon: '🕶️', title: '防晒', text: `紫外线指数约 ${Math.round(s.maxUV || 0)}，高海拔更强：SPF50+、墨镜、遮阳帽、润唇膏。` });
+  }
+  if (s.hasRain || (s.maxPP != null && s.maxPP >= 50)) {
+    items.push({ icon: '🌧️', title: '防雨防滑', text: '冲锋衣裤 + 背包防雨罩；下坡、弯道和石板路减速，避免踩湿滑青苔。' });
+  }
+  if (s.maxWind != null && s.maxWind >= 35) {
+    items.push({ icon: '💨', title: '防风', text: `最大风速约 ${Math.round(s.maxWind)} km/h，山口和垭口注意侧风，帽子和轻物要固定。` });
+  }
+  if (s.hasStorm) {
+    items.push({ icon: '⛈️', title: '雷暴避险', text: '雷雨时离开山脊、垭口、水边和孤立大树，不要打伞，尽快到低处或车内。' });
+  }
+  if (s.minTemp != null && s.minTemp <= 0) {
+    items.push({ icon: '🧊', title: '结冰与失温', text: '背阴路段可能结冰，备防滑链/冰爪；出汗后及时加衣，避免失温。' });
+  }
+  if (s.maxElev != null && s.maxElev >= 2800) {
+    items.push({ icon: '⛰️', title: '高原防护', text: `最高点约 ${Math.round(s.maxElev)} m：控制爬升速度、多喝水、少饮酒；可备氧气罐，出现严重高反立即下撤。` });
+  }
+  if (!items.length) {
+    items.push({ icon: '✅', title: '常规防护', text: '天气整体平稳，带好饮水、防晒和一件轻便外套即可。' });
+  }
+  return items.slice(0, 6);
+}
+
+/** 报告底部「穿衣 / 防护 / 含氧量」整块数据 */
+function buildGearPlan(report) {
+  const s = gearSummary(report);
+  const oxygen = oxygenAdvice(s.maxElev);
+  return {
+    summary: s,
+    clothing: clothingAdvice(report),
+    protection: protectionAdvice(report),
+    oxygen: Object.assign({}, oxygen, {
+      at: s.maxElev == null ? null : oxygenAt(s.maxElev),
+      stages: [2000, 3000, 4000, 4500, 5000].map(h => oxygenAt(h)),
+    }),
+  };
+}
+
 /* ---------------- 导出（供 node 测试） ---------------- */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { scoreHour, levelOf, analyze, analyzeNavigation, analyzePlan, analyzePlanRoute,
     buildPlanSamples, buildPlanSamplesOnRoute, buildProfile, diagnosePlan, concretizeItem, bestHourOf,
     combineRouteScore, goodWindowsOf, fmtWindow,
     findBestDeparture, departureMatrix, scoreAtDeparture, diagnoseNav, planLeg, minToHM, minToLabel, hourAtMinute, hmToMin,
-    wmoText, wmoIcon, WMO };
+    wmoText, wmoIcon, WMO, oxygenAt, oxygenAdvice, gearSummary, clothingAdvice, protectionAdvice, buildGearPlan };
 }

@@ -1,12 +1,7 @@
-/* 路线天气体检 · Service Worker
- * ------------------------------------------------------------
- * 只缓存本站外壳（HTML/CSS/JS/字体图标），不缓存：
- *   · Open-Meteo / OSRM / BRouter / 天地图的接口响应（由 localStorage 管缓存与过期）
- *   · 地图瓦片（量大且随位置变化）
- * 导航请求走「网络优先」，保证更新能及时生效；断网时回落到缓存外壳。
+/* RouteWeather 山途智行 · Service Worker
+ * 只缓存本站外壳，不缓存天气/路径/POI 接口与地图瓦片。
  */
-
-const CACHE = 'rwc-shell-v77';
+const CACHE = 'rwc-shell-v92';
 
 const ASSETS = [
   './',
@@ -15,6 +10,7 @@ const ASSETS = [
   'css/redesign.css',
   'css/product-ui.css',
   'css/immersive-ui.css',
+  'css/readability.css',
   'js/config.js',
   'js/points.js',
   'js/api.js',
@@ -28,6 +24,9 @@ const ASSETS = [
   'js/app.js',
   'vendor/leaflet/leaflet.js',
   'vendor/leaflet/leaflet.css',
+  'vendor/leaflet/images/marker-icon.png',
+  'vendor/leaflet/images/marker-icon-2x.png',
+  'vendor/leaflet/images/marker-shadow.png',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/routeweather.svg',
@@ -55,12 +54,10 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
-
   const url = new URL(req.url);
-  if (url.origin !== location.origin) return;   // 接口与瓦片交给网络
+  if (url.origin !== location.origin) return;
 
   if (req.mode === 'navigate') {
-    // 网络优先：保证刷新即最新；离线回落缓存外壳
     e.respondWith(
       fetch(req)
         .then(res => {
@@ -75,7 +72,6 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // 静态资源：先给缓存（快），后台顺便更新
   e.respondWith(
     caches.match(req).then(hit => {
       const network = fetch(req).then(res => {

@@ -213,6 +213,9 @@ function weatherPopupHtml(point, index) {
   const wind = point && point.wind != null ? `${Math.round(point.wind)} km/h` : '—';
   const position = point && Number.isFinite(point.lat) && Number.isFinite(point.lon)
     ? `${point.lat.toFixed(3)}, ${point.lon.toFixed(3)}` : '—';
+  const elev = point && point.elev != null ? `${Math.round(point.elev)} m` : '—';
+  const oxygen = point && point.elev != null && point.elev >= 2000 && typeof oxygenAt === 'function'
+    ? `${oxygenAt(point.elev).percent}%` : '—';
   const evidence = available
     ? [point && point.code != null ? weather : '', point && point.pp != null ? `降水概率 ${Math.round(point.pp)}%` : '', point && point.wind != null ? `风速 ${Math.round(point.wind)} km/h` : '']
       .filter(Boolean).join(' · ') || '已返回的沿途天气数据'
@@ -222,8 +225,37 @@ function weatherPopupHtml(point, index) {
     <div class="popup-eyebrow">沿途采样 ${String(index + 1).padStart(2, '0')} <span class="popup-distance">${distance}</span></div>
     <div class="popup-heading"><strong>${mapEscape(point && point.name || '路线采样点')}</strong><span class="impact-chip ${level[1]}">${level[0]}</span></div>
     <div class="popup-weather">${point && point.icon ? mapEscape(point.icon) + ' ' : ''}${weather}<span>${temperature}</span></div>
-    <div class="popup-grid"><span>预计到达<b>${arrival}</b></span><span>降水概率<b>${precipitation}</b></span><span>风速<b>${wind}</b></span><span>位置<b>${position}</b></span></div>
+    <div class="popup-grid"><span>预计到达<b>${arrival}</b></span><span>降水概率<b>${precipitation}</b></span><span>风速<b>${wind}</b></span><span>海拔 / 含氧<b>${elev}${oxygen !== '—' ? ' · ' + oxygen : ''}</b></span><span>位置<b>${position}</b></span></div>
     <div class="popup-evidence"><small>天气影响依据</small><span>${mapEscape(evidence)}</span></div>
+  </div>`;
+}
+
+function segmentPopupHtml(point, label) {
+  const p = point || {};
+  const lv = p.level || (typeof levelOf === 'function' ? levelOf(Number(p.score) || 0) : { key: 'neutral', text: '数据不足' });
+  const score = p.score != null && Number.isFinite(Number(p.score)) ? Math.round(Number(p.score)) : '—';
+  const deductions = (p.deductions || [])
+    .filter(d => d && d.label && Number(d.pts) > 0)
+    .map(d => d.label)
+    .slice(0, 5);
+  const weather = p.weatherText || (p.code != null && typeof wmoText === 'function' ? wmoText(p.code) : '暂无预报');
+  const temp = p.temp != null ? `${Math.round(p.temp)}℃` : '—';
+  const pp = p.pp != null ? `${Math.round(p.pp)}%` : '—';
+  const wind = p.wind != null ? `${Math.round(p.wind)} km/h` : '—';
+  const elev = p.elev != null ? `${Math.round(p.elev)} m` : '—';
+  const cum = p.cumKm != null ? `第 ${Math.round(p.cumKm)} km` : (label || '当前路段');
+  return `<div class="weather-popup segment-popup">
+    <div class="popup-eyebrow">路段评分 <span class="popup-distance">${mapEscape(cum)}</span></div>
+    <div class="popup-heading"><strong>${mapEscape(p.name || label || '当前路段')}</strong><span class="impact-chip ${lv.key}">${mapEscape(lv.text)}</span></div>
+    <div class="segment-score-big">${score}<small>分</small></div>
+    <div class="popup-grid">
+      <span>天气<b>${mapEscape(weather)}</b></span>
+      <span>气温<b>${temp}</b></span>
+      <span>降水概率<b>${pp}</b></span>
+      <span>风速<b>${wind}</b></span>
+      <span>海拔<b>${elev}</b></span>
+    </div>
+    <div class="popup-evidence"><small>为什么是这个分数</small><span>${mapEscape(deductions.length ? deductions.join('；') : '这一段没有明显扣分项，天气对通行影响较小。')}</span></div>
   </div>`;
 }
 
@@ -231,8 +263,31 @@ const POI_MAP_STYLE = {
   attraction: { icon: '◇', label: '景点', color: '#2A9D8F', className: 'attraction' },
   food: { icon: '⌁', label: '美食', color: '#E49A28', className: 'food' },
   lodging: { icon: '⌂', label: '住宿', color: '#4384C4', className: 'lodging' },
-  supply: { icon: '⚡', label: '加油充电', color: '#3B9B69', className: 'supply' },
+  fuel: { icon: '⛽', label: '加油站', color: '#2F855A', className: 'fuel' },
+  charging: { icon: '🔌', label: '充电站', color: '#2B6CB0', className: 'charging' },
 };
+
+const HAZARD_ZONES = [
+  { name: '雅康高速 · 二郎山段', lat: 29.9504, lon: 102.2390, note: '隧道群与长下坡，雨雾天易追尾；进入隧道前减速。' },
+  { name: 'G318 · 折多山垭口', lat: 30.07, lon: 101.80, note: '高海拔急弯，冬季冰雪与侧风明显，控制车速。' },
+  { name: '巴朗山垭口', lat: 30.87, lon: 102.90, note: '弯多坡陡、云雾多，雨雪天能见度低。' },
+  { name: '夹金山', lat: 30.74, lon: 102.62, note: '高海拔背阴路段易结冰，注意暗冰。' },
+  { name: '鹧鸪山', lat: 31.88, lon: 102.85, note: '长下坡与冬季暗冰，货车较多。' },
+  { name: '米亚罗峡谷段', lat: 31.68, lon: 102.80, note: '峡谷弯道与落石风险，雨天减速。' },
+  { name: 'G318 · 剪子弯山', lat: 30.00, lon: 100.70, note: '连续弯道、高海拔，天气变化快。' },
+  { name: 'G318 · 卡子拉山', lat: 30.00, lon: 100.40, note: '高海拔开阔路段，侧风与降雪。' },
+  { name: '海子山高原段', lat: 29.35, lon: 100.10, note: '高海拔、侧风强，冬季路面结冰。' },
+  { name: '九寨沟 · 弓杠岭', lat: 33.15, lon: 103.85, note: '长下坡与急弯，雨雪天谨慎。' },
+];
+
+function hazardPopupHtml(zone) {
+  return `<div class="weather-popup hazard-popup">
+    <div class="popup-eyebrow">事故多发 · 高风险提示</div>
+    <div class="popup-heading"><strong>⚠️ ${mapEscape(zone.name)}</strong></div>
+    <p class="poi-popup-reason">${mapEscape(zone.note)}</p>
+    <div class="popup-evidence"><small>提示来源</small><span>综合公开山区道路安全提示与天气风险标注，非官方事故统计；经过时以现场标志和交警提示为准。</span></div>
+  </div>`;
+}
 
 function poiPopupHtml(item) {
   const info = POI_MAP_STYLE[item && item.category] || { icon: '·', label: '地点', color: '#2A91CF', className: 'neutral' };
@@ -562,11 +617,20 @@ const MapCtl = {
         lineCap: 'round',
         className: `route-weather-line route-${section.level || 'neutral'}`,
       }).addTo(map);
-      lineLayer.on('click', () => {
-        if (section.index < 0) return;
-        const focused = this.focusSample(section.index, true);
-        if (!focused && typeof onPick === 'function') onPick(section.index, { source: 'route' });
+      lineLayer.bindPopup(segmentPopupHtml(section.point, section.index >= 0 ? `采样点 ${section.index + 1}` : '当前路段'), {
+        maxWidth: 320,
+        minWidth: 260,
+        closeButton: true,
+        autoPan: true,
+        autoPanPaddingTopLeft: [12, 255],
+        autoPanPaddingBottomRight: [12, 220],
+        className: 'weather-popup-shell segment-popup-shell',
       });
+      lineLayer.on('click', (event) => {
+        if (event && event.latlng) lineLayer.openPopup(event.latlng);
+      });
+      lineLayer.on('popupopen', () => document.body.classList.add('segment-popup-open'));
+      lineLayer.on('popupclose', () => document.body.classList.remove('segment-popup-open'));
       map.__routeSections.push(lineLayer);
     });
 
@@ -623,7 +687,7 @@ const MapCtl = {
       map.reportMarkers[i] = mk;
     });
 
-    if (this.__lastPoiItems && this.__lastPoiItems.length) this.showPoiMarkers(this.__lastPoiItems);
+    this.addHazardMarkers(routeCoords, points);
     this._fit(map, line);
     this._observeResize(map, el);
     this._notifyLayer(map);
@@ -671,9 +735,20 @@ const MapCtl = {
         lineCap: 'round',
         className: `route-weather-line route-${level}`,
       }).addTo(map);
-      lineLayer.on('click', () => {
-        if (typeof onPick === 'function') onPick(i);
+      lineLayer.bindPopup(segmentPopupHtml(p, `${points[i - 1].name} → ${p.name}`), {
+        maxWidth: 320,
+        minWidth: 260,
+        closeButton: true,
+        autoPan: true,
+        autoPanPaddingTopLeft: [12, 255],
+        autoPanPaddingBottomRight: [12, 220],
+        className: 'weather-popup-shell segment-popup-shell',
       });
+      lineLayer.on('click', (event) => {
+        if (event && event.latlng) lineLayer.openPopup(event.latlng);
+      });
+      lineLayer.on('popupopen', () => document.body.classList.add('segment-popup-open'));
+      lineLayer.on('popupclose', () => document.body.classList.remove('segment-popup-open'));
     }
 
     points.forEach((p, i) => {
@@ -708,6 +783,7 @@ const MapCtl = {
       map.reportMarkers[i] = mk;
     });
 
+    this.addHazardMarkers(null, points);
     this._fit(map, latlngs);
 
     // 容器尺寸变化（如旋转屏幕）后重算
@@ -783,6 +859,85 @@ const MapCtl = {
       added.push(marker);
     });
     map.__poiMarkers = added;
+    return added;
+  },
+
+  /** 在报告地图上标注事故多发/高风险路段 */
+  addHazardMarkers(routeCoords, points) {
+    const map = this.report;
+    if (!map) return [];
+    (map.__hazardMarkers || []).forEach(marker => {
+      try { map.removeLayer(marker); } catch (e) {}
+    });
+    map.__hazardMarkers = [];
+    const route = (Array.isArray(routeCoords) ? routeCoords : [])
+      .filter(p => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lon)));
+    const linePoints = route.length > 1 ? route : (points || [])
+      .filter(p => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lon)));
+    if (!linePoints.length) return [];
+
+    // 只认「路线真正经过」的高风险点：把提示点投影到路线折线上，
+    // 距离超过 800 m 的不算经过，避免把附近的二郎山之类硬标进来。
+    const nearestOnLine = (zone) => {
+      let best = { distance: Infinity, lat: Number(zone.lat), lon: Number(zone.lon) };
+      if (linePoints.length === 1) {
+        const p = linePoints[0];
+        const dLat = (Number(zone.lat) - p.lat) * 111320;
+        const dLon = (Number(zone.lon) - p.lon) * 111320 * Math.cos(Number(zone.lat) * Math.PI / 180);
+        return { distance: Math.hypot(dLat, dLon), lat: p.lat, lon: p.lon };
+      }
+      const cos = Math.cos(Number(zone.lat) * Math.PI / 180);
+      for (let i = 1; i < linePoints.length; i++) {
+        const a = linePoints[i - 1], b = linePoints[i];
+        const ax = a.lon * 111320 * cos, ay = a.lat * 111320;
+        const bx = b.lon * 111320 * cos, by = b.lat * 111320;
+        const px = Number(zone.lon) * 111320 * cos, py = Number(zone.lat) * 111320;
+        const vx = bx - ax, vy = by - ay;
+        const len2 = vx * vx + vy * vy;
+        const t = len2 > 0 ? Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / len2)) : 0;
+        const qx = ax + vx * t, qy = ay + vy * t;
+        const distance = Math.hypot(px - qx, py - qy);
+        if (distance < best.distance) {
+          best = {
+            distance,
+            lat: (ay + vy * t) / 111320,
+            lon: (ax + vx * t) / (111320 * cos),
+          };
+        }
+      }
+      return best;
+    };
+
+    const added = [];
+    HAZARD_ZONES.forEach(zone => {
+      const hit = nearestOnLine(zone);
+      if (!(hit.distance <= 800)) return;
+      const icon = L.divIcon({
+        className: 'hazard-marker-wrap',
+        html: '<div class="hazard-pin"><span>⚠️</span></div>',
+        iconSize: [34, 34],
+        iconAnchor: [17, 17],
+        popupAnchor: [0, -18],
+      });
+      const marker = L.marker(this._conv(map, hit.lat, hit.lon), {
+        icon,
+        keyboard: true,
+        riseOnHover: true,
+        zIndexOffset: 900,
+        title: `事故多发/高风险：${zone.name}`,
+      }).addTo(map);
+      marker.bindTooltip(`⚠️ ${mapEscape(zone.name)}`, {
+        direction: 'top', offset: [0, -17], opacity: 1, className: 'route-tip hazard-tip',
+      });
+      marker.bindPopup(hazardPopupHtml(zone), {
+        maxWidth: 310, minWidth: 250, closeButton: true,
+        className: 'weather-popup-shell hazard-popup-shell',
+      });
+      marker.on('popupopen', () => document.body.classList.add('hazard-popup-open'));
+      marker.on('popupclose', () => document.body.classList.remove('hazard-popup-open'));
+      added.push(marker);
+    });
+    map.__hazardMarkers = added;
     return added;
   },
 

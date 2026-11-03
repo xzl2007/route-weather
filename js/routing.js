@@ -1,13 +1,56 @@
 /* ============================================================
  * 路径规划与沿路采样
  * ------------------------------------------------------------
- * 自驾使用 OSRM driving 路网；骑行和徒步使用 BRouter 的对应 OSM 通行 profile。
- * profile 分别偏向汽车、亚洲太平洋骑行和徒步路径，避免把驾车路线冒充为步道/骑行道。
+ * 自驾：Valhalla（OSM 路网）优先，支持备选路线与「少高速」方案；
+ *       失败时回退 OSRM。骑行/徒步：BRouter 对应 profile。
  * ============================================================ */
+
+/** Valhalla 的 shape 是 precision=6 的 encoded polyline */
+function decodeValhallaShape(shape) {
+  if (!shape || typeof shape !== 'string') return [];
+  let index = 0, lat = 0, lon = 0;
+  const out = [];
+  while (index < shape.length) {
+    let result = 0, shift = 0, b;
+    do {
+      b = shape.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    result = 0; shift = 0;
+    do {
+      b = shape.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    lon += (result & 1) ? ~(result >> 1) : (result >> 1);
+    out.push({ lat: lat / 1e6, lon: lon / 1e6 });
+  }
+  return out;
+}
+
+function valhallaTripToRoute(trip) {
+  if (!trip || !trip.legs || !trip.legs.length) return null;
+  const coords = [];
+  trip.legs.forEach(leg => {
+    const decoded = decodeValhallaShape(leg.shape);
+    decoded.forEach((point, index) => {
+      if (coords.length && index === 0) return;
+      coords.push(point);
+    });
+  });
+  const summary = trip.summary || {};
+  const distance = Number(summary.length) * 1000;
+  const duration = Number(summary.time);
+  if (!coords.length || !Number.isFinite(distance) || !Number.isFinite(duration)) return null;
+  return { distance, duration, coords };
+}
 
 const ROUTING = {
   OSRM_BASE: 'https://router.project-osrm.org/route/v1',
   BROUTER_BASE: 'https://brouter.de/brouter',
+  VALHALLA_BASE: 'https://valhalla1.openstreetmap.de/route',
   CACHE_TTL: 24 * 60 * 60 * 1000, // 路网几乎不变，缓存 1 天
 
   MODES: {
@@ -142,6 +185,128 @@ const ROUTING = {
       horizonDays: this.FORECAST_HORIZON_DAYS,
       travelDays: days,
     };
+  },
+
+  /** 调用 Valhalla，返回 0–3 条原始路线 */
+  async _fetchValhalla(pts, autoOptions, alternates) {
+    const body = {
+      locations: pts.map(p => ({ lat: Number(p.lat), lon: Number(p.lon), type: 'break' })),
+      costing: 'auto',
+      costing_options: { auto: autoOptions || {} },
+      units: 'kilometers',
+      alternates: alternates || 0,
+      directions_options: { units: 'kilometers' },
+    };
+    const json = await fetchJson(this.VALHALLA_BASE, 32000, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const trips = [];
+    if (json && json.trip) trips.push(json.trip);
+    (json && json.alternates || []).forEach(entry => {
+      if (entry && entry.trip) trips.push(entry.trip);
+    });
+    return trips.map(trip => valhallaTripToRoute(trip)).filter(Boolean);
+  },
+
+  /**
+   * 自驾多路线方案：推荐 + 备选 + 少高速。
+   * 骑行/徒步仍返回单条路线。
+   * @returns {Promise<{ok:boolean,error?:string,options:Array}>}
+   */
+  async fetchRouteOptions(pts, mode) {
+    if (!pts || pts.length < 2) return { ok: false, error: '至少需要起点和终点', options: [] };
+    if (mode !== 'drive') {
+      const single = await this.fetchRoute(pts, mode);
+      if (!single.ok) return { ok: false, error: single.error, options: [] };
+      return {
+        ok: true,
+        options: [Object.assign({}, single, {
+          label: mode === 'hike' ? '徒步路线' : '骑行路线',
+          note: '按所选出行方式的专用路网规划。',
+        })],
+      };
+    }
+
+    const coordStr = pts.map(p => `${p.lon},${p.lat}`).join(';');
+    const key = `rwc:routeopts:v3:${coordStr}`;
+    try {
+      const s = localStorage.getItem(key);
+      if (s) {
+        const hit = JSON.parse(s);
+        if (Date.now() - hit.t < this.CACHE_TTL && hit.data && hit.data.ok) return hit.data;
+      }
+    } catch (e) { /* ignore */ }
+
+    const collected = [];
+    try {
+      const base = await this._fetchValhalla(pts, { use_highways: 0.9, use_tolls: 0.9 }, 2);
+      base.forEach((r, i) => collected.push(Object.assign(r, {
+        label: i === 0 ? '时间优先' : `备选路线 ${i}`,
+        note: i === 0 ? '按时间与路网条件推荐的主路线。' : '同一组起终点的另一条可行路线，里程/用时可能不同。',
+        optionKind: i === 0 ? 'main' : 'alternate',
+      })));
+    } catch (e) {
+      console.warn('Valhalla 路线规划失败，回退 OSRM：', e);
+    }
+
+    if (collected.length < 3) {
+      try {
+        const scenic = await this._fetchValhalla(pts, { use_highways: 0.2, use_tolls: 0.2 }, 0);
+        scenic.slice(0, 1).forEach(r => collected.push(Object.assign(r, {
+          label: '少高速 · 风景优先',
+          note: '降低高速与收费权重，优先走国省道；通常里程更长，但沿途乡镇、补给与风景更多。',
+          optionKind: 'scenic',
+        })));
+      } catch (e) { /* 少高速请求失败不影响主路线 */ }
+    }
+
+    // 去重：里程/用时接近且中点相近，视为同一条路
+    const options = [];
+    collected.forEach(item => {
+      const dup = options.find(existing => {
+        const dDist = Math.abs(existing.distance - item.distance) / Math.max(1, existing.distance);
+        const dTime = Math.abs(existing.duration - item.duration) / Math.max(1, existing.duration);
+        if (dDist > 0.03 || dTime > 0.04) return false;
+        const a = existing.coords[Math.floor(existing.coords.length / 2)];
+        const b = item.coords[Math.floor(item.coords.length / 2)];
+        const toRad = v => v * Math.PI / 180;
+        const h = Math.sin(toRad(b.lat - a.lat) / 2) ** 2
+          + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(toRad(b.lon - a.lon) / 2) ** 2;
+        return 2 * 6371000 * Math.asin(Math.sqrt(h)) < 6000;
+      });
+      if (!dup) options.push(item);
+    });
+
+    if (!options.length) {
+      const fallback = await this.fetchRoute(pts, 'drive');
+      if (!fallback.ok) return { ok: false, error: fallback.error, options: [] };
+      options.push(Object.assign({}, fallback, {
+        label: '时间优先',
+        note: 'Valhalla 暂不可用，已回退到 OSRM 路网。',
+        optionKind: 'main',
+      }));
+    }
+
+    // 统一补充 forecast horizon / 选项序号
+    options.forEach((r, i) => {
+      const conv = this.applyMode('drive', r.distance, r.duration);
+      r.provider = r.provider || 'Valhalla';
+      r.profile = r.profile || 'auto';
+      r.approx = false;
+      r.speedKmh = null;
+      r.duration = conv.duration;
+      r.travelDays = conv.duration / 3600 / 24;
+      r.overHorizon = r.travelDays > this.FORECAST_HORIZON_DAYS;
+      r.horizonDays = this.FORECAST_HORIZON_DAYS;
+      r.index = i;
+    });
+
+    const result = { ok: true, options: options.slice(0, 3) };
+    try { localStorage.setItem(key, JSON.stringify({ t: Date.now(), data: result })); }
+    catch (e) { /* 配额满忽略 */ }
+    return result;
   },
 };
 

@@ -1,0 +1,586 @@
+/* ============================================================
+ * RouteWeather · 可读性优先样式（最后加载）
+ * ------------------------------------------------------------
+ * 线上版本把大量正文压到 8–11px，信息密度高但很难读。
+ * 这里统一放大字号、放宽行高与间距，并允许路线名/地址换行。
+ * 只覆盖文字与卡片节奏，不动地图、Leaflet 与交互逻辑。
+ * ============================================================ */
+
+html, body {
+  font-size: 17px !important;
+  line-height: 1.65 !important;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  letter-spacing: .005em;
+}
+
+/* ---------------- 顶栏 / 导航 ---------------- */
+.brand-copy strong { font-size: 19px !important; }
+.brand-copy small { font-size: 12px !important; letter-spacing: .08em; }
+.app-nav button { font-size: 15px !important; min-height: 42px !important; padding: 0 16px !important; }
+.topbar-context { font-size: 13px !important; }
+.mobile-nav button small { font-size: 12px !important; }
+
+/* ---------------- 首页 ---------------- */
+.home-badge { font-size: 14px !important; padding: 8px 14px !important; }
+.hero-overline, .section-kicker { font-size: 12px !important; letter-spacing: .14em !important; }
+.home-title { font-size: clamp(42px, 5.4vw, 68px) !important; line-height: 1.08 !important; }
+.home-sub { font-size: 18px !important; line-height: 1.85 !important; max-width: 36em; }
+.home-hint { font-size: 14px !important; }
+.home-demo-link { font-size: 15px !important; }
+.home-section-head h2 { font-size: clamp(26px, 3vw, 36px) !important; }
+.home-section-head > p { font-size: 15px !important; }
+.home-features .feat b { font-size: 18px !important; }
+.home-features .feat p { font-size: 15px !important; line-height: 1.75 !important; }
+.home-features .feat-index { font-size: 14px !important; }
+.hero-route-title { font-size: 15px !important; }
+.hero-route-title strong { font-size: 22px !important; }
+.hero-route-metrics span b { font-size: 15px !important; }
+.hero-route-metrics span small { font-size: 12px !important; }
+.hero-route-link { font-size: 13px !important; }
+.visual-topline, .hero-weather-float small { font-size: 12px !important; }
+.hero-weather-float b { font-size: 15px !important; }
+
+/* ---------------- 规划页 ---------------- */
+.planning-heading h1 { font-size: clamp(30px, 3.4vw, 44px) !important; }
+.planning-heading > p { font-size: 16px !important; line-height: 1.8 !important; }
+.back-link { font-size: 16px !important; }
+.planner-steps > button span { font-size: 14px !important; }
+.planner-steps > button i { font-size: 11px !important; width: 30px !important; height: 30px !important; flex-basis: 30px !important; }
+.planner-sheet-handle strong { font-size: 18px !important; }
+.planner-sheet-handle small { font-size: 14px !important; }
+.planner-controls .field > label { font-size: 15px !important; font-weight: 700 !important; white-space: nowrap; }
+#fieldPoints > label { font-size: 15px !important; font-weight: 700 !important; }
+.planner-controls .mode-desc,
+.planner-controls .small,
+#fieldPoints .small { font-size: 13px !important; line-height: 1.65 !important; }
+.planner-controls .seg button { font-size: 15px !important; min-height: 46px !important; }
+.planner-controls input,
+.planner-controls select,
+#fieldCoords input { font-size: 16px !important; min-height: 46px !important; }
+#pointList .pt-name { font-size: 16px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+#pointList .pt-time-label { font-size: 14px !important; }
+#pointList .pt-time { font-size: 15px !important; min-height: 38px !important; width: 92px !important; }
+#pointList .pt-coord { font-size: 13px !important; }
+#pointList .pt-day { font-size: 12px !important; }
+.pt-role { font-size: 14px !important; }
+.row-btns .btn { font-size: 15px !important; min-height: 44px !important; }
+#btnCheckup { font-size: 18px !important; min-height: 58px !important; }
+.planner-sheet > .hint,
+.planner-advanced > summary { font-size: 14px !important; line-height: 1.7 !important; }
+.map-hint,
+#view-create .planner-map-field .map-hint { font-size: 12px !important; line-height: 1.5 !important; }
+.map-btn { font-size: 13px !important; min-height: 42px !important; }
+
+/* ---------------- 报告框架 ---------------- */
+.report-local-nav button { font-size: 14px !important; min-height: 42px !important; padding: 0 16px !important; }
+.report-local-nav .tab-count { font-size: 12px !important; }
+.report-screen-heading h2 { font-size: clamp(28px, 3.2vw, 42px) !important; line-height: 1.2 !important; }
+.report-screen-heading p { font-size: 14px !important; line-height: 1.65 !important; }
+.report-screen-heading .eyebrow { font-size: 11px !important; letter-spacing: .16em !important; }
+.report-favorite { font-size: 14px !important; min-height: 42px !important; padding: 0 14px !important; }
+.map-console-kicker { font-size: 11px !important; }
+.map-console-route strong { font-size: 18px !important; max-width: 44vw !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+.map-console-date { font-size: 13px !important; }
+.map-console-metrics small { font-size: 12px !important; }
+.map-console-metrics strong { font-size: 26px !important; }
+.map-console-metrics strong i { font-size: 13px !important; }
+.map-impact-legend { font-size: 12px !important; }
+.map-console-note { font-size: 12px !important; line-height: 1.6 !important; }
+.map-legend { font-size: 12px !important; }
+
+/* ---------------- 智能报告 ---------------- */
+.decision-kicker { font-size: 12px !important; }
+.decision-title { font-size: clamp(26px, 3vw, 38px) !important; }
+.decision-copy { font-size: 15px !important; line-height: 1.9 !important; max-width: 46em !important; }
+.decision-risk { font-size: 14px !important; }
+.decision-fresh { font-size: 12px !important; }
+.decision-orbit-value { font-size: 56px !important; }
+.decision-orbit-value small { font-size: 16px !important; }
+.decision-orbit-label { font-size: 12px !important; max-width: 130px !important; }
+.smart-recommendation-spotlight span { font-size: 13px !important; }
+.smart-recommendation-spotlight strong { font-size: 23px !important; line-height: 1.35 !important; }
+.smart-recommendation-spotlight small { font-size: 12px !important; line-height: 1.55 !important; }
+.smart-report-facts small { font-size: 12px !important; }
+.smart-report-facts strong { font-size: 22px !important; }
+.smart-report-facts strong i { font-size: 13px !important; }
+.smart-section-heading > div > span { font-size: 11px !important; letter-spacing: .16em !important; }
+.smart-section-heading h3 { font-size: 24px !important; }
+.smart-section-heading > button { font-size: 13px !important; }
+.smart-note-row { padding: 12px 0 !important; }
+.smart-note-copy strong { font-size: 16px !important; }
+.smart-note-copy small { font-size: 13px !important; line-height: 1.65 !important; }
+.smart-note-index { font-size: 12px !important; }
+.smart-note-icon { font-size: 18px !important; }
+.diagnosis-board-head strong { font-size: 20px !important; }
+.diagnosis-board-head p { font-size: 13px !important; }
+.dx-t { font-size: 15px !important; line-height: 1.55 !important; }
+.dx-l { font-size: 13px !important; line-height: 1.7 !important; }
+.segment-copy strong { font-size: 16px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+.segment-copy small { font-size: 12px !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+.segment-score { font-size: 24px !important; }
+.segment-score small { font-size: 11px !important; }
+.segment-rank { font-size: 11px !important; }
+.smart-data-details summary { font-size: 14px !important; }
+.smart-data-body { font-size: 13px !important; line-height: 1.8 !important; }
+.smart-data-note, .smart-empty-note { font-size: 13px !important; }
+.departure-rec-card small, .departure-current-card small { font-size: 12px !important; }
+.departure-rec-card p { font-size: 13px !important; line-height: 1.6 !important; }
+.departure-rec-card strong, .departure-current-card strong { font-size: 20px !important; }
+.smart-departure-time small { font-size: 12px !important; }
+.weather-timeline-head strong { font-size: 16px !important; }
+.weather-timeline-head span { font-size: 12px !important; }
+.rec-hour, .cmp-hour { font-size: 12px !important; }
+.weather-overview-strip > span { font-size: 13px !important; }
+.weather-overview-strip b { font-size: 14px !important; }
+.pt-card .pc-name { font-size: 18px !important; }
+.pt-card .pc-lv { font-size: 13px !important; }
+.pt-card .ded, .pt-card .ht-legend { font-size: 12px !important; }
+.pt-card .pc-temp { font-size: 26px !important; }
+.leg-row { font-size: 13px !important; line-height: 1.55 !important; }
+.leg-head { font-size: 12px !important; }
+.leg-note { font-size: 12px !important; line-height: 1.7 !important; }
+.share-bar button { font-size: 14px !important; min-height: 42px !important; }
+
+/* ---------------- 沿途推荐 ---------------- */
+.poi-summary { font-size: 13px !important; line-height: 1.65 !important; }
+.poi-filter { font-size: 14px !important; min-height: 38px !important; padding: 0 14px !important; }
+.poi-filter span { font-size: 12px !important; }
+.poi-grid { gap: 14px !important; }
+.poi-card { padding: 17px !important; }
+.poi-card h4 { font-size: 19px !important; line-height: 1.45 !important; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+.poi-kind { font-size: 13px !important; }
+.poi-card-tags { flex: 1 1 auto; display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; min-width: 0; }
+.poi-card-top { flex-wrap: wrap; align-items: flex-start; gap: 6px; }
+.poi-badge, .poi-quality {
+  max-width: none !important; overflow: visible !important; text-overflow: clip !important;
+  white-space: nowrap; flex: 0 0 auto; font-size: 11px !important; padding: 3px 7px !important;
+}
+.poi-reason { font-size: 14px !important; line-height: 1.7 !important; }
+.poi-meta { font-size: 12px !important; line-height: 1.6 !important; gap: 6px 10px !important; }
+.poi-address { font-size: 12.5px !important; line-height: 1.6 !important; }
+.poi-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
+.poi-links a {
+  display: inline-flex; align-items: center; min-height: 32px; padding: 4px 10px;
+  border: 1px solid #d8e6f0; border-radius: 999px; background: #f5faff;
+  color: #1769a8 !important; font-size: 12.5px !important; font-weight: 700;
+  text-decoration: none;
+}
+.poi-links a:hover { background: #e8f4ff; border-color: #9dc8e8; }
+.poi-links.compact { margin: 0; gap: 5px; justify-content: flex-end; }
+.poi-links.compact a { min-height: 28px; padding: 2px 8px; font-size: 11.5px !important; }
+.poi-source-note { font-size: 12px !important; line-height: 1.7 !important; }
+
+/* ---------------- 沿途补能 ---------------- */
+.energy-section { padding-bottom: 4px; }
+.energy-tag { font-size: 12px !important; padding: 5px 10px !important; border-radius: 999px; background: #eaf6ef; color: #2f6f4f; font-weight: 700; }
+.energy-list { display: grid; gap: 10px; }
+.energy-row {
+  display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  padding: 14px 16px; border: 1px solid #e2edf5; border-radius: 16px; background: #fff;
+}
+.energy-row.fuel { border-left: 4px solid #2f855a; }
+.energy-row.charging { border-left: 4px solid #2b6cb0; }
+.energy-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: #f1f8f4; font-size: 20px; }
+.energy-row.charging .energy-icon { background: #eef5fd; }
+.energy-copy { min-width: 0; }
+.energy-copy strong { display: block; color: #173f5c; font-size: 16px !important; line-height: 1.45; }
+.energy-copy small { display: block; margin-top: 3px; color: #6d879a; font-size: 12.5px !important; line-height: 1.55; }
+.energy-addr { color: #8b9dab !important; }
+.energy-src { padding: 1px 5px; border-radius: 4px; background: #e8f4ff; color: #0d6aa8; font-size: 10px; font-style: normal; font-weight: 800; vertical-align: 1px; }
+.amap-config { margin-top: 12px; padding: 10px 12px; border: 1px dashed #cfe2ef; border-radius: 12px; background: #f8fbfe; }
+.amap-config summary { color: #3f6f91; font-size: 13px !important; font-weight: 700; cursor: pointer; }
+.amap-config p { margin: 8px 0; color: #6d879a; font-size: 12.5px !important; line-height: 1.7; }
+.amap-key-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.amap-key-row input { flex: 1 1 220px; min-height: 40px; padding: 8px 12px; border: 1px solid #d4e5f1; border-radius: 10px; font-size: 14px; }
+.amap-key-row .btn { min-height: 40px; font-size: 13px !important; }
+.energy-empty { padding: 16px; border-radius: 14px; background: #fff8e8; color: #7a5a1f; font-size: 14px; line-height: 1.75; }
+.energy-note { margin: 12px 2px 0; color: #7d92a3; font-size: 12px !important; line-height: 1.7; }
+
+/* ---------------- 路线方案分栏 ---------------- */
+.route-option-panel {
+  position: fixed; top: 154px; left: 50%; z-index: 1450;
+  width: min(1000px, calc(100vw - 32px)); margin: 0; padding: 9px 11px 8px;
+  border: 1px solid rgba(255,255,255,.86); border-radius: 18px;
+  background: rgba(248,252,255,.94); backdrop-filter: blur(18px);
+  box-shadow: 0 12px 34px rgba(14,63,103,.16);
+  transform: translateX(-50%);
+}
+.route-option-head { display: none; }
+.route-option-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+.route-option {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto;
+  gap: 1px 10px; padding: 8px 11px; text-align: left;
+  border: 1.5px solid #d7e7f2; border-radius: 12px; background: #fff; cursor: pointer;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.route-option:hover { border-color: #8fc4e8; transform: translateY(-1px); }
+.route-option.on { border-color: #1689e4; background: #f3faff; box-shadow: 0 0 0 3px rgba(22, 137, 228, .12); }
+.ro-top { grid-column: 1; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ro-top b { overflow: hidden; color: #174568; font-size: 14px !important; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.ro-top em { padding: 1px 5px; border-radius: 4px; background: #1689e4; color: #fff; font-size: 9px; font-style: normal; font-weight: 800; }
+.ro-meta { grid-column: 1; color: #6c879b; font-size: 11.5px !important; white-space: nowrap; }
+.ro-score { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: #145f98; font-size: 21px !important; font-weight: 800; line-height: 1.1; }
+.ro-score small { margin-left: 1px; color: #7c93a5; font-size: 10px !important; font-weight: 600; }
+.ro-score.good { color: #15824b; } .ro-score.fair { color: #a97a00; }
+.ro-score.caution { color: #c05a12; } .ro-score.bad { color: #b42318; }
+.route-option-note { display: none; }
+#routeAnalysis .map-card .map-tools { top: 238px !important; }
+#routeAnalysis .map-card .leaflet-top.leaflet-left { top: 238px !important; }
+#routeAnalysis .map-card .leaflet-top.leaflet-right { top: 238px !important; }
+@media (max-width: 720px) {
+  #routeAnalysis .map-card .map-tools { top: 226px !important; }
+  #routeAnalysis .map-card .leaflet-top.leaflet-left { top: 226px !important; }
+  #routeAnalysis .map-card .leaflet-top.leaflet-right { top: 226px !important; }
+}
+
+/* ---------------- 穿衣 / 防护 / 含氧量 ---------------- */
+.gear-section { margin-top: 8px; }
+.gear-elev-tag { padding: 5px 10px; border-radius: 999px; background: #eef4fa; color: #42647e; font-size: 12px !important; font-weight: 700; }
+.gear-summary {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;
+  margin: 12px 0 14px; padding: 14px 16px; border-radius: 16px;
+  background: linear-gradient(135deg, #f4faff, #eef6fc); border: 1px solid #dfeef8;
+}
+.gear-summary span { display: grid; gap: 3px; }
+.gear-summary small { color: #718a9d; font-size: 12px !important; }
+.gear-summary b { color: #17476a; font-size: 19px !important; line-height: 1.3; }
+.gear-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.gear-card { padding: 17px; border: 1px solid #e1edf6; border-radius: 18px; background: #fff; }
+.gear-card h4 { margin: 0 0 10px; color: #173f5d; font-size: 18px !important; }
+.gear-card > p { margin: 0 0 10px; color: #627e92; font-size: 13px !important; line-height: 1.7; }
+.gear-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+.gear-list li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 6px; color: #4c687c; font-size: 13.5px !important; line-height: 1.7; }
+.gear-list li b { display: block; margin-bottom: 1px; color: #1d4666; font-size: 14px !important; }
+.gear-icon { font-size: 17px; line-height: 1.5; }
+.gear-oxygen { background: linear-gradient(165deg, #f7fcff, #eef7fd); }
+.oxygen-readout { display: grid; gap: 10px; }
+.oxygen-big { display: flex; align-items: baseline; gap: 4px; }
+.oxygen-big strong { color: #0d6aa8; font-size: 52px !important; line-height: 1; letter-spacing: -.03em; }
+.oxygen-big small { color: #0d6aa8; font-size: 20px !important; font-weight: 800; }
+.oxygen-big span { margin-left: 6px; color: #728a9c; font-size: 12px !important; }
+.oxygen-meter { height: 10px; overflow: hidden; border-radius: 999px; background: #dcecf7; }
+.oxygen-meter span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #f0b45a, #4bb3e6, #1689e4); }
+.oxygen-headline { margin: 0; color: #17486a; font-size: 15px !important; font-weight: 800; line-height: 1.55; }
+.oxygen-detail { margin: 0; color: #5d7a8e; font-size: 13px !important; line-height: 1.75; }
+.oxygen-scale { display: flex; flex-wrap: wrap; gap: 6px; }
+.oxygen-scale span { padding: 4px 8px; border-radius: 7px; background: #fff; color: #7a92a4; font-size: 11.5px !important; }
+.oxygen-scale span b { margin-right: 4px; color: #3c6785; }
+.oxygen-scale span.is-ref { background: #e7f4ff; color: #0d6aa8; }
+.oxygen-tips { margin: 2px 0 0; padding-left: 18px; color: #4c687c; font-size: 13px !important; line-height: 1.75; }
+.oxygen-tips li { margin-bottom: 4px; }
+.gear-note { margin: 14px 2px 0; color: #7d92a3; font-size: 12px !important; line-height: 1.7; }
+
+/* ---------------- 地名搜索 ---------------- */
+.sheet-panel { border-radius: 22px !important; max-width: 760px !important; max-height: 92dvh !important; }
+.sheet-remote { max-height: min(52dvh, 560px) !important; }
+.sheet-head span { font-size: 20px !important; }
+.sheet .search { font-size: 16px !important; min-height: 48px !important; }
+.sheet-regions .chip, .regions .chip { font-size: 14px !important; min-height: 36px !important; }
+.remote-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 14px 2px 8px; }
+.remote-title b { color: #17476a; font-size: 16px !important; }
+.remote-title span { color: #718a9d; font-size: 13px !important; }
+.remote-title span b { color: #0d6aa8; font-size: 14px !important; }
+.remote-tip {
+  margin: 0 0 10px; padding: 10px 12px; border-radius: 10px;
+  background: #fff8e8; border: 1px solid #f2dfb5; color: #7a5a1f;
+  font-size: 13px !important; line-height: 1.7;
+}
+.remote-hint { padding: 14px 4px; color: #6c8598; font-size: 14px !important; line-height: 1.7; }
+.remote-hint.err { color: #b42318; }
+.remote-item {
+  display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 11px;
+  padding: 13px 10px; border-top: 1px solid #edf3f8; cursor: pointer;
+}
+.remote-item:hover, .remote-item:focus-visible { background: #f4faff; outline: none; }
+.ri-rank { color: #9cb0c0; font-size: 12px !important; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ri-main { display: grid; gap: 3px; min-width: 0; }
+.ri-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ri-name { color: #163f5f; font-size: 16px !important; line-height: 1.4; }
+.ri-kind { padding: 2px 6px; border-radius: 5px; background: #eaf4fb; color: #3f6f91; font-size: 11px !important; font-style: normal; font-weight: 700; }
+.ri-addr { color: #5f7c91; font-size: 13px !important; line-height: 1.55; }
+.ri-coord { color: #8a9dac; font-size: 12.5px !important; font-variant-numeric: tabular-nums; }
+.ri-add { padding: 7px 10px; border-radius: 999px; background: #e8f4ff; color: #1268a8; font-size: 12.5px !important; font-weight: 800; white-space: nowrap; }
+.sheet-item { padding: 12px 10px !important; }
+.si-main { display: grid; gap: 2px; min-width: 0; }
+.si-name { font-size: 15px !important; }
+.si-coord { color: #91a4b3; font-size: 12px !important; font-variant-numeric: tabular-nums; }
+.si-region { font-size: 12px !important; }
+.si-used { font-size: 11px !important; }
+
+/* ---------------- 覆盖线上 8–11px 的旧规则（媒体查询也要压住） ---------------- */
+@media (max-width: 900px) {
+  .gear-grid { grid-template-columns: 1fr; }
+  .gear-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  html, body { font-size: 16px !important; }
+  .route-option-panel { top: 148px; width: calc(100vw - 18px); padding: 7px 8px 6px; border-radius: 14px; }
+  .route-option-bar { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none; }
+  .route-option-bar::-webkit-scrollbar { display: none; }
+  .route-option { flex: 0 0 calc(50% - 4px); padding: 7px 8px; }
+  .ro-top b { font-size: 12px !important; }
+  .ro-meta { font-size: 10px !important; }
+  .ro-score { font-size: 17px !important; }
+  .home-title { font-size: clamp(34px, 10vw, 46px) !important; }
+  .home-sub { font-size: 16px !important; }
+  .home-section-head h2 { font-size: 26px !important; }
+  .home-features .feat b { font-size: 16px !important; }
+  .home-features .feat p { font-size: 14px !important; }
+  .planning-heading h1 { font-size: 26px !important; }
+  .planning-heading > p { font-size: 14px !important; }
+  .planner-steps > button span { font-size: 12px !important; }
+  .planner-steps > button i { width: 25px !important; height: 25px !important; flex-basis: 25px !important; font-size: 9px !important; }
+  .planner-sheet-handle strong { font-size: 16px !important; }
+  .planner-controls .seg button { font-size: 13px !important; min-height: 42px !important; }
+  .planner-controls input, .planner-controls select { font-size: 15px !important; min-height: 42px !important; }
+  #pointList .pt-name { font-size: 14px !important; }
+  #pointList .pt-time { font-size: 13px !important; width: 82px !important; }
+  #btnCheckup { font-size: 16px !important; min-height: 52px !important; }
+  .report-local-nav button { font-size: 12px !important; padding: 0 10px !important; min-height: 38px !important; }
+  .report-screen-heading h2 { font-size: 24px !important; }
+  .report-screen-heading p { font-size: 12px !important; }
+  .decision-title { font-size: 25px !important; }
+  .decision-copy { font-size: 14px !important; }
+  .decision-orbit-value { font-size: 40px !important; }
+  .smart-section-heading h3 { font-size: 20px !important; }
+  .smart-report-facts strong { font-size: 19px !important; }
+  .smart-note-copy strong { font-size: 14px !important; }
+  .smart-note-copy small { font-size: 12px !important; }
+  .poi-card h4 { font-size: 17px !important; }
+  .poi-reason { font-size: 13px !important; }
+  .poi-meta { font-size: 11.5px !important; }
+  .map-console-route strong { font-size: 15px !important; }
+  .map-console-metrics strong { font-size: 22px !important; }
+  .segment-copy strong { font-size: 14px !important; }
+  .segment-score { font-size: 20px !important; }
+  .route-option-head b { font-size: 15px !important; }
+  .route-option { padding: 10px 12px; }
+  .ro-top b { font-size: 14px !important; }
+  .ro-meta { font-size: 11.5px !important; }
+  .ro-score { font-size: 21px !important; }
+  .gear-card h4 { font-size: 16px !important; }
+  .gear-summary b { font-size: 17px !important; }
+  .gear-list li { font-size: 12.5px !important; }
+  .gear-list li b { font-size: 13px !important; }
+  .oxygen-big strong { font-size: 42px !important; }
+  .oxygen-headline { font-size: 14px !important; }
+  .oxygen-detail, .oxygen-tips { font-size: 12px !important; }
+  .energy-row { grid-template-columns: 36px minmax(0, 1fr); }
+  .energy-row .poi-links.compact { grid-column: 1 / -1; justify-content: flex-start; }
+  .energy-copy strong { font-size: 14px !important; }
+  .energy-copy small { font-size: 11.5px !important; }
+  .remote-item { grid-template-columns: 26px minmax(0, 1fr); }
+  .ri-add { grid-column: 2; justify-self: start; }
+  .ri-name { font-size: 15px !important; }
+  .ri-addr { font-size: 12px !important; }
+  .ri-coord { font-size: 11.5px !important; }
+  .sheet .search { font-size: 15px !important; }
+}
+
+@media (max-width: 760px) {
+  #view-home .home-hero { padding: 18px 14px 20px !important; }
+  #view-home .hero-copy { position: relative; z-index: 3; align-self: start; justify-content: flex-start; min-height: 0; padding: 16px 14px 14px; border-radius: 20px; background: linear-gradient(180deg, rgba(247,251,255,.95) 0%, rgba(247,251,255,.88) 72%, rgba(247,251,255,.62) 100%); box-shadow: 0 10px 28px rgba(16,60,96,.08); }
+  #view-home .home-sub { color: #35536a !important; }
+  #view-home .home-hint { flex: 0 0 auto !important; height: auto !important; min-height: 0 !important; margin: 4px 0 0 !important; color: #54718a !important; }
+  #view-home .home-cta { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 10px; flex: 0 0 auto; min-height: 0; }
+  #view-home .home-cta .btn { width: 100%; justify-content: space-between; flex: 0 0 auto; height: 54px; min-height: 54px; padding: 0 18px; }
+  #view-home .home-demo-link { margin-top: 0 !important; }
+}
+
+/* ---------------- 全程导航 / 路段评分 / 风险点 ---------------- */
+.route-nav-links {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 10px 0 2px; border-top: 1px solid #e4eef6;
+}
+.route-nav-links > span { color: #6d8799; font-size: 12px !important; font-weight: 700; }
+.route-nav-links a {
+  display: inline-flex; align-items: center; min-height: 32px; padding: 4px 10px;
+  border: 1px solid #d8e6f0; border-radius: 999px; background: #f5faff;
+  color: #1769a8 !important; font-size: 12.5px !important; font-weight: 700; text-decoration: none;
+}
+.route-nav-links a:hover { background: #e8f4ff; border-color: #9dc8e8; }
+.segment-popup .segment-score-big { margin: 4px 0 8px; color: #145f98; font-size: 46px; font-weight: 800; line-height: 1; }
+.segment-popup .segment-score-big small { margin-left: 3px; color: #6f8ca0; font-size: 14px; font-weight: 700; }
+.segment-popup-shell { z-index: 10050 !important; }
+.segment-popup-shell .leaflet-popup-content-wrapper,
+.segment-popup-shell .leaflet-popup-content { background: #fff !important; }
+body.segment-popup-open .route-option-panel { opacity: 0; pointer-events: none; }
+body.segment-popup-open .leaflet-control-attribution { opacity: 0 !important; pointer-events: none !important; }
+body.segment-popup-open #routeAnalysis .map-tools { opacity: 0; pointer-events: none; }
+.hazard-marker-wrap { background: transparent; border: 0; }
+.hazard-pin {
+  display: grid; width: 30px; height: 30px; place-items: center;
+  border: 2px solid #fff; border-radius: 50%; background: #d9480f;
+  color: #fff; font-size: 16px; box-shadow: 0 4px 14px rgba(180,35,24,.35);
+  animation: hazardPulse 2.2s ease-in-out infinite;
+}
+body.hazard-popup-open .leaflet-control-attribution { opacity: 0 !important; pointer-events: none !important; }
+body.hazard-popup-open #routeAnalysis .map-tools { opacity: 0; pointer-events: none; }
+@keyframes hazardPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+
+/* ---------------- 规划页地图全屏（只留地图） ---------------- */
+body.create-map-fullscreen { overflow: hidden !important; }
+body.create-map-fullscreen #view-create .planning-heading,
+body.create-map-fullscreen #view-create .planner-sheet,
+body.create-map-fullscreen #view-create .planner-map-field > label,
+body.create-map-fullscreen #view-create .planner-map-field .map-hint { display: none !important; }
+body.create-map-fullscreen #view-create .planner-map-field {
+  position: fixed !important; inset: 0 !important; z-index: 9990 !important;
+  margin: 0 !important; padding: 0 !important; border: 0 !important; background: #fff;
+}
+body.create-map-fullscreen #createMapWrap {
+  position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100dvh !important;
+  margin: 0 !important; border-radius: 0 !important;
+}
+body.create-map-fullscreen #createMap { height: 100dvh !important; }
+body.create-map-fullscreen #view-create .map-tools {
+  top: max(12px, env(safe-area-inset-top)) !important; right: 12px !important; z-index: 10000 !important;
+}
+body.create-map-fullscreen #view-create .leaflet-top.leaflet-left {
+  top: max(66px, calc(env(safe-area-inset-top) + 56px)) !important; left: 12px !important;
+}
+body.create-map-fullscreen #view-create .leaflet-top.leaflet-right {
+  top: max(66px, calc(env(safe-area-inset-top) + 56px)) !important; right: 12px !important;
+}
+body.create-map-fullscreen #view-create .leaflet-control-attribution { margin-bottom: 6px !important; }
+
+/* ---------------- 报告地图全屏（只留地图） ---------------- */
+body.map-fullscreen,
+body.report-map-fullscreen { overflow: hidden !important; }
+body.map-fullscreen .report-local-nav,
+body.map-fullscreen .route-option-panel,
+body.map-fullscreen #routeAnalysis .report-screen-heading,
+body.map-fullscreen #routeAnalysis .summary,
+body.map-fullscreen #routeAnalysis .map-hint,
+body.map-fullscreen .smart-report-content,
+body.map-fullscreen .mobile-nav,
+body.map-fullscreen .topbar { display: none !important; }
+body.map-fullscreen #routeAnalysis.report-screen { min-height: 0 !important; padding: 0 !important; margin: 0 !important; }
+body.map-fullscreen #routeAnalysis .map-card {
+  position: fixed !important; inset: 0 !important; z-index: 9990 !important;
+  width: 100vw !important; height: 100dvh !important; border-radius: 0 !important;
+}
+body.map-fullscreen #routeAnalysis #reportMap,
+body.map-fullscreen #routeAnalysis #navMap {
+  height: 100dvh !important; min-height: 100dvh !important;
+}
+body.map-fullscreen #routeAnalysis .map-card .map-tools {
+  top: max(12px, env(safe-area-inset-top)) !important; right: 12px !important; z-index: 10000 !important;
+}
+body.map-fullscreen #routeAnalysis .map-card .leaflet-top.leaflet-left {
+  top: max(66px, calc(env(safe-area-inset-top) + 56px)) !important; left: 12px !important; z-index: 10000 !important;
+}
+body.map-fullscreen #routeAnalysis .map-card .leaflet-top.leaflet-right {
+  top: max(66px, calc(env(safe-area-inset-top) + 56px)) !important; right: 12px !important;
+}
+body.map-fullscreen #routeAnalysis .leaflet-control-attribution {
+  margin-bottom: 6px !important; font-size: 10px !important; opacity: .72;
+}
+
+/* ---------------- 智能报告可折叠分栏 ---------------- */
+.report-collapse > summary {
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+  list-style: none; outline: none;
+}
+.report-collapse > summary::-webkit-details-marker { display: none; }
+.report-collapse > summary .smart-section-heading { flex: 1 1 auto; min-width: 0; margin: 0; }
+.collapse-chevron {
+  display: grid; width: 32px; height: 32px; flex: 0 0 32px; place-items: center;
+  border-radius: 50%; background: #eaf5fd; color: #15679f;
+  font-size: 18px; line-height: 1; transition: transform .2s ease, background .2s ease;
+}
+.report-collapse[open] .collapse-chevron { transform: rotate(180deg); background: #dcefff; }
+.report-collapse-body { padding-top: 10px; }
+.energy-filter-bar { margin-bottom: 12px; }
+
+/* 评分圆环：数字与标签必须留在圆内 */
+#smartReport .route-score-orbit {
+  display: flex !important; flex-direction: column; align-items: center; justify-content: center;
+  overflow: hidden !important;
+}
+#smartReport .route-score-orbit .decision-orbit-value { font-size: 48px !important; line-height: 1 !important; }
+#smartReport .route-score-orbit .decision-orbit-value small { font-size: 14px !important; }
+#smartReport .route-score-orbit .decision-orbit-label {
+  max-width: 120px !important; margin-top: 4px !important;
+  font-size: 11px !important; line-height: 1.15 !important; text-align: center;
+}
+#smartReport .weather-stability-orbit .decision-orbit-value { font-size: 32px !important; }
+#smartReport .weather-stability-orbit .decision-orbit-value small { font-size: 12px !important; }
+#smartReport .weather-stability-orbit .decision-orbit-label { max-width: 80px !important; margin-top: 4px !important; font-size: 8px !important; }
+
+/* ---------------- 手机端：表格与穿衣/含氧量放大 ---------------- */
+@media (max-width: 720px) {
+  #smartReport .smart-report-content > .decision-lead {
+    grid-template-columns: 108px minmax(0, 1fr) !important; gap: 12px !important;
+    padding: 16px 14px !important; align-items: center !important;
+  }
+  #smartReport .route-score-orbit { width: 104px !important; height: 104px !important; }
+  #smartReport .route-score-orbit::before { inset: 9px !important; }
+  #smartReport .route-score-orbit .decision-orbit-value { font-size: 36px !important; }
+  #smartReport .route-score-orbit .decision-orbit-value small { font-size: 12px !important; }
+  #smartReport .route-score-orbit .decision-orbit-label { max-width: 92px !important; font-size: 10.5px !important; margin-top: 2px !important; }
+  #smartReport .weather-stability-orbit .decision-orbit-value { font-size: 27px !important; }
+  #smartReport .weather-stability-orbit .decision-orbit-value small { font-size: 10px !important; }
+  #smartReport .weather-stability-orbit .decision-orbit-label { max-width: 70px !important; font-size: 7.5px !important; }
+
+  /* 沿途采样表改成卡片式，避免横向滚动后只剩三列且字太小 */
+  .leg-list { overflow: visible !important; padding: 12px !important; }
+  .leg-head { display: none !important; }
+  .leg-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 5px 12px !important; min-width: 0 !important;
+    padding: 12px 2px !important; font-size: 15px !important; line-height: 1.6 !important;
+  }
+  .leg-row .lr-name {
+    grid-column: 1; font-size: 16px !important; font-weight: 700;
+    white-space: normal !important; overflow: visible !important; text-overflow: clip !important;
+  }
+  .leg-row .lr-time { grid-column: 2; text-align: right; font-size: 14px !important; }
+  .leg-row .lr-time::before { content: '时刻 '; color: #8aa0b2; font-weight: 400; }
+  .leg-row .lr-wx {
+    grid-column: 1; font-size: 14.5px !important;
+    white-space: normal !important; overflow: visible !important; text-overflow: clip !important;
+  }
+  .leg-row .lr-wx::before { content: '天气 '; color: #8aa0b2; font-weight: 400; }
+  .leg-row .lr-score { grid-column: 2; min-width: 50px; font-size: 15px !important; }
+  .leg-row .lr-temp, .leg-row .lr-precip { font-size: 14px !important; }
+  .leg-row .lr-why { grid-column: 1; font-size: 14px !important; line-height: 1.65 !important; }
+  .leg-row .lr-why::before { content: '原因 '; color: #8aa0b2; font-weight: 400; }
+  .leg-row .lr-impact { grid-column: 2; text-align: right; font-size: 13.5px !important; line-height: 1.6 !important; }
+  .leg-row .lr-impact::before { content: '影响 '; color: #8aa0b2; font-weight: 400; }
+  .leg-note { font-size: 13.5px !important; line-height: 1.8 !important; }
+
+  /* 穿衣 / 防护 / 含氧量 */
+  .gear-card { padding: 18px !important; }
+  .gear-card h4 { font-size: 22px !important; }
+  .gear-card > p { font-size: 15.5px !important; line-height: 1.75 !important; }
+  .gear-list { gap: 12px !important; }
+  .gear-list li { font-size: 16px !important; line-height: 1.8 !important; grid-template-columns: 30px minmax(0, 1fr); }
+  .gear-list li b { font-size: 17px !important; }
+  .gear-icon { font-size: 19px !important; }
+  .gear-summary small { font-size: 13px !important; }
+  .gear-summary b { font-size: 20px !important; }
+  .oxygen-big strong { font-size: 56px !important; }
+  .oxygen-big small { font-size: 22px !important; }
+  .oxygen-big span { font-size: 14px !important; }
+  .oxygen-headline { font-size: 18px !important; }
+  .oxygen-detail { font-size: 15.5px !important; line-height: 1.8 !important; }
+  .oxygen-scale span { font-size: 12.5px !important; }
+  .oxygen-tips { font-size: 15.5px !important; line-height: 1.8 !important; }
+  .gear-note { font-size: 13.5px !important; line-height: 1.75 !important; }
+
+  .poi-links a { font-size: 13.5px !important; min-height: 36px !important; padding: 5px 12px !important; }
+  .poi-filter-bar { flex-wrap: wrap !important; overflow: visible !important; }
+  .poi-filter { flex: 0 0 auto; }
+}
+
+/* 高对比模式（系统设置） */
+@media (prefers-contrast: more) {
+  body { --ink-2: #2c3e4d; --ink-3: #51687a; }
+  .poi-source-note, .gear-note, .energy-note { color: #455f72 !important; }
+}

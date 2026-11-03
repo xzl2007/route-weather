@@ -12,3 +12,10 @@
  * ============================================================ */
 
 const TIANDITU_KEY = 'afa2745bbeb43efa996c6d1b75e9e98a';
+
+/* 高德开放平台 Web 服务 Key（可选）
+ * 申请：https://console.amap.com/dev/key/app  类型选「Web服务」
+ * 填入后，沿途加油/充电站会优先使用高德 POI（并自动把 GCJ-02 转回 WGS-84）。
+ * 也可以留空，在报告「沿途补能」里临时填入，只保存在本机 localStorage。
+ */
+const AMAP_KEY = '';
