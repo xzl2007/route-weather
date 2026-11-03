@@ -598,3 +598,30 @@ body.map-fullscreen #routeAnalysis .leaflet-control-attribution {
   .weather-side-note, .advice-item, .dx-item, .poi-source-note, .energy-note { font-size: 12px !important; }
   .nav-leg-list .lr-name { font-size: 15px !important; }
 }
+
+/* Route planner: give desktop form text a readable hierarchy without scaling the map. */
+@media (min-width: 761px) {
+  #view-create .planning-heading h1 { font-size: 19px; line-height: 1.3; }
+  #view-create .planner-steps > button span { font-size: 12px; }
+  #view-create .planner-steps > button i { font-size: 10px; }
+  #view-create .planner-controls .field > label { font-size: 13px; line-height: 1.5; }
+  #view-create .planner-controls .seg button { font-size: 12px; line-height: 1.35; }
+  #view-create .planner-controls .field input,
+  #view-create .planner-controls .field select { font-size: 16px; }
+  #view-create #fieldPoints > label { font-size: 15px; line-height: 1.5; }
+  #view-create #fieldPoints .small { font-size: 11px; line-height: 1.6; }
+  #view-create #pointList .pt-name { font-size: 14px; line-height: 1.5; }
+  #view-create #pointList .pt-time-label,
+  #view-create #pointList .pt-time { font-size: 13px; }
+  #view-create #pointList .pt-coord,
+  #view-create #pointList .pt-day { font-size: 11px; }
+  #view-create #pointList .empty-inline { font-size: 14px; line-height: 1.6; }
+  #view-create .row-btns .btn { font-size: 12px; }
+  #view-create .planner-advanced > summary { font-size: 13px; }
+  #view-create .planner-advanced > summary span { font-size: 11px; }
+  #view-create #fieldCoords input { font-size: 14px; }
+  #view-create #fieldCoords .btn { font-size: 12px; }
+  #view-create #btnCheckup { font-size: 16px; }
+  #view-create .planner-sheet > .hint { font-size: 11px; line-height: 1.6; }
+  #view-create .map-btn { font-size: 13px; }
+}
