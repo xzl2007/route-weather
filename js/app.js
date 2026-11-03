@@ -1560,6 +1560,10 @@ function reportScreenHeader(eyebrow, title, subtitle, trailing = '') {
   return `<div class="report-screen-heading"><div class="screen-heading-copy"><div class="eyebrow">${eyebrow}</div><h2>${title}</h2><p>${subtitle}</p></div>${trailing}</div>`;
 }
 
+function routeMapActionsHtml() {
+  return `<div class="report-screen-heading map-report-actions"><button class="weather-impact-cta" type="button" data-report-target="weatherDetails">查看天气点位 ↓</button><button class="report-favorite" id="btnReportFavorite" type="button" aria-pressed="false">♡ <span>收藏</span></button></div>`;
+}
+
 function routeMapConsoleHtml({ routeName, date, mode, distance, duration, points, stale = false, note = '', recommendations = '', navLinks = '' }) {
   const counts = { good: 0, fair: 0, caution: 0, bad: 0, neutral: 0 };
   (points || []).forEach(point => {
@@ -1825,7 +1829,7 @@ function recommendationSectionHtml(r) {
     ? '地点服务暂时不可用，天气与路线分析不受影响。'
     : meta.degraded
       ? '部分地点请求未返回，展示已获取的结果。'
-      : `${meta.amap ? '地点信息来自高德地图 POI' : '地点信息来自天地图'}；质量排序参考品牌、口碑关键词与 OTA 人工精选${meta.curated ? `（精选 ${meta.curated} 处）` : ''}。`;
+      : `${meta.amap ? '地点信息来自高德地图 POI' : '地点信息来自天地图'}；可通过下方导航与点评入口查看地点详情。`;
 
   const filters = available.length ? `<div class="poi-filter-bar" role="group" aria-label="吃住玩分类">
     <button type="button" class="poi-filter ${filter === 'all' ? 'on' : ''}" data-poi-filter="all" aria-pressed="${filter === 'all'}">全部 <span>${stayAll.length}</span></button>
@@ -1837,10 +1841,8 @@ function recommendationSectionHtml(r) {
 
   const cards = visible.map((item) => {
     const info = RoutePois.CATEGORY_META[item.category] || { label: '地点', icon: '·', className: 'neutral' };
-    const badges = (item.qualityBadges || []).slice(0, 3).map(text => `<span class="poi-quality">${escapeHtml(text)}</span>`).join('');
-    const tag = item.tags && item.tags[0] ? `<span class="poi-badge">${escapeHtml(item.tags[0])}</span>` : '';
     return `<article class="poi-card poi-${info.className}">
-      <div class="poi-card-top"><span class="poi-kind">${info.icon} ${info.label}</span><span class="poi-card-tags">${tag}${badges}</span></div>
+      <div class="poi-card-top"><span class="poi-kind">${info.icon} ${info.label}</span></div>
       <h4>${escapeHtml(item.name)}</h4>
       <p class="poi-reason">${escapeHtml(item.reason || '位于路线附近，可顺路停留。')}</p>
       <div class="poi-meta"><span>第 ${Math.round(Number(item.routeKm) || 0)} km</span><span>距路线 ${escapeHtml(item.distanceLabel || '')}</span><span>预计 ${escapeHtml(item.etaLabel || '')} 经过</span></div>
@@ -1860,7 +1862,7 @@ function recommendationSectionHtml(r) {
         <span class="collapse-chevron" aria-hidden="true">⌄</span>
       </summary>
       <div class="report-collapse-body">
-        <p class="poi-summary">${escapeHtml(rec.note || '按预计经过时段与绕行距离排序')} · 推荐范围约 ${Math.round((rec.radiusM || 0) / 100) / 10} km</p>
+        <p class="poi-summary">按出行方式、预计经过时段与绕行距离排序 · 推荐范围约 ${Math.round((rec.radiusM || 0) / 100) / 10} km</p>
         ${filters}
         ${visible.length ? `<div class="poi-grid">${cards}</div>` : empty}
         <p class="poi-source-note">${serviceNote}</p>
@@ -2165,7 +2167,7 @@ function renderNavReport(r, stale) {
       <button type="button" data-report-target="weatherDetails" aria-pressed="false">沿途天气 <span class="tab-count">${r.points.length}</span></button>
     </nav>
     <section class="report-screen is-active" id="routeAnalysis">
-    ${reportScreenHeader('ROUTE WEATHER MAP', '沿途天气影响', `${escapeHtml(routeName)} · 点击路线点位查看天气`, '<button class="weather-impact-cta" type="button" data-report-target="weatherDetails">查看天气点位 ↓</button><button class="report-favorite" id="btnReportFavorite" type="button" aria-pressed="false">♡ <span>收藏</span></button>')}
+    ${routeMapActionsHtml()}
     ${routeOptionsBarHtml(r)}
     <div class="card map-card">
       <div class="map-wrap">
@@ -2719,7 +2721,7 @@ function renderReport(r, stale) {
       <button type="button" data-report-target="weatherDetails" aria-pressed="false">沿途天气 <span class="tab-count">${r.points.length}</span></button>
     </nav>
     <section class="report-screen is-active" id="routeAnalysis">
-    ${reportScreenHeader('ROUTE WEATHER MAP', '沿途天气影响', `${escapeHtml(routeName)} · 点击路线点位查看天气`, '<button class="weather-impact-cta" type="button" data-report-target="weatherDetails">查看天气点位 ↓</button><button class="report-favorite" id="btnReportFavorite" type="button" aria-pressed="false">♡ <span>收藏</span></button>')}
+    ${routeMapActionsHtml()}
     <div class="card map-card">
       <div class="map-wrap">
         <div id="reportMap" class="map map-report"></div>
