@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="css/redesign.css?v=1">
 <link rel="stylesheet" href="css/product-ui.css?v=4">
 <link rel="stylesheet" href="css/immersive-ui.css?v=38">
-<link rel="stylesheet" href="css/readability.css?v=16">
+<link rel="stylesheet" href="css/readability.css?v=17">
 <link rel="icon" href="icons/routeweather.svg" type="image/svg+xml">
 <script>
 /* 早期错误捕获：把 JS 错误显示在页面上，避免"白屏无提示" */
@@ -64,7 +64,7 @@ window.addEventListener('error', function (e) {
         <div class="home-badge"><span class="badge-spark"></span> 山区自驾 · 行程气象决策</div>
         <p class="hero-overline">ROUTE WEATHER INTELLIGENCE</p>
         <h1 class="home-title">把天气，<br><em>规划进路线。</em></h1>
-        <p class="home-sub">融合道路里程、海拔与逐小时预报，提前看见沿途天气变化，为每一段山路留出更从容的选择。</p>
+        <p class="home-sub">结合山地地形、沿途预计经过时刻与天气预报，对比出发时机，为每一段山路留出更从容的选择。</p>
         <div class="home-cta">
           <button class="btn btn-primary btn-lg" id="btnNew" type="button">
             <span>开始规划行程</span><span class="btn-arrow" aria-hidden="true">↗</span>
@@ -83,6 +83,7 @@ window.addEventListener('error', function (e) {
             <span><i class="metric-icon">◷</i><b>到达时刻</b><small>逐小时预报</small></span>
             <span><i class="metric-icon">△</i><b>海拔变化</b><small>沿途采样</small></span>
           </div>
+          <div class="home-profile-preview" aria-label="山地路线天气剖面示意图"><div><span>沿途地形与天气</span><small>示意图</small></div><svg viewBox="0 0 360 48" role="img" aria-label="地形与天气示意，非实际预报"><path d="M2 43 C35 42 40 32 65 34 S100 20 130 25 S175 6 200 19 S245 10 275 24 S325 30 358 12" fill="none" stroke="#2687c4" stroke-width="3"/><circle cx="65" cy="34" r="4" fill="#28a879"/><circle cx="200" cy="19" r="4" fill="#e77832"/><circle cx="358" cy="12" r="4" fill="#28a879"/></svg></div>
           <div class="hero-route-link static">示例路线：雅安 → 天全 → 泸定</div>
         </div>
         <div class="hero-weather-float"><span class="weather-float-icon">☀</span><span><small>山地出行</small><b>天气 · 路线 · 时段</b></span></div>
@@ -95,9 +96,9 @@ window.addEventListener('error', function (e) {
         <p>用可解释的数据，辅助每一次山区出行安排</p>
       </div>
       <div class="home-features">
-        <article class="feat feat-static"><span class="feat-index">01</span><div><b>沿途逐点分析</b><p>结合预计到达时间，查看不同路段的逐小时预报。</p></div></article>
-        <article class="feat feat-static"><span class="feat-index">02</span><div><b>天气影响分段</b><p>在真实道路几何上标出天气变化区段。</p></div></article>
-        <article class="feat feat-static"><span class="feat-index">03</span><div><b>出发时间对比</b><p>保存、筛选与回看你的山地行程分析。</p></div></article>
+        <article class="feat feat-static"><span class="feat-index">01</span><div><b>山地海拔剖面</b><p>按沿途里程查看采样高程与天气关注点。</p></div></article>
+        <article class="feat feat-static"><span class="feat-index">02</span><div><b>分段天气诊断</b><p>在真实道路几何上标出天气变化区段。</p></div></article>
+        <article class="feat feat-static"><span class="feat-index">03</span><div><b>出发时间对比</b><p>比较不同时段沿途预计天气。</p></div></article>
       </div>
 
       <div class="home-trips-head"><div><p class="section-kicker">YOUR ROUTES</p><h2>最近行程</h2></div><button class="library-shortcut" type="button" data-view="saved">打开行程库 <span>↗</span></button></div>
@@ -298,14 +299,15 @@ window.addEventListener('error', function (e) {
 <script src="js/config.js?v=16"></script>
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="js/points.js?v=16"></script>
-<script src="js/api.js?v=16"></script>
+<script src="js/api.js?v=17"></script>
 <script src="js/routing.js?v=18"></script>
-<script src="js/scoring.js?v=17"></script>
+<script src="js/scoring.js?v=18"></script>
 <script src="js/storage.js?v=14"></script>
 <script src="js/geocode.js?v=17"></script>
 <script src="js/route-segments.js?v=2"></script>
 <script src="js/poi.js?v=7"></script>
-<script src="js/map.js?v=34"></script>
-<script src="js/app.js?v=64"></script>
+<script src="js/map.js?v=35"></script>
+<script src="js/mountain.js?v=1"></script>
+<script src="js/app.js?v=65"></script>
 </body>
 </html>

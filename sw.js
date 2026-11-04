@@ -1,7 +1,7 @@
 /* RouteWeather 山途智行 · Service Worker
  * 只缓存本站外壳，不缓存天气/路径/POI 接口与地图瓦片。
  */
-const CACHE = 'rwc-shell-v97';
+const CACHE = 'rwc-shell-v98';
 
 const ASSETS = [
   './',
@@ -21,6 +21,7 @@ const ASSETS = [
   'js/route-segments.js',
   'js/poi.js',
   'js/map.js',
+  'js/mountain.js',
   'js/app.js',
   'vendor/leaflet/leaflet.js',
   'vendor/leaflet/leaflet.css',

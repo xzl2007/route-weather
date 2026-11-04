@@ -232,7 +232,7 @@ function weatherPopupHtml(point, index) {
 
 function segmentPopupHtml(point, label) {
   const p = point || {};
-  const lv = p.level || (typeof levelOf === 'function' ? levelOf(Number(p.score) || 0) : { key: 'neutral', text: '数据不足' });
+  const lv = p.level || (p.score != null && Number.isFinite(Number(p.score)) && typeof levelOf === 'function' ? levelOf(Number(p.score)) : { key: 'neutral', text: '数据不足' });
   const score = p.score != null && Number.isFinite(Number(p.score)) ? Math.round(Number(p.score)) : '—';
   const deductions = (p.deductions || [])
     .filter(d => d && d.label && Number(d.pts) > 0)
@@ -243,6 +243,10 @@ function segmentPopupHtml(point, label) {
   const pp = p.pp != null ? `${Math.round(p.pp)}%` : '—';
   const wind = p.wind != null ? `${Math.round(p.wind)} km/h` : '—';
   const elev = p.elev != null ? `${Math.round(p.elev)} m` : '—';
+  const eta = p.timeLabel || (p.arriveAbs != null ? minToLabel(Math.round(p.arriveAbs * 60)) : '—');
+  const gust = p.gust != null ? `${Math.round(p.gust)} km/h` : '—';
+  const rain = p.precip != null ? `${Number(p.precip).toFixed(1)} mm/h` : '—';
+  const mountainReasons = typeof MountainAnalysis !== 'undefined' ? MountainAnalysis.reasons(p) : [];
   const cum = p.cumKm != null ? `第 ${Math.round(p.cumKm)} km` : (label || '当前路段');
   return `<div class="weather-popup segment-popup">
     <div class="popup-eyebrow">路段评分 <span class="popup-distance">${mapEscape(cum)}</span></div>
@@ -253,9 +257,9 @@ function segmentPopupHtml(point, label) {
       <span>气温<b>${temp}</b></span>
       <span>降水概率<b>${pp}</b></span>
       <span>风速<b>${wind}</b></span>
-      <span>海拔<b>${elev}</b></span>
+      <span>海拔<b>${elev}</b></span><span>预计经过<b>${mapEscape(eta)}</b></span><span>阵风<b>${gust}</b></span><span>降水量<b>${rain}</b></span>
     </div>
-    <div class="popup-evidence"><small>为什么是这个分数</small><span>${mapEscape(deductions.length ? deductions.join('；') : '这一段没有明显扣分项，天气对通行影响较小。')}</span></div>
+    <div class="popup-evidence"><small>为什么是这个分数</small><span>${mapEscape(mountainReasons.length ? mountainReasons.join('；') : deductions.length ? deductions.join('；') : score === '—' ? '缺少评分数据。' : '当前评分没有明显扣分项。')}</span></div>
   </div>`;
 }
 
@@ -626,7 +630,9 @@ const MapCtl = {
         autoPanPaddingBottomRight: [12, 220],
         className: 'weather-popup-shell segment-popup-shell',
       });
+      lineLayer.__sampleIndex = section.index;
       lineLayer.on('click', (event) => {
+        document.querySelectorAll('.mountain-point').forEach(el => el.classList.toggle('is-selected', Number(el.dataset.mountainSample) === section.index));
         if (event && event.latlng) lineLayer.openPopup(event.latlng);
       });
       lineLayer.on('popupopen', () => document.body.classList.add('segment-popup-open'));
@@ -744,7 +750,9 @@ const MapCtl = {
         autoPanPaddingBottomRight: [12, 220],
         className: 'weather-popup-shell segment-popup-shell',
       });
+      lineLayer.__sampleIndex = i;
       lineLayer.on('click', (event) => {
+        document.querySelectorAll('.mountain-point').forEach(el => el.classList.toggle('is-selected', Number(el.dataset.mountainSample) === i));
         if (event && event.latlng) lineLayer.openPopup(event.latlng);
       });
       lineLayer.on('popupopen', () => document.body.classList.add('segment-popup-open'));
@@ -801,6 +809,18 @@ const MapCtl = {
       mk.setIcon(this._iconFor(i, (map.__points || []).length, p && p.level ? p.level.key : 'neutral', i === index, p && p.pinLabel));
       mk.setZIndexOffset(i === index ? 1000 : 0);
     });
+  },
+
+  focusMountainSample(index) {
+    const map = this.report, p = map && map.__points && map.__points[index];
+    if (!map || !p || !Number.isFinite(Number(p.lat)) || !Number.isFinite(Number(p.lon))) return false;
+    const location = this._conv(map, Number(p.lat), Number(p.lon));
+    map.invalidateSize();
+    map.setView(location, Math.max(map.getZoom(), 9));
+    const line = (map.__routeSections || []).find(layer => layer.__sampleIndex === index);
+    if (line) line.openPopup(location);
+    else L.popup({ maxWidth: 300 }).setLatLng(location).setContent(segmentPopupHtml(p, '采样点')).openOn(map);
+    return true;
   },
 
   /** 从采样清单或着色路线定位到对应采样点，并打开天气详情。 */

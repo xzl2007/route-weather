@@ -118,7 +118,7 @@ function dedTemp(t) {
 
 function dedFreezing(t) {
   if (t === null) return { pts: 0, label: null };
-  if (t < 0) return { pts: 10, label: `气温 ${t.toFixed(1)}℃（结冰风险）` };
+  if (t < 0) return { pts: 10, label: `气温 ${t.toFixed(1)}℃（潮湿路面可能结冰）` };
   return { pts: 0, label: null };
 }
 
@@ -141,10 +141,22 @@ function dedAltitude(elev) {
  * @returns {{score:number, level:object, deductions:Array<{pts:number,label:string}>}}
  */
 function scoreHour(h, elev) {
+  // Treat gusts as an alternative wind severity, not an extra deduction on top of wind speed.
+  const sustainedWind = dedWind(h.wind == null ? null : h.wind);
+  const gustValue = h.gust == null ? null : Number(h.gust);
+  const gustDeduction = gustValue != null && Number.isFinite(gustValue) && gustValue >= 50
+    ? { pts: gustValue >= 70 ? 20 : 12, label: `阵风 ${Math.round(gustValue)} km/h` }
+    : { pts: 0, label: null };
+  const windCondition = gustDeduction.pts > sustainedWind.pts ? gustDeduction : sustainedWind;
+  const visibility = h.visibility == null ? null : Number(h.visibility);
+  const visibilityDeduction = visibility != null && Number.isFinite(visibility) && visibility < 1000
+    ? { pts: visibility < 200 ? 20 : 10, label: `能见度 ${Math.round(visibility)} m` }
+    : { pts: 0, label: null };
   const items = [
     dedPrecipProb(h.pp),
     dedPrecip(h.precip),
-    dedWind(h.wind),
+    windCondition,
+    visibilityDeduction,
     dedTemp(h.temp),
     dedFreezing(h.temp),
     dedWeather(h.code),
@@ -374,6 +386,14 @@ function hourAt(p, idx) {
  * 计算某个出发时刻下，每个采样点的分数与到达时刻
  * @returns {{entries:Array, min:number, avg:number, valid:boolean}}
  */
+function sunForArrival(series, minute) {
+  if (!series || !series.sunDays || !series.hours || !series.hours[0] || !series.hours[0].time || !Number.isFinite(minute)) return null;
+  const base = series.hours[0].time.slice(0, 10);
+  const date = new Date(base + 'T00:00:00Z');
+  date.setUTCDate(date.getUTCDate() + Math.floor(minute / 1440));
+  return series.sunDays[date.toISOString().slice(0, 10)] || null;
+}
+
 function scoreAtDeparture(samples, series, elevations, durationSec, departHour) {
   const entries = [];
   for (let i = 0; i < samples.length; i++) {
@@ -417,6 +437,7 @@ function scoreAtDeparture(samples, series, elevations, durationSec, departHour) 
       score: sc.score,
       level: sc.level,
       deductions: sc.deductions,
+      forecastTime: h.time, sun: sunForArrival(ser, Math.round(arriveAbs * 60)),
       temp: h.temp,
       appTemp: h.appTemp,
       humidity: h.humidity,
@@ -424,7 +445,7 @@ function scoreAtDeparture(samples, series, elevations, durationSec, departHour) 
       code: h.code,
       pp: h.pp,
       precip: h.precip,
-      wind: h.wind,
+      wind: h.wind, gust: h.gust, visibility: h.visibility,
       weatherText: wmoText(h.code),
       icon: wmoIcon(h.code),
     });
@@ -476,6 +497,7 @@ function departureMatrix(samples, series, elevations, durationSec, fromIdx, toId
       dayOffset: Math.floor(idx / 24),
       min: r.valid ? r.min : null,
       avg: r.valid ? r.avg : null,
+      mountain: r.valid && typeof MountainAnalysis !== 'undefined' ? MountainAnalysis.conditions(r.entries) : null,
       valid: r.valid,
       code: startH ? startH.code : null,
       temp: startH ? startH.temp : null,
@@ -1067,9 +1089,10 @@ function analyzePlanRoute(opts) {
     entries.push({
       name: sm.name, lat: sm.lat, lon: sm.lon, elev,
       minute: sm.minute, timeLabel: minToLabel(sm.minute), hour: h.hour,
+      forecastTime: h.time, sun: sunForArrival(s, sm.minute),
       kind: sm.kind, pointIdx: sm.pointIdx, legIndex: sm.legIndex, ratio: sm.ratio, cumKm: sm.cumKm,
       score: sc.score, level: sc.level, deductions: sc.deductions,
-      temp: h.temp, code: h.code, pp: h.pp, precip: h.precip, wind: h.wind,
+      temp: h.temp, code: h.code, pp: h.pp, precip: h.precip, wind: h.wind, gust: h.gust, visibility: h.visibility,
       appTemp: h.appTemp, humidity: h.humidity, uv: h.uv,
       weatherText: wmoText(h.code), icon: wmoIcon(h.code),
       hourly,
@@ -1138,7 +1161,7 @@ function analyzePlan(series, elevations, points, times, sun, dateStr, mode) {
       timeLabel: minToLabel(t),
       hour: h.hour,
       score: sc.score, level: sc.level, deductions: sc.deductions,
-      temp: h.temp, code: h.code, pp: h.pp, precip: h.precip, wind: h.wind,
+      temp: h.temp, code: h.code, pp: h.pp, precip: h.precip, wind: h.wind, gust: h.gust, visibility: h.visibility,
       appTemp: h.appTemp, humidity: h.humidity, uv: h.uv,
       weatherText: wmoText(h.code),
       hourly,

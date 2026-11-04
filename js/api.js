@@ -22,6 +22,8 @@ const HOURLY_FIELDS = [
   'precipitation_probability',
   'precipitation',
   'wind_speed_10m',
+  'wind_gusts_10m',
+  'visibility',
   'wind_direction_10m',
   'weather_code',
 ].join(',');
@@ -111,7 +113,7 @@ async function fetchHourly(points, dateStr, days) {
   const endDate = days > 1 ? addDays(dateStr, days - 1) : dateStr;
   const lat = points.map(p => p.lat).join(',');
   const lon = points.map(p => p.lon).join(',');
-  const key = cacheKey('fc:v2', [lat, lon, dateStr, days]);
+  const key = cacheKey('fc:v3', [lat, lon, dateStr, days]);
 
   const hit = readCache(key);
   if (hit) return { ok: true, stale: false, at: hit.at, series: normalizeSeries(hit.data, points), sun: normalizeSun(hit.data, points) };
@@ -141,7 +143,7 @@ async function fetchHourly(points, dateStr, days) {
 function normalizeSeries(json, points) {
   const blocks = Array.isArray(json) ? json : [json];
   return points.map((p, i) => {
-    const b = blocks[i] || blocks[0] || {};
+    const b = blocks[i] || {};
     const h = b.hourly || {};
     const times = h.time || [];
     const hours = times.map((t, k) => ({
@@ -154,10 +156,17 @@ function normalizeSeries(json, points) {
       pp: num(h.precipitation_probability, k),
       precip: num(h.precipitation, k),
       wind: num(h.wind_speed_10m, k),
+      gust: num(h.wind_gusts_10m, k),
+      visibility: num(h.visibility, k),
       dir: num(h.wind_direction_10m, k),
       code: num(h.weather_code, k),
     }));
-    return { name: p.name, lat: p.lat, lon: p.lon, hours };
+    const daily = b.daily || {};
+    const sunDays = {};
+    (daily.time || []).forEach((date, k) => {
+      sunDays[date] = { sunrise: (daily.sunrise || [])[k] || null, sunset: (daily.sunset || [])[k] || null };
+    });
+    return { name: p.name, lat: p.lat, lon: p.lon, hours, sunDays };
   });
 }
 
@@ -165,7 +174,7 @@ function normalizeSeries(json, points) {
 function normalizeSun(json, points) {
   const blocks = Array.isArray(json) ? json : [json];
   return points.map((p, i) => {
-    const b = blocks[i] || blocks[0] || {};
+    const b = blocks[i] || {};
     const d = b.daily || {};
     const rise = d.sunrise && d.sunrise[0] ? String(d.sunrise[0]) : null;
     const set = d.sunset && d.sunset[0] ? String(d.sunset[0]) : null;

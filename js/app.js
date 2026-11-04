@@ -1408,6 +1408,7 @@ function buildPlanHourScoresFromSeries({ series, elevations, points, times, mode
         min: report.routeScore,
         score: report.routeScore,
         avg: report.avgScore,
+        mountain: MountainAnalysis.conditions(report.points),
         valid: true,
         code: wh ? wh.code : null,
         temp: wh ? wh.temp : null,
@@ -1533,37 +1534,72 @@ function activateReportScreen(id, scroll = false) {
 }
 
 function elevationProfileHtml(points) {
-  const values = (points || []).map((point, index) => ({
-    index,
-    name: point.name || `采样点 ${index + 1}`,
-    km: Number(point.cumKm),
-    elev: Number(point.elev),
-  })).filter(point => Number.isFinite(point.elev));
-  if (values.length < 2) return '';
-  const min = Math.min(...values.map(point => point.elev));
-  const max = Math.max(...values.map(point => point.elev));
-  const range = Math.max(1, max - min);
-  const left = 34, right = 786, top = 20, bottom = 132;
-  const coords = values.map((point, index) => ({
-    ...point,
-    x: left + index * (right - left) / (values.length - 1),
-    y: bottom - (point.elev - min) / range * (bottom - top),
-  }));
-  const line = coords.map((point, index) => `${index ? 'L' : 'M'}${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ');
-  const area = `${line} L${right} ${bottom} L${left} ${bottom} Z`;
-  const first = values[0], last = values[values.length - 1];
-  return `<section class="elevation-card" aria-label="沿线海拔剖面">
-    <div class="elevation-head"><div><h3>沿线海拔变化</h3><p>按沿途采样点展示 · 悬停图表节点可查看海拔</p></div>
-      <div class="elevation-range"><span>最高<b>${Math.round(max)} m</b></span><span>最低<b>${Math.round(min)} m</b></span></div></div>
-    <svg class="elevation-chart" viewBox="0 0 820 164" role="img" aria-label="海拔从 ${Math.round(min)} 米到 ${Math.round(max)} 米">
-      <defs><linearGradient id="elevationFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#4d9bd0" stop-opacity=".26"/><stop offset="100%" stop-color="#4d9bd0" stop-opacity=".015"/></linearGradient></defs>
-      <path class="elevation-grid" d="M${left} 42H${right} M${left} 87H${right} M${left} ${bottom}H${right}"/>
-      <path class="elevation-area" d="${area}"/><path class="elevation-line" d="${line}"/>
-      ${coords.map(point => `<circle class="elevation-point" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="3.5" tabindex="0" aria-label="${escapeHtml(point.name)}，海拔 ${Math.round(point.elev)} 米"><title>${escapeHtml(point.name)} · ${Math.round(point.elev)} m${Number.isFinite(point.km) ? ` · ${point.km.toFixed(0)} km` : ''}</title></circle>`).join('')}
-      <text class="elevation-axis" x="${left}" y="153">${escapeHtml(first.name)}</text><text class="elevation-axis" x="${right}" y="153" text-anchor="end">${escapeHtml(last.name)}</text>
-    </svg>
-    <div class="elevation-note"><span>海拔仅显示采样点数据</span><span>${values.length} 个有效点位</span></div>
-  </section>`;
+  const profile = MountainAnalysis.profile(points);
+  if (!profile) return '<section class="elevation-card"><h3>山地地形剖面</h3><p>有效海拔采样不足，暂无法展示剖面；天气分析仍可使用。</p></section>';
+  const firstKm = MountainAnalysis.valid(points[0].cumKm) ? Number(points[0].cumKm) : 0;
+  const lastKm = MountainAnalysis.valid(points[points.length - 1].cumKm) ? Number(points[points.length - 1].cumKm) : firstKm;
+  const span = Math.max(1, lastKm - firstKm), height = Math.max(1, profile.max - profile.min);
+  const coords = points.map((p, i) => MountainAnalysis.valid(p.elev) ? { p, i, x: 34 + (MountainAnalysis.valid(p.cumKm) ? (Number(p.cumKm) - firstKm) / span : i / Math.max(1, points.length - 1)) * 752, y: 132 - (Number(p.elev) - profile.min) / height * 112 } : null);
+  const lines = coords.slice(1).map((c, i) => { const prev = coords[i]; if (!c || !prev) return ''; const color = MountainAnalysis.reasons(c.p).length ? '#e77832' : '#28a879'; return `<line x1="${prev.x}" y1="${prev.y}" x2="${c.x}" y2="${c.y}" stroke="${color}" stroke-width="3" />`; }).join('');
+  const nodes = coords.filter(Boolean).map(c => { const p = c.p; const eta = p.timeLabel || (p.arriveAbs != null ? minToLabel(Math.round(p.arriveAbs * 60)) : '时间未知'); const title = `${p.name || '采样点'} · ${MountainAnalysis.valid(p.cumKm) ? Number(p.cumKm).toFixed(1) + ' km · ' : ''}${Math.round(p.elev)} m · 预计 ${eta} · ${p.weatherText || '天气未知'}`; return `<circle class="elevation-point mountain-point" data-mountain-sample="${c.i}" cx="${c.x}" cy="${c.y}" r="9" tabindex="0" role="button" aria-label="${escapeHtml(title)}"><title>${escapeHtml(title)}</title></circle>`; }).join('');
+  const metric = n => n == null ? '数据不足' : Math.round(n) + ' m';
+  const best = profile.best ? `最大连续爬升约 ${metric(profile.best.gain)}（${escapeHtml(points[profile.best.start].name || '起点')}至${escapeHtml(points[profile.best.end].name || '终点')}）` : '连续爬升数据不足或未发现明显爬升';
+  return `<section class="elevation-card" aria-label="山地地形剖面"><div class="elevation-head"><div><h3>山地地形剖面</h3><p>点击采样点查看地图位置；橙色表示天气条件值得关注</p></div><div class="elevation-range"><span>最高<b>${metric(profile.max)}</b></span><span>最低<b>${metric(profile.min)}</b></span><span>累计爬升<b>${metric(profile.climb)}</b></span><span>累计下降<b>${metric(profile.descent)}</b></span></div></div><svg class="elevation-chart" viewBox="0 0 820 164" role="group" aria-label="按路线里程排列的海拔采样"><path class="elevation-grid" d="M34 42H786 M34 87H786 M34 132H786"/>${lines}${nodes}<text class="elevation-axis" x="34" y="153">${firstKm.toFixed(0)} km</text><text class="elevation-axis" x="786" y="153" text-anchor="end">${lastKm.toFixed(0)} km</text></svg><div class="elevation-note"><span>${best} · ${profile.complete ? '20 m 阈值过滤小幅波动' : '存在缺失点，累计升降不予估算'}</span><span>Open-Meteo 高程采样估算，非实测路面</span></div></section>`;
+}
+
+function mountainRange(points, i) {
+  const p = points[i], km = p && Number(p.cumKm);
+  if (!p || !MountainAnalysis.valid(p.cumKm)) return '里程未知';
+  const before = points[i - 1], after = points[i + 1];
+  const from = before && MountainAnalysis.valid(before.cumKm) ? (Number(before.cumKm) + km) / 2 : km;
+  const to = after && MountainAnalysis.valid(after.cumKm) ? (Number(after.cumKm) + km) / 2 : km;
+  return `${from.toFixed(1)}–${to.toFixed(1)} km`;
+}
+
+function mountainMapListHtml(points) {
+  const rows = (points || []).map((p, i) => ({ p, i, reasons: MountainAnalysis.reasons(p) })).filter(x => x.reasons.length);
+  if (!rows.length) return '<div class="mountain-map-list"><strong>重点关注路段</strong><p>现有数据未触发关注条件，缺失数据未参与判断。</p></div>';
+  return `<div class="mountain-map-list"><strong>重点关注路段 · ${rows.length} 处采样</strong><div>${rows.map(({p,i,reasons}) => `<button type="button" data-mountain-sample="${i}"><b>${escapeHtml(mountainRange(points, i))}</b><span>${escapeHtml(p.timeLabel || (p.arriveAbs != null ? minToLabel(Math.round(p.arriveAbs * 60)) : '时间未知'))} · ${escapeHtml(reasons[0])}</span></button>`).join('')}</div></div>`;
+}
+
+function mountainDiagnosisHtml(points) {
+  const rows = (points || []).map((p, i) => ({p, i, reasons: MountainAnalysis.reasons(p)})).filter(x => x.reasons.length);
+  const profile = MountainAnalysis.profile(points);
+  const terrain = profile && profile.best && profile.best.gain >= MountainAnalysis.RULES.longClimb ? `<p class="mountain-note">连续爬升估计约 ${Math.round(profile.best.gain)} m，建议留意车辆制动与动力表现；稀疏高程采样不能判断实际坡度。</p>` : '';
+  return `<section class="smart-report-section"><div class="smart-section-heading"><div><span>MOUNTAIN WEATHER</span><h3>山地气象关注路段</h3></div></div>${rows.length ? `<div class="mountain-list">${rows.map(({p,i,reasons}) => `<button type="button" class="mountain-row" data-mountain-sample="${i}"><strong>${escapeHtml(p.name || '沿途采样点')} · ${escapeHtml(mountainRange(points, i))}</strong><span>预计 ${escapeHtml(p.timeLabel || (p.arriveAbs != null ? minToLabel(Math.round(p.arriveAbs * 60)) : '时间未知'))} · ${escapeHtml(reasons.join('；'))}</span></button>`).join('')}</div>` : '<p>已返回的数据中暂无触发专项关注阈值的采样点；缺失项目未参与判断。</p>'}<p class="mountain-note">仅依据预计经过时段的天气预报与高程采样提示，不代表道路灾害或结冰监测。</p>${terrain}</section>`;
+}
+
+function mountainOverviewHtml(r) {
+  const profile = MountainAnalysis.profile(r.points);
+  const count = r.points.filter(p => MountainAnalysis.reasons(p).length).length;
+  const distance = r.route && MountainAnalysis.valid(r.route.distanceKm) ? `${Math.round(r.route.distanceKm)} km` : '—';
+  const duration = r.route && MountainAnalysis.valid(r.route.durationMin) ? fmtDuration(r.route.durationMin) : '—';
+  return `<section class="mountain-overview" aria-label="山地行程概览"><span>路线 <b>${escapeHtml(r.points[0]?.name || '起点')} → ${escapeHtml(r.points[r.points.length - 1]?.name || '终点')}</b></span><span>距离 / 用时 <b>${distance} · ${duration}</b></span><span>最高海拔 / 累计爬升 <b>${profile ? Math.round(profile.max) + ' m' : '未知'} / ${profile && profile.climb != null ? Math.round(profile.climb) + ' m' : '未知'}</b></span><span>天气评分 <b>${r.routeScore} 分 · ${escapeHtml((r.level && r.level.text) || levelOf(r.routeScore).text)}</b></span><span>关注采样点 <b>${count} 处</b></span></section>`;
+}
+
+function mountainDepartureComparisonHtml(r) {
+  const rec = recommendationForReport(r);
+  const best = rec ? (r.hourScores || []).find(row => row.valid && row.date === rec.date && row.hour === rec.hour) : null;
+  if (!best || !best.mountain) return '<p class="mountain-note">完整候选时段不足，暂无法比较山地气象条件。</p>';
+  const current = MountainAnalysis.conditions(r.points), target = best.mountain, differences = [];
+  function compare(a, b, unit, name, precision) {
+    if (!MountainAnalysis.valid(a) || !MountainAnalysis.valid(b) || Math.abs(b - a) < (precision ? 0.5 : 1)) return;
+    differences.push(`${name}${b > a ? '高' : '低'} ${Math.abs(b-a).toFixed(precision)} ${unit}`);
+  }
+  compare(current.highMinTemp, target.highMinTemp, '℃', '高海拔最低气温', 0);
+  compare(current.maxRain, target.maxRain, 'mm/h', '最大降水', 1);
+  compare(current.maxGust, target.maxGust, 'km/h', '最大阵风', 0);
+  compare(current.minVisibility, target.minVisibility, 'm', '最低能见度', 0);
+  const label = `${best.date || r.date} ${String(best.hour).padStart(2, '0')}:00`;
+  return `<p class="mountain-note">比较按现有全程评分选出的 ${escapeHtml(label)}：${differences.length ? escapeHtml(differences.join('；')) : '已返回的沿途气象指标变化不明显或部分指标缺失'}。各项按该方案预计经过时刻取预报；推荐依据现有路线天气评分，并非道路安全保证。</p>`;
+}
+
+function bindMountainAnalysis() {
+  document.querySelectorAll('[data-mountain-sample]').forEach(el => {
+    const open = () => { const i = Number(el.dataset.mountainSample); activateReportScreen('routeAnalysis', true); setTimeout(() => MapCtl.focusMountainSample(i), 100); };
+    el.addEventListener('click', open);
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+  });
 }
 
 function reportScreenHeader(eyebrow, title, subtitle, trailing = '') {
@@ -2212,6 +2248,7 @@ function renderNavReport(r, stale) {
       </div>
       <div class="map-hint">路线颜色表示该里程区间的天气影响；点击路线或采样点查看详情。</div>
     </div>
+    ${mountainMapListHtml(r.points)}
     ${routeMapConsoleHtml({ routeName, date: r.date, mode: `${modeText(r.travelMode)} · 导航`, distance: r.route.distanceKm, duration: r.route.durationMin, points: r.points, stale, note: r.route.approx ? `路网时长按 ${r.route.speedKmh} km/h 估算。` : '颜色表示天气影响程度。', navLinks: routeNavLinksHtml(r) })}
     </section>
 
@@ -2219,11 +2256,14 @@ function renderNavReport(r, stale) {
       ${reportScreenHeader('WEATHER OVERVIEW', '天气总览与行程建议', `${escapeHtml(routeName)} · ${r.date}`, '<button class="report-favorite" id="btnReportFavoriteOverview" type="button" aria-pressed="false">♡ <span>收藏行程</span></button>')}
       <div class="smart-report-content">
         ${weatherLead}
+        ${mountainOverviewHtml(r)}
         <div class="smart-report-facts"><div><small>路网距离</small><strong>${r.route.distanceKm.toFixed(0)} <i>km</i></strong></div><div><small>预计用时</small><strong>${fmtDuration(r.route.durationMin)}</strong></div><div><small>出发 / 抵达</small><strong>${minToHM(Math.round(r.departureHour * 60))} <i>→</i> ${arriveClock}</strong></div></div>
         <section class="smart-report-section travel-advice-section"><div class="smart-section-heading"><div><span>TRAVEL ADVICE</span><h3>出行建议</h3></div><button type="button" data-report-target="weatherDetails">查看沿途天气 <b>↗</b></button></div><div class="smart-note-timeline">${renderNavAdviceHtml(r)}</div></section>
+        ${mountainDiagnosisHtml(r.points)}
+        ${elevationProfileHtml(r.points)}
+        <section class="smart-report-section smart-departure-section"><div class="smart-section-heading"><div><span>DEPARTURE WINDOW</span><h3>出发时段</h3></div></div><div class="departure-intro"><div class="departure-rec-card"><small>近期推荐出发</small><button class="smart-departure-time" id="btnUseSmartRec" type="button" ${rec ? '' : 'disabled'}>${rec ? `<strong>${minToHM(rec.hour * 60)} 出发</strong><small>点击切换</small>` : '<strong>暂无可用时段</strong>'}<p>${r.recommendedMin != null ? `路线最低点位评分 ${Math.round(r.recommendedMin)} 分 · ${modeText(r.travelMode)}` : '当前预报范围内没有完整可用的出发时段'}</p></div><div class="departure-current-card"><small>当前选择 · ${escapeHtml(r.date)}</small><strong>${minToHM(Math.round(r.departureHour * 60))}</strong><span>预计 ${arriveClock} 抵达 · 路网 ${Math.round(r.route.distanceKm)} km</span>${state.departOriginal != null && Math.abs(r.departureHour - state.departOriginal) > 0.01 ? `<button class="smart-restore-time" id="btnRestoreNavDeparture" type="button">恢复原时间 ${minToHM(Math.round(state.departOriginal * 60))}</button>` : ''}</div></div>${mountainDepartureComparisonHtml(r)}<div class="departure-grid-card"><div class="weather-timeline-head"><strong>72 小时出发时段</strong><span>颜色表示全程天气影响参考</span></div><div id="navHours">${renderNavHours(r)}</div></div></section>
         ${recommendationSectionHtml(r)}
         ${energyPlanHtml(r)}
-        <section class="smart-report-section smart-departure-section"><div class="smart-section-heading"><div><span>DEPARTURE WINDOW</span><h3>出发时段</h3></div></div><div class="departure-intro"><div class="departure-rec-card"><small>近期推荐出发</small><button class="smart-departure-time" id="btnUseSmartRec" type="button" ${rec ? '' : 'disabled'}>${rec ? `<strong>${minToHM(rec.hour * 60)} 出发</strong><small>点击切换</small>` : '<strong>暂无可用时段</strong>'}<p>${r.recommendedMin != null ? `路线最低点位评分 ${Math.round(r.recommendedMin)} 分 · ${modeText(r.travelMode)}` : '当前预报范围内没有完整可用的出发时段'}</p></div><div class="departure-current-card"><small>当前选择 · ${escapeHtml(r.date)}</small><strong>${minToHM(Math.round(r.departureHour * 60))}</strong><span>预计 ${arriveClock} 抵达 · 路网 ${Math.round(r.route.distanceKm)} km</span>${state.departOriginal != null && Math.abs(r.departureHour - state.departOriginal) > 0.01 ? `<button class="smart-restore-time" id="btnRestoreNavDeparture" type="button">恢复原时间 ${minToHM(Math.round(state.departOriginal * 60))}</button>` : ''}</div></div><div class="departure-grid-card"><div class="weather-timeline-head"><strong>72 小时出发时段</strong><span>颜色表示全程天气影响参考</span></div><div id="navHours">${renderNavHours(r)}</div></div></section>
         ${gearSectionHtml(r)}
         <div class="smart-report-actions">${shareBarHtml()}</div>
         <details class="smart-data-details"><summary>数据来源与使用边界</summary><div class="smart-data-body"><p>天气按沿途等距采样点展示；采样点之间不逐点显示。</p><p>到达时刻按平均速度估算，未考虑堵车、休息、封路。</p><p>天气与到达时间用于行程安排；出行安全以官方预警和现场判断为准。</p><p>天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（CC BY 4.0）</p><p>路径规划：${routeProvider}（路网数据 © OpenStreetMap contributors）</p><p>沿途推荐地点：<a href="https://www.tianditu.gov.cn/" target="_blank" rel="noopener">天地图</a> POI 搜索（可选高德地图 Web 服务 Key）；质量排序参考品牌/口碑关键词与 OTA 人工精选，可跳转大众点评、去哪儿、高德复核。</p><p>穿衣、户外防护与含氧量：按 Open-Meteo 体感温度/风速/降水/紫外线与 SRTM 海拔估算，含氧量为空气氧分压相对海平面的比例，不等同于血氧饱和度。</p><p>更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</p></div></details>
@@ -2273,6 +2313,7 @@ function renderNavReport(r, stale) {
 
   bindReportNav();
   bindReportFavorite();
+  bindMountainAnalysis();
   $$('.route-option[data-route-option]').forEach(button => {
     button.addEventListener('click', () => switchNavRoute(Number(button.dataset.routeOption)));
   });
@@ -2724,7 +2765,7 @@ function renderReport(r, stale) {
   const totalMin = r.points.length > 1 ? (r.points[r.points.length - 1].minute - r.points[0].minute) : 0;
   const legRows = r.points.map((p, i) => ({ p, i }));   // 关键点位 + 沿途采样，按行程顺序
   const riskCandidates = r.points.map((p, i) => ({ p, i }))
-    .filter(x => x.p.score != null && Number.isFinite(Number(x.p.score)) && x.p.weatherText && x.p.kind === 'leg')
+    .filter(x => x.p.score != null && Number.isFinite(Number(x.p.score)) && Number(x.p.score) < 80 && x.p.weatherText && x.p.kind === 'leg')
     .sort((a, b) => Number(a.p.score) - Number(b.p.score));
   const usedRiskSections = new Set();
   const riskRows = riskCandidates.filter(({ p }) => {
@@ -2733,11 +2774,7 @@ function renderReport(r, stale) {
     usedRiskSections.add(key);
     return true;
   }).slice(0, 3);
-  if (!riskRows.length) {
-    riskRows.push(...r.points.map((p, i) => ({ p, i }))
-      .filter(x => x.p.score != null && Number.isFinite(Number(x.p.score)) && x.p.weatherText)
-      .sort((a, b) => Number(a.p.score) - Number(b.p.score)).slice(0, 3));
-  }
+
 
   const dz = r.diagnosis || { items: [], blockCount: 0, warnCount: 0, summary: 'ok' };
   const dzText = dz.summary === 'block' ? `发现 ${dz.blockCount} 处需要调整`
@@ -2769,6 +2806,7 @@ function renderReport(r, stale) {
       </div>
       <div class="map-hint">彩色路线表示各路段天气影响；点击路线段或采样点可查看依据，点“查看天气点位”可浏览全程详情。</div>
     </div>
+    ${mountainMapListHtml(r.points)}
     ${routeMapConsoleHtml({ routeName, date: r.date, mode: modeText(r.travelMode), distance: totalKm, duration: r.route ? r.route.durationMin : totalMin, points: r.points, stale, note: r.route && r.route.approx ? `路网时长按 ${r.route.speedKmh} km/h 估算。` : '颜色表示沿途天气影响。', navLinks: routeNavLinksHtml(r) })}
     </section>
 
@@ -2776,17 +2814,16 @@ function renderReport(r, stale) {
       ${reportScreenHeader('SMART JOURNEY REPORT', '智能行程报告', `${escapeHtml(routeName)} · ${r.date} · ${modeText(r.travelMode)}`, '<button class="report-favorite" id="btnReportFavoriteOverview" type="button" aria-pressed="false">♡ <span>收藏行程</span></button>')}
       <div class="smart-report-content">
         ${decisionLead}
-        <div class="smart-recommendation-spotlight"><div class="recommendation-clock">◷</div><div><span>推荐出发时间</span><strong>${rec ? `${escapeHtml(rec.date.slice(5).replace('-', '/'))} · ${pad(rec.hour)}:00` : '暂无可用推荐时段'}</strong><small>${rec ? `整段天气评分 ${rec.score} 分 · ${same ? '当前时刻已是推荐时段' : '根据沿途天气窗口计算'}` : '可调整日期或路线后重新评估'}</small></div><i>✦</i></div>
-        <section class="smart-report-section"><div class="smart-section-heading"><div><span>WEATHER RISKS</span><h3>重点风险提示</h3></div><button type="button" data-report-target="weatherDetails">查看沿途天气 <b>↗</b></button></div>
-          <div class="diagnosis-board smart-diagnosis-board"><div class="diagnosis-board-head"><span>SMART TRIP CHECK</span><strong>${escapeHtml(dzText)}</strong><p>${escapeHtml(dzNote)}</p></div><div class="diagnosis-list">${dz.items.length ? dz.items.slice(0, 3).map(renderDx).join('') : '<div class="diagnosis-clear"><span>✓</span><b>当前没有需要调整的诊断项</b></div>'}</div></div>
-        </section>
+        ${mountainOverviewHtml(r)}
+        ${dz.items.some(item => item.severity !== 'ok') ? `<section class="smart-report-section"><div class="smart-section-heading"><div><span>TRIP CHECK</span><h3>行程注意事项</h3></div></div><div class="diagnosis-list">${dz.items.map((item, index) => item.severity !== 'ok' ? renderDx(item, index) : '').join('')}</div></section>` : ''}
         <section class="smart-report-section smart-route-risk"><div class="smart-section-heading"><div><span>ROUTE WATCH · TOP 3</span><h3>沿途重点路段</h3></div><button type="button" data-report-target="weatherDetails">查看全部点位 <b>↗</b></button></div>
-          <div class="smart-segment-timeline">${riskRows.length ? riskRows.map(({ p, i }, rank) => { const segmentLevel = levelOf(Number(p.score)); return `<button class="smart-segment-row ${segmentLevel.key}" type="button" data-risk-sample="${i}"><span class="segment-rank">0${rank + 1}</span><span class="segment-copy"><strong>${escapeHtml(p.name || `沿线采样点 ${rank + 1}`)}</strong><small>${Number.isFinite(Number(p.cumKm)) ? `${Number(p.cumKm).toFixed(0)} km · ` : ''}${escapeHtml(p.weatherText || wmoText(p.code))}${p.elev != null ? ` · ${Math.round(p.elev)} m` : ''}</small></span><span class="segment-score">${Math.round(Number(p.score))}<small>分</small></span><span class="segment-arrow">↗</span></button>`; }).join('') : '<p class="smart-empty-note">暂无沿途评分数据。</p>'}</div>
+          <div class="smart-segment-timeline">${riskRows.length ? riskRows.map(({ p, i }, rank) => { const segmentLevel = levelOf(Number(p.score)); return `<button class="smart-segment-row ${segmentLevel.key}" type="button" data-risk-sample="${i}"><span class="segment-rank">0${rank + 1}</span><span class="segment-copy"><strong>${escapeHtml(p.name || `沿线采样点 ${rank + 1}`)}</strong><small>${Number.isFinite(Number(p.cumKm)) ? `${Number(p.cumKm).toFixed(0)} km · ` : ''}${escapeHtml(p.weatherText || wmoText(p.code))}${p.elev != null ? ` · ${Math.round(p.elev)} m` : ''}</small></span><span class="segment-score">${Math.round(Number(p.score))}<small>分</small></span><span class="segment-arrow">↗</span></button>`; }).join('') : '<p class="smart-empty-note">当前没有评分低于 80 分的沿途采样点。</p>'}</div>
         </section>
+        ${mountainDiagnosisHtml(r.points)}
+        ${elevationProfileHtml(r.points)}
+        <section class="smart-report-section smart-departure-section"><div class="smart-section-heading"><div><span>DEPARTURE WINDOW</span><h3>出发时段</h3></div></div><div class="departure-intro"><div class="departure-rec-card"><small>当前预报窗口内推荐</small><button class="smart-departure-time" id="btnUseSmartRec" type="button" ${rec ? '' : 'disabled'}>${rec ? `<strong>${escapeHtml(rec.date.slice(5).replace('-', '/'))} ${pad(rec.hour)}:00</strong><small>点击切换</small>` : '<strong>暂无可用时段</strong>'}<p>${rec ? `整条路线天气评分 ${rec.score} 分 · ${departureChangeText(currentDepartureMinute(r), rec.hour * 60) || '保持当前安排'}` : '可尝试调整日期或路线后重新分析'}</p></div><div class="departure-current-card"><small>当前行程安排</small><strong>${minToHM(Math.round((currentDepartureMinute(r) || 0)))}</strong><span>路线天气评分 ${r.routeScore} 分 · ${fmtDuration(totalMin)} 预计用时</span></div></div>${mountainDepartureComparisonHtml(r)}<div class="departure-grid-card"><div class="weather-timeline-head"><strong>未来出发时段</strong><span>点击时段即可重新检查</span></div><div id="planHours">${renderNavHours(r)}</div>${planTimeChanged ? `<div class="restore-plan"><button class="btn btn-ghost" id="btnRestorePlan" type="button">恢复原时间</button></div>` : ''}</div></section>
         ${recommendationSectionHtml(r)}
         ${energyPlanHtml(r)}
-        ${elevationProfileHtml(r.points)}
-        <section class="smart-report-section smart-departure-section"><div class="smart-section-heading"><div><span>DEPARTURE WINDOW</span><h3>出发时段</h3></div></div><div class="departure-intro"><div class="departure-rec-card"><small>当前预报窗口内推荐</small><button class="smart-departure-time" id="btnUseSmartRec" type="button" ${rec ? '' : 'disabled'}>${rec ? `<strong>${escapeHtml(rec.date.slice(5).replace('-', '/'))} ${pad(rec.hour)}:00</strong><small>点击切换</small>` : '<strong>暂无可用时段</strong>'}<p>${rec ? `整条路线天气评分 ${rec.score} 分 · ${departureChangeText(currentDepartureMinute(r), rec.hour * 60) || '保持当前安排'}` : '可尝试调整日期或路线后重新分析'}</p></div><div class="departure-current-card"><small>当前行程安排</small><strong>${minToHM(Math.round((currentDepartureMinute(r) || 0)))}</strong><span>路线天气评分 ${r.routeScore} 分 · ${fmtDuration(totalMin)} 预计用时</span></div></div><div class="departure-grid-card"><div class="weather-timeline-head"><strong>未来出发时段</strong><span>点击时段即可重新检查</span></div><div id="planHours">${renderNavHours(r)}</div>${planTimeChanged ? `<div class="restore-plan"><button class="btn btn-ghost" id="btnRestorePlan" type="button">恢复原时间</button></div>` : ''}</div></section>
         ${gearSectionHtml(r)}
         <div class="smart-report-actions">${shareBarHtml()}</div>
         <details class="smart-data-details"><summary>数据来源与使用边界</summary><div class="smart-data-body"><p>沿途按约 8 km 采样，共 ${r.points.length} 处；采样点之间不逐米评估。规划路径按所选出行方式的真实路网展开，并在关键点位时间之间分配沿途到达时刻。</p><p>到达时刻按平均速度估算，未考虑堵车、休息、封路。</p><p>评分用于比较天气影响；出行安全以官方预警和现场判断为准。</p><p>天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>（CC BY 4.0）</p><p>评分与行程结论由本产品计算生成。</p><p>沿途推荐地点：<a href="https://www.tianditu.gov.cn/" target="_blank" rel="noopener">天地图</a> POI 搜索（可选高德地图 Web 服务 Key）；质量排序参考品牌/口碑关键词与 OTA 人工精选，可跳转大众点评、去哪儿、高德复核。</p><p>穿衣、户外防护与含氧量：按 Open-Meteo 体感温度/风速/降水/紫外线与 SRTM 海拔估算，含氧量为空气氧分压相对海平面的比例，不等同于血氧饱和度。</p><p>更新时间：${r.fetchedAt ? new Date(r.fetchedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}</p><p>预报数据缓存 1 小时。</p></div></details>
@@ -2829,6 +2866,7 @@ function renderReport(r, stale) {
 
   bindReportNav();
   bindReportFavorite();
+  bindMountainAnalysis();
   if (state.reportTab !== 'routeAnalysis') activateReportScreen(state.reportTab, false);
 
   // 诊断条目：点击弹出具体措施
