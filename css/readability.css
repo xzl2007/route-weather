@@ -1068,6 +1068,58 @@ body.home-active #view-home { margin-top: 0 !important; }
   #weatherDetails .leg-list:not(.nav-leg-list) .lr-impact { font-size: 11.5px; }
 }
 
+/* Mobile: make trip cautions and home-page supporting text easier to scan. */
+@media (max-width: 760px) {
+  #smartReport .diagnosis-list .dx-item {
+    padding: 14px 58px 15px 16px !important;
+  }
+  #smartReport .diagnosis-list .dx-t {
+    font-size: 15px !important;
+    line-height: 1.5;
+  }
+  #smartReport .diagnosis-list .dx-l {
+    font-size: 13px !important;
+    line-height: 1.65;
+  }
+  #smartReport .diagnosis-list .dx-hint {
+    min-height: 36px;
+    padding: 7px 11px;
+    font-size: 13px !important;
+    line-height: 1.4;
+  }
+
+  #view-home .home-hint {
+    color: #536e84 !important;
+    font-size: 13px !important;
+    line-height: 1.55;
+  }
+  #view-home .home-demo-link {
+    font-size: 13px !important;
+    line-height: 1.5;
+  }
+  #view-home .hero-route-metrics { gap: 6px; }
+  #view-home .hero-route-metrics > span {
+    grid-template-columns: 19px minmax(0, 1fr);
+    column-gap: 5px;
+    min-width: 0;
+  }
+  #view-home .hero-route-metrics b {
+    font-size: 12.5px !important;
+    line-height: 1.35;
+  }
+  #view-home .hero-route-metrics small {
+    color: #6b8294;
+    font-size: 11.5px !important;
+    line-height: 1.4;
+  }
+}
+
+@media (max-width: 380px) {
+  #view-home .hero-route-metrics { gap: 4px; }
+  #view-home .hero-route-metrics b { font-size: 12px !important; }
+  #view-home .hero-route-metrics small { font-size: 11px !important; }
+}
+
 /* Larger, touch-ready typography and visible waypoint sorting on phones. */
 @media (max-width: 760px) {
   #view-create .planning-heading h1 { font-size: 19px !important; line-height: 1.35; }
