@@ -546,9 +546,10 @@ function renderPointList() {
         + (dayOff > 0 ? `<span class="pt-day">+${dayOff}天</span>` : '')
       : `<span class="pt-coord">${p.lat.toFixed(2)}, ${p.lon.toFixed(2)}</span>`;
     return `
-      <div class="pt-row" data-i="${i}">
-        <span class="pt-drag" data-i="${i}" role="button" tabindex="0"
-              aria-label="拖动调整顺序" title="拖动调整顺序">⋮⋮</span>
+      <div class="pt-row ${plan ? 'has-time' : 'has-coords'}" data-i="${i}">
+        <button class="pt-drag" type="button" data-i="${i}" aria-roledescription="可排序点位"
+              aria-label="拖动调整 ${escapeHtml(p.name)} 的顺序；也可用上下方向键移动"
+              title="按住拖动；按 ↑ / ↓ 调整顺序">⋮⋮</button>
         <span class="pt-role ${roleCls}" aria-label="${role}">${role === '起点' ? '起' : role === '终点' ? '终' : '途'}</span>
         <span class="pt-name">${escapeHtml(p.name)}</span>
         ${tail}
@@ -680,6 +681,31 @@ function renderLegs() {
   el.innerHTML = html;
 }
 
+function reorderPlannerPoint(from, to) {
+  if (!Number.isInteger(from) || !Number.isInteger(to)
+    || from < 0 || to < 0 || from >= state.points.length || to >= state.points.length || from === to) return false;
+
+  ensureTimes();
+  const departure = state.times[0];
+  const [point] = state.points.splice(from, 1);
+  state.points.splice(to, 0, point);
+  const [time] = state.times.splice(from, 1);
+  state.times.splice(to, 0, time);
+
+  // Departure belongs to the first route position; keep it fixed, then repair
+  // only arrivals that are now earlier than the previous leg can support.
+  if (state.times.length) state.times[0] = departure;
+  for (let i = 1; i < state.points.length; i++) {
+    const travelMin = Math.max(5, Math.round(legInfo(state.points[i - 1], state.points[i]).minutes));
+    const earliest = state.times[i - 1] + travelMin;
+    if (state.times[i] < earliest) state.times[i] = earliest;
+  }
+  state.planOriginalTimes = null;
+  renderPointList();
+  toast(`已把「${point.name}」移到第 ${to + 1} 位`);
+  return true;
+}
+
 /**
  * 点位拖拽排序
  * 用 Pointer Events，桌面与触屏同一套逻辑；只在「⋮⋮」把手上触发，
@@ -698,6 +724,15 @@ function bindDragReorder(container) {
   };
 
   container.querySelectorAll('.pt-drag').forEach(handle => {
+    handle.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+      event.preventDefault();
+      const from = Number(handle.dataset.i);
+      const to = from + (event.key === 'ArrowUp' ? -1 : 1);
+      if (reorderPlannerPoint(from, to)) {
+        document.querySelector(`#pointList .pt-drag[data-i="${to}"]`)?.focus();
+      }
+    });
     handle.addEventListener('pointerdown', (e) => {
       if (state.points.length < 2) return;
       e.preventDefault();
@@ -745,15 +780,7 @@ function bindDragReorder(container) {
       clearMarks();
 
       if (!wasDragging || from === to || to < 0) return;
-
-      const [moved] = state.points.splice(from, 1);
-      state.points.splice(to, 0, moved);
-      if (state.times.length > from) {
-        const [mt] = state.times.splice(from, 1);
-        state.times.splice(to, 0, mt);
-      }
-      renderPointList();
-      toast(`已把「${moved.name}」移到第 ${to + 1} 位`);
+      reorderPlannerPoint(from, to);
     };
 
     handle.addEventListener('pointerup', finish);

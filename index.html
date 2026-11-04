@@ -9,11 +9,11 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="css/style.css?v=15">
+<link rel="stylesheet" href="css/style.css?v=16">
 <link rel="stylesheet" href="css/redesign.css?v=1">
 <link rel="stylesheet" href="css/product-ui.css?v=4">
 <link rel="stylesheet" href="css/immersive-ui.css?v=38">
-<link rel="stylesheet" href="css/readability.css?v=18">
+<link rel="stylesheet" href="css/readability.css?v=19">
 <link rel="icon" href="icons/routeweather.svg" type="image/svg+xml">
 <script>
 /* 早期错误捕获：把 JS 错误显示在页面上，避免"白屏无提示" */
@@ -194,7 +194,7 @@ window.addEventListener('error', function (e) {
       </div>
 
     <div class="field" id="fieldPoints">
-      <label>行程点位与时刻 <span class="small">（起点为出发，途经点与终点为到达）</span></label>
+      <label>行程点位与时刻 <span class="small">（起点为出发，其余为到达 · 按住左侧手柄拖动排序）</span></label>
       <div id="pointList"></div>
       <div id="planLegs" class="plan-legs"></div>
       <div class="row-btns">
@@ -308,6 +308,6 @@ window.addEventListener('error', function (e) {
 <script src="js/poi.js?v=7"></script>
 <script src="js/map.js?v=35"></script>
 <script src="js/mountain.js?v=1"></script>
-<script src="js/app.js?v=65"></script>
+<script src="js/app.js?v=66"></script>
 </body>
 </html>

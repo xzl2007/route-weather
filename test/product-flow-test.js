@@ -190,5 +190,54 @@ async function main() {
     await report._poiRequest;
     console.log('PASS: switching route options is immediate even while place recommendations are loading');
   }
+  {
+    const { context, state } = app();
+    const classList = () => {
+      const values = new Set();
+      return {
+        add: (...names) => names.forEach(name => values.add(name)),
+        remove: (...names) => names.forEach(name => values.delete(name)),
+        toggle(name, force) {
+          const shouldAdd = force == null ? !values.has(name) : force;
+          if (shouldAdd) values.add(name); else values.delete(name);
+          return shouldAdd;
+        },
+      };
+    };
+    const listeners = {};
+    const handle = {
+      dataset: { i: '1' },
+      addEventListener(name, callback) { listeners[name] = callback; },
+      setPointerCapture() {}, releasePointerCapture() {},
+    };
+    const rows = [0, 1, 2].map(index => ({
+      classList: classList(),
+      getBoundingClientRect: () => ({ top: index * 50, height: 50 }),
+    }));
+    const container = { querySelectorAll: selector => selector === '.pt-drag' ? [handle] : rows };
+    context.document.body = { classList: classList() };
+    state.points = [
+      { name: '起点', lat: 30, lon: 103 },
+      { name: '途经甲', lat: 30.1, lon: 103.1 },
+      { name: '途经乙', lat: 30.2, lon: 103.2 },
+    ];
+    state.times = [480, 610, 900];
+    state.mode = 'drive';
+    context.renderPointList = () => {};
+    context.toast = () => {};
+    context.bindDragReorder(container);
+    listeners.pointerdown({ pointerId: 1, clientY: 75, preventDefault() {} });
+    listeners.pointermove({ pointerId: 1, clientY: 140 });
+    listeners.pointerup({ pointerId: 1 });
+    assert.deepEqual(state.points.map(point => point.name), ['起点', '途经乙', '途经甲']);
+    assert.equal(state.times[0], 480, 'the first route position keeps the departure time');
+    assert(state.times[2] >= state.times[1], 'reordered arrival times remain chronological');
+    assert.equal(state.planOriginalTimes, null, 'reordering invalidates stale timing comparisons');
+    let prevented = false;
+    listeners.keydown({ key: 'ArrowDown', preventDefault() { prevented = true; } });
+    assert(prevented);
+    assert.deepEqual(state.points.map(point => point.name), ['起点', '途经甲', '途经乙']);
+    console.log('PASS: pointer and keyboard reorder waypoints while preserving a valid route schedule');
+  }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

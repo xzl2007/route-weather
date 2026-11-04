@@ -625,8 +625,9 @@ body.large-text .ht-col { flex-basis: 48px; }
   flex-shrink: 0;
   width: 20px; height: 26px;
   display: flex; align-items: center; justify-content: center;
+  border: 0; padding: 0; background: transparent;
   color: var(--ink-3);
-  font-size: 15px; line-height: 1;
+  font-family: inherit; font-size: 15px; font-weight: 700; line-height: 1;
   cursor: grab;
   border-radius: 6px;
   /* 只在这里接管手势，不影响页面滚动 */
@@ -635,6 +636,7 @@ body.large-text .ht-col { flex-basis: 48px; }
   -webkit-user-select: none;
   transition: background .15s ease, color .15s ease;
 }
+.pt-drag:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .pt-drag:hover { background: var(--field); color: var(--brand); }
 .pt-drag:active { cursor: grabbing; background: var(--brand-soft); color: var(--brand); }
 
