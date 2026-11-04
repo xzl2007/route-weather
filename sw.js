@@ -1,7 +1,7 @@
 /* RouteWeather 山途智行 · Service Worker
  * 只缓存本站外壳，不缓存天气/路径/POI 接口与地图瓦片。
  */
-const CACHE = 'rwc-shell-v96';
+const CACHE = 'rwc-shell-v97';
 
 const ASSETS = [
   './',

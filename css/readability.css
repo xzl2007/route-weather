@@ -625,3 +625,57 @@ body.map-fullscreen #routeAnalysis .leaflet-control-attribution {
   #view-create .planner-sheet > .hint { font-size: 11px; line-height: 1.6; }
   #view-create .map-btn { font-size: 13px; }
 }
+
+/* The home brand bar belongs to document flow and scrolls away with the page. */
+body.home-active .topbar {
+  position: relative !important; inset: auto !important; top: auto !important;
+  margin: 0 !important; width: 100% !important; transform: none !important;
+  box-sizing: border-box;
+}
+body.home-active #view-home { margin-top: 0 !important; }
+
+/* Report typography: readable captions and a restrained numerical hierarchy. */
+#view-report .report-local-nav button { font-size: 14px !important; }
+#view-report .report-local-nav .tab-count { font-size: 11px; }
+#view-report .map-console-kicker { font-size: 11px; }
+#view-report .map-console-route strong { font-size: 17px; }
+#view-report .map-console-date { font-size: 12px; }
+#view-report .map-console-metrics small { font-size: 12px; }
+#view-report .map-console-metrics strong { font-size: 24px; }
+#view-report .map-console-metrics strong i { font-size: 12px; }
+#view-report .map-impact-legend, #view-report .map-console-note { font-size: 11px; line-height: 1.6; }
+#view-report .route-nav-links { font-size: 13px; }
+#smartReport .decision-copy, #smartReport .smart-note-timeline, #smartReport .smart-data-body { font-size: 14px; line-height: 1.75; }
+#smartReport .smart-section-heading h3 { font-size: 20px; }
+#smartReport .weather-timeline-head { font-size: 13px; flex-wrap: wrap; gap: 6px; }
+#smartReport .rec-hour { flex: 0 0 64px; min-width: 64px; }
+#smartReport .rh-hour { font-size: 14px; }
+#smartReport .rh-idx { font-size: 17px; }
+#smartReport .rh-temp { font-size: 12px; }
+#smartReport .rh-icon { font-size: 19px; }
+#smartReport .rec-date { font-size: 13px; }
+#view-report .forecast-basis { margin: 8px 0 16px; padding: 12px 15px; border-left: 3px solid #75b6dc; border-radius: 4px 12px 12px 4px; background: #edf6fb; color: #48677e; font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+#view-report .forecast-basis strong { color: #225777; }
+#weatherDetails .pc-name { font-size: 16px; }
+#weatherDetails .pc-meta, #weatherDetails .ht-legend { font-size: 12px; line-height: 1.6; }
+#weatherDetails .ht-col { flex: 0 0 60px; min-width: 60px; }
+#weatherDetails .ht-hour, #weatherDetails .ht-wx, #weatherDetails .ht-wind { font-size: 12px; }
+#weatherDetails .ht-temp { font-size: 15px; }
+#view-report .route-map-console { max-height: calc(100dvh - 180px); overflow-y: auto; }
+@media (max-width: 760px) {
+  #view-report .report-local-nav { max-width: calc(100vw - 16px); }
+  #view-report .report-local-nav button { font-size: 12px !important; padding-inline: 11px; }
+  #view-report .map-console-route strong { font-size: 15px; }
+  #view-report .map-console-kicker, #view-report .map-console-date { font-size: 11px; }
+  #view-report .map-console-metrics strong { font-size: 21px; }
+  #view-report .map-console-metrics small, #view-report .map-impact-legend { font-size: 11px; }
+  #view-report .route-map-console-foot { flex-wrap: wrap; gap: 10px; }
+  #view-report .map-impact-legend { justify-content: flex-start; }
+  #view-report .route-map-console { max-height: 46dvh; }
+  #view-report .forecast-basis { font-size: 12px; padding: 10px 12px; }
+  #smartReport .smart-section-heading h3 { font-size: 18px; }
+  #smartReport .decision-copy, #smartReport .smart-data-body { font-size: 13px; }
+  #smartReport .rec-hour { flex-basis: 58px; min-width: 58px; }
+  #weatherDetails .ht-col { flex-basis: 56px; min-width: 56px; }
+  #weatherDetails .pc-meta, #weatherDetails .ht-legend { overflow-wrap: anywhere; }
+}

@@ -2396,7 +2396,8 @@ function renderNavHours(r) {
     return '';
   };
 
-  return groups.map(g => {
+  const basis = '<p class="forecast-basis"><strong>这里比较的是出发时间。</strong>每格时刻为出发时刻；图标和气温为起点在该时刻的天气；数字与底色为从该时刻出发、按沿途预计到达时间计算的全程天气评分。全部时刻均为北京时间。</p>';
+  return basis + groups.map(g => {
     const tag = tagOf(g.date);
     return `
     <div class="rec-day">
@@ -3090,7 +3091,7 @@ function renderHourlyStrip(p, i, selHour, weatherOnly) {
             <div class="hs-pp">${h.pp != null ? Math.round(h.pp) + '%' : '—'}</div>
           </div>`).join('')}
       </div>
-      <div class="ht-legend">${weatherOnly ? '时刻 / 天气 / 气温 / 降水概率（点击任意小时可切换查看）' : '行程日逐小时：时刻 / 天气 / 气温 / 降水概率；底色表示该小时适宜度（点击任意小时可切换查看）'}</div>
+      <div class="ht-legend">该地点的逐小时天气（北京时间）。默认选中预计到达时刻；点击其他小时仅查看该地点当时的天气，不会修改行程。</div>
     </div>`;
 }
 
@@ -3107,7 +3108,7 @@ function renderHourly(p, i, selHour) {
             <div class="ht-wind">${h.wind != null ? Math.round(h.wind) + 'km/h' : '—'}</div>
           </div>`).join('')}
       </div>
-      <div class="ht-legend">时刻 / 天气 / 气温 / 降水概率 / 风速</div>
+      <div class="ht-legend">该地点的逐小时天气（北京时间）：时刻 / 天气 / 气温 / 降水概率 / 风速。默认选中预计到达时刻；手动选择后显示所选小时的天气。</div>
     </div>`;
 }
 
