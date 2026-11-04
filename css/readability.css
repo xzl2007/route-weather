@@ -877,6 +877,197 @@ body.home-active #view-home { margin-top: 0 !important; }
 #smartReport .elevation-range { font-size: 13px; }
 #smartReport .elevation-range b { font-size: 15px; }
 
+/* Mobile report polish: clearer actions, advice and an at-a-glance weather timeline. */
+@media (max-width: 760px) {
+  #smartReport .smart-report-actions .share-bar {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+  #smartReport .smart-report-actions .share-bar .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    min-height: 52px;
+    padding: 8px 6px;
+    border: 1px solid #dce8ef !important;
+    border-radius: 14px !important;
+    background: linear-gradient(145deg, #fff, #f5f9fc) !important;
+    color: #285574 !important;
+    font-size: 13px !important;
+    font-weight: 700;
+    line-height: 1.4;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  #smartReport .smart-note-row {
+    grid-template-columns: 32px 30px minmax(0, 1fr);
+    align-items: start;
+    gap: 9px;
+    min-height: 72px;
+    padding: 13px 12px;
+    border-radius: 16px 8px 16px 8px;
+  }
+  #smartReport .smart-note-index,
+  #smartReport .smart-note-icon { width: 30px; height: 30px; }
+  #smartReport .smart-note-index { font-size: 11px; }
+  #smartReport .smart-note-copy strong { font-size: 15px; line-height: 1.5; }
+  #smartReport .smart-note-copy small { margin-top: 4px; font-size: 13px; line-height: 1.6; }
+
+  #weatherDetails .weather-timeline-card {
+    padding: 14px;
+    border: 1px solid #e1eaf0;
+    border-radius: 22px 10px 22px 10px;
+    background: linear-gradient(155deg, #fff, #f7fafc);
+  }
+  #weatherDetails .weather-timeline-head { align-items: baseline; gap: 6px 12px; }
+  #weatherDetails .weather-timeline-head strong { font-size: 16px; line-height: 1.4; }
+  #weatherDetails .weather-timeline-head span { font-size: 12px; }
+  #weatherDetails .sample-summary {
+    min-height: 54px;
+    padding: 13px 14px;
+    border-color: #dce8ef;
+    color: #234b68;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+  #weatherDetails .sample-summary .detail-hint { font-size: 12px; }
+  #weatherDetails .sample-details[open] .sample-summary .detail-hint::after { font-size: 12px; }
+
+  #weatherDetails .leg-list:not(.nav-leg-list) {
+    display: grid;
+    gap: 8px;
+    padding: 12px !important;
+    overflow: visible !important;
+    border: 1px solid #e5edf2;
+    border-top: 0;
+    border-radius: 0 0 16px 16px;
+    background: #f8fbfd;
+  }
+  #weatherDetails .leg-list:not(.nav-leg-list) .leg-row {
+    position: relative;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 7px 12px !important;
+    min-width: 0 !important;
+    margin: 0;
+    padding: 12px 12px 12px 15px !important;
+    border: 1px solid #e2ebf1 !important;
+    border-left: 3px solid #72b4d7 !important;
+    border-radius: 13px !important;
+    background: #fff !important;
+    box-shadow: 0 3px 10px rgba(27, 68, 96, .045);
+    font-size: 14px !important;
+    line-height: 1.5;
+  }
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-name {
+    grid-column: 1;
+    min-width: 0;
+    color: #214b68;
+    font-size: 15px;
+    font-weight: 750;
+    overflow-wrap: anywhere;
+    word-break: keep-all;
+    white-space: normal;
+  }
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-time {
+    grid-column: 2;
+    color: #315e7a;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-wx {
+    grid-column: 1;
+    min-width: 0;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-score {
+    grid-column: 2;
+    min-width: 52px;
+    padding: 4px 8px;
+    font-size: 14px;
+  }
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-why,
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-impact {
+    min-width: 0;
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-why { grid-column: 1; }
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-impact { grid-column: 2; text-align: right; }
+  #weatherDetails .leg-list:not(.nav-leg-list) .leg-note { padding: 4px 2px 0; font-size: 12px; line-height: 1.6; }
+
+  #weatherDetails .nav-leg-list {
+    display: grid;
+    gap: 8px;
+    padding: 12px !important;
+    border: 1px solid #e5edf2;
+    border-top: 0;
+    border-radius: 0 0 16px 16px;
+    background: #f8fbfd;
+  }
+  #weatherDetails .nav-leg-list .route-sample-row {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 7px 10px !important;
+    margin: 0 !important;
+    padding: 12px 11px 12px 20px !important;
+    border: 1px solid #e2ebf1 !important;
+    border-radius: 13px !important;
+    background: #fff !important;
+    box-shadow: 0 3px 10px rgba(27, 68, 96, .045);
+  }
+  #weatherDetails .nav-leg-list .route-sample-row .lr-name,
+  #weatherDetails .nav-leg-list .route-sample-row .lr-time { grid-row: 1; }
+  #weatherDetails .nav-leg-list .route-sample-row .lr-name {
+    min-width: 0;
+    font-size: 15px !important;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    word-break: keep-all;
+  }
+  #weatherDetails .nav-leg-list .route-sample-row .lr-time { font-size: 14px !important; white-space: nowrap; }
+  #weatherDetails .nav-leg-list .route-sample-row .lr-wx { grid-column: 1; grid-row: 2; font-size: 14px !important; }
+  #weatherDetails .nav-leg-list .route-sample-row .lr-temp { grid-column: 2; grid-row: 2; font-size: 14px !important; }
+  #weatherDetails .nav-leg-list .route-sample-row .lr-precip { grid-column: 1; grid-row: 3; font-size: 13px !important; }
+  #weatherDetails .nav-leg-list .route-sample-row .lr-impact {
+    grid-column: 2;
+    grid-row: 3;
+    font-size: 13px !important;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
+  /* Keep short Chinese place names such as 西昌 together at narrow widths. */
+  #view-report .map-console-route strong,
+  #view-create #pointList .pt-name,
+  #view-create .si-name,
+  .ri-name,
+  .smart-segment-row strong,
+  .mountain-row strong,
+  #weatherDetails .lr-name,
+  #weatherDetails .pc-name {
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 380px) {
+  #smartReport .smart-report-actions .share-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #smartReport .smart-note-copy strong { font-size: 14px; }
+  #smartReport .smart-note-copy small { font-size: 12.5px; }
+  #weatherDetails .leg-list:not(.nav-leg-list) .leg-row { gap: 6px 8px !important; padding-right: 9px !important; }
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-why,
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-impact { font-size: 11.5px; }
+}
+
 /* Larger, touch-ready typography and visible waypoint sorting on phones. */
 @media (max-width: 760px) {
   #view-create .planning-heading h1 { font-size: 19px !important; line-height: 1.35; }
