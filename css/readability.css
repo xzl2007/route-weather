@@ -694,6 +694,182 @@ body.home-active #view-home { margin-top: 0 !important; }
 .mountain-map-list button { flex: 0 0 220px; display: grid; gap: 5px; padding: 12px; border: 1px solid #dbe8ef; border-radius: 12px; background: white; color: #294e69; text-align: left; font: inherit; cursor: pointer; }
 .mountain-map-list button span { font-size: 13px; line-height: 1.4; }
 @media (max-width: 760px) { .mountain-overview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } .mountain-overview span:first-child { grid-column: 1 / -1; } }
+
+/* Phone layout fixes based on the narrow Android report screenshots. */
+@media (max-width: 760px) {
+  #view-report,
+  #view-report .report-screen,
+  #weatherDetails .weather-timeline-card,
+  #weatherDetails .nav-leg-list {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Keep a sample's name and ETA together, then give weather impact the full row. */
+  #weatherDetails .nav-leg-list .route-sample-row {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-rows: auto auto auto auto;
+    align-items: start;
+    gap: 7px 12px !important;
+    padding: 13px 13px 13px 20px !important;
+    font-size: 14px !important;
+    line-height: 1.5;
+  }
+  #weatherDetails .nav-leg-list .route-sample-row .lr-name {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    overflow: visible;
+    overflow-wrap: normal;
+    word-break: normal;
+    font-size: 15px !important;
+    line-height: 1.4;
+  }
+  #weatherDetails .nav-leg-list .route-sample-row .lr-time {
+    grid-column: 2;
+    grid-row: 1;
+    white-space: nowrap;
+    font-size: 14px !important;
+  }
+  #weatherDetails .nav-leg-list .route-sample-row .lr-wx {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+    font-size: 14px !important;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  #weatherDetails .nav-leg-list .route-sample-row .lr-temp {
+    grid-column: 2;
+    grid-row: 2;
+    white-space: nowrap;
+    font-size: 14px !important;
+  }
+  #weatherDetails .nav-leg-list .route-sample-row .lr-precip {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-self: start;
+    text-align: left;
+    font-size: 13px !important;
+  }
+  #weatherDetails .nav-leg-list .route-sample-row .lr-impact {
+    grid-column: 1 / -1;
+    grid-row: 4;
+    min-width: 0;
+    text-align: left;
+    font-size: 13px !important;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+  }
+  #weatherDetails .nav-leg-list .leg-note { font-size: 13px; line-height: 1.6; }
+
+  /* Let route choices scroll horizontally at a readable width instead of shrinking. */
+  .route-option-panel {
+    width: calc(100vw - 18px);
+    max-width: calc(100vw - 18px);
+    box-sizing: border-box;
+  }
+  .route-option-bar {
+    display: flex;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    gap: 8px;
+    padding: 2px 2px 5px;
+  }
+  .route-option {
+    flex: 0 0 min(270px, calc(100vw - 54px));
+    min-width: 0;
+    min-height: 76px;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    scroll-snap-align: start;
+  }
+  .ro-top { flex-wrap: wrap; align-content: start; }
+  .ro-top b {
+    min-width: 0;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  .ro-top em { flex: 0 0 auto; font-size: 11px; }
+  .ro-meta { white-space: normal; font-size: 13px; line-height: 1.4; }
+  .ro-score { white-space: nowrap; font-size: 20px; }
+  .ro-score small { font-size: 13px; }
+
+  /* Give the map summary's three metrics and weather legend separate breathing room. */
+  #view-report .route-map-console {
+    width: calc(100vw - 18px);
+    max-width: calc(100vw - 18px);
+    box-sizing: border-box;
+    padding: 14px 14px 12px;
+  }
+  #view-report .route-map-console-head { align-items: flex-start; gap: 8px; }
+  #view-report .map-console-route { min-width: 0; flex-wrap: wrap; gap: 7px; }
+  #view-report .map-console-route strong { max-width: 31vw; overflow-wrap: anywhere; white-space: normal; }
+  #view-report .map-console-date { flex: 0 0 auto; font-size: 12px; }
+  #view-report .route-map-console-foot {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  #view-report .map-console-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+    width: 100%;
+  }
+  #view-report .map-console-metrics > div {
+    min-width: 0;
+    padding: 0 8px;
+  }
+  #view-report .map-console-metrics > div:first-child { padding-left: 0; }
+  #view-report .map-console-metrics > div:nth-child(3) {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 2px;
+    padding: 7px 0 0;
+    border-top: 1px solid rgba(112,149,175,.18);
+    border-right: 0;
+  }
+  #view-report .map-console-metrics > div:nth-child(3) small { margin: 0; }
+  #view-report .map-console-metrics small { font-size: 12px; line-height: 1.4; }
+  #view-report .map-console-metrics strong {
+    display: block;
+    font-size: clamp(18px, 5vw, 21px);
+    line-height: 1.3;
+    white-space: nowrap;
+  }
+  #view-report .map-console-metrics > div:nth-child(3) strong { display: inline; }
+  #view-report .map-console-metrics strong i { font-size: 12px; }
+  #view-report .map-impact-legend {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    justify-content: stretch;
+    gap: 7px 5px;
+    font-size: 12px;
+  }
+  #view-report .map-impact-legend span { justify-content: center; gap: 5px; }
+  #view-report .map-impact-legend i { width: 8px; height: 8px; flex: 0 0 8px; }
+  #view-report .map-console-note { display: block; font-size: 12px; line-height: 1.5; }
+}
+
+@media (max-width: 380px) {
+  #weatherDetails .nav-leg-list .route-sample-row { gap: 6px 8px !important; padding-right: 10px !important; }
+  #weatherDetails .nav-leg-list .route-sample-row .lr-name,
+  #weatherDetails .nav-leg-list .route-sample-row .lr-time { font-size: 13px !important; }
+  #view-report .map-console-metrics > div { padding-inline: 5px; }
+  #view-report .map-console-metrics small,
+  #view-report .map-impact-legend { font-size: 11px; }
+}
+
 .home-profile-preview { margin: 12px 0 4px; color: #5f7d94; font-size: 12px; }
 .home-profile-preview div { display: flex; justify-content: space-between; }
 .home-profile-preview small { font-size: 11px; }
