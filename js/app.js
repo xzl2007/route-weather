@@ -11,6 +11,7 @@ const state = {
   departOriginal: null, // 用户原始出发时刻，用于“恢复原时间”
   planOriginalTimes: null, // 规划模式：平移前的原始时间
   planOriginalDate: null,  // 规划模式：平移前的原始日期
+  planRecLock: null,       // 同一条路线的推荐出发时段，反复体检时保持一致
   libraryFilter: 'all',
   libraryQuery: '',
   reportTab: 'routeAnalysis',
@@ -40,6 +41,8 @@ function showView(name) {
   state.view = name;
   document.body.classList.toggle('home-active', name === 'home');
   document.body.classList.toggle('immersive-view', name === 'create' || name === 'report');
+  document.body.classList.toggle('route-map-active', name === 'report' && state.reportTab === 'routeAnalysis');
+  if (name !== 'report') document.body.classList.remove('route-map-active');
   $$('.view').forEach(v => v.classList.remove('active'));
   nextView.classList.add('active');
   if (name !== 'report') toggleReportFullscreen(false);
@@ -312,13 +315,14 @@ function initCreate() {
   d.value = state.date;
   d.min = todayStr();
   d.max = addDays(todayStr(), 15);
-  d.addEventListener('change', () => { state.date = d.value; });
+  d.addEventListener('change', () => { state.date = d.value; state.planRecLock = null; });
 
   $$('#segMode button').forEach(b => {
     b.addEventListener('click', () => {
       $$('#segMode button').forEach(x => x.classList.remove('on'));
       b.classList.add('on');
       state.mode = b.dataset.mode;
+      state.planRecLock = null;
       markCreateMapDirty();
       const spd = ROUTING.SPEED[state.mode];
       if (spd) {
@@ -1124,9 +1128,29 @@ async function checkupPoints() {
     const bestHour = pickBestHourRow(hourScores.rows);
     report.hourScores = hourScores.rows;
     report.departureHour = state.times[0] / 60;
-    report.recommendedDate = bestHour ? bestHour.date : null;
-    report.recommendedHour = bestHour ? bestHour.hour : null;
-    report.recommendedMin = bestHour ? bestHour.score : null;
+    // 同一条路线、同一种出行方式下，推荐时段一旦给出就锁定；
+    // 用户改日期或改路线时才重新计算，避免连续体检在 15:00 / 19:00 之间跳变。
+    const recKey = [
+      ...state.points.map(p => `${p.name}@${Number(p.lat).toFixed(4)},${Number(p.lon).toFixed(4)}`),
+      state.mode,
+      Math.round(Number(route.distance) / 100) / 10,
+      Math.round(Number(route.duration) / 60),
+      route.provider || '',
+    ].join('~');
+    let recRow = bestHour;
+    const locked = state.planRecLock;
+    if (locked && locked.key === recKey) {
+      const match = hourScores.rows.find(x => x.valid && x.date === locked.date && x.hour === locked.hour);
+      if (match) recRow = match;
+    }
+    if (recRow) {
+      state.planRecLock = { key: recKey, date: recRow.date, hour: recRow.hour, score: recRow.score };
+    } else if (!locked || locked.key !== recKey) {
+      state.planRecLock = null;
+    }
+    report.recommendedDate = recRow ? recRow.date : null;
+    report.recommendedHour = recRow ? recRow.hour : null;
+    report.recommendedMin = recRow ? recRow.score : null;
     attachRouteRecommendations(report, null, route, state.mode, state.times[0]);
     state.planCtx = { baseDate: state.date };
     state.currentReport = report;
@@ -1547,6 +1571,7 @@ function activateReportScreen(id, scroll = false) {
   if (!screens.some(screen => screen.id === id)) return false;
   state.reportTab = id;
   screens.forEach(screen => screen.classList.toggle('is-active', screen.id === id));
+  document.body.classList.toggle('route-map-active', id === 'routeAnalysis');
   $$('.report-local-nav [data-report-target]').forEach(button => {
     const active = button.dataset.reportTarget === id;
     button.classList.toggle('on', active);
@@ -1558,6 +1583,139 @@ function activateReportScreen(id, scroll = false) {
     if (screen) screen.scrollIntoView({ behavior: 'instant', block: 'start' });
   }
   return true;
+}
+
+/** 智能报告：调整章节顺序，并把注意事项/重点路段/山地气象做成可收起。 */
+function enhanceSmartReportSections() {
+  const smart = document.querySelector('#smartReport:not(.nav-smart-report)');
+  if (!smart) return;
+  const content = smart.querySelector('.smart-report-content');
+  if (!content) return;
+
+  const sectionByTitle = (title) => {
+    const h = [...content.querySelectorAll('.smart-section-heading h3')]
+      .find(el => el.textContent.replace(/\s+/g, '') === title);
+    return h ? h.closest('.smart-report-section') : null;
+  };
+
+  const departure = content.querySelector('.smart-departure-section');
+  const trip = sectionByTitle('行程注意事项');
+  const routeRisk = sectionByTitle('沿途重点路段');
+  const mountain = sectionByTitle('山地气象关注路段');
+
+  // 评分报告之后先展示出发时段，再进入注意事项/重点路段/山地气象。
+  if (departure && trip) content.insertBefore(departure, trip);
+  else if (departure && routeRisk) content.insertBefore(departure, routeRisk);
+
+  wrapSmartSection(trip);
+  wrapSmartSection(routeRisk, true);
+  wrapSmartSection(mountain);
+
+  wrapSmartSection(trip);
+  wrapSmartSection(routeRisk, true);
+  wrapSmartSection(mountain);
+}
+
+/** 导航模式报告：把出发时段挪到天气评分/路线概况之后、出行建议之前。 */
+function arrangeNavSmartReport() {
+  const smart = document.querySelector('#smartReport.nav-smart-report');
+  if (!smart) return;
+  const content = smart.querySelector('.smart-report-content');
+  if (!content) return;
+  const departure = content.querySelector('.smart-departure-section');
+  const adviceHeading = [...content.querySelectorAll('.smart-section-heading h3')]
+    .find(el => el.textContent.replace(/\s+/g, '') === '出行建议');
+  const advice = adviceHeading ? adviceHeading.closest('.smart-report-section') : null;
+  if (departure && advice) content.insertBefore(departure, advice);
+
+  const mountainHeading = [...content.querySelectorAll('.smart-section-heading h3')]
+    .find(el => el.textContent.replace(/\s+/g, '') === '山地气象关注路段');
+  const mountain = mountainHeading ? mountainHeading.closest('.smart-report-section') : null;
+  wrapSmartSection(mountain);
+}
+
+function scrollReportToTop() {  const html = document.documentElement;
+  const body = document.body;
+  const prevHtml = html.style.scrollBehavior;
+  const prevBody = body.style.scrollBehavior;
+  // 页面全局设置了 scroll-behavior:smooth；长页面点一次会停在半路。
+  // 回到顶部必须是瞬时的，避免被平滑滚动动画截断。
+  html.style.scrollBehavior = 'auto';
+  body.style.scrollBehavior = 'auto';
+  const nodes = [
+    document.scrollingElement,
+    html,
+    body,
+    document.querySelector('#reportBody'),
+    document.querySelector('#view-report'),
+    document.querySelector('.report-screen.is-active'),
+  ];
+  nodes.forEach(el => {
+    if (!el) return;
+    try { el.scrollTop = 0; } catch (e) {}
+  });
+  try { window.scrollTo(0, 0); } catch (e) {}
+  try { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); } catch (e) {}
+  window.setTimeout(() => {
+    html.style.scrollBehavior = prevHtml;
+    body.style.scrollBehavior = prevBody;
+  }, 80);
+}
+
+function bindReportBackTops() {
+  ['#smartReport', '#weatherDetails'].forEach(selector => {
+    const host = document.querySelector(selector);
+    if (!host) return;
+    let top = host.querySelector('.report-back-top');
+    if (!top) {
+      top = document.createElement('button');
+      top.type = 'button';
+      top.className = 'smart-back-top report-back-top';
+      top.setAttribute('aria-label', '回到本页顶部');
+      top.innerHTML = '<span aria-hidden="true">↑</span><small>回到顶部</small>';
+      host.appendChild(top);
+    }
+    if (!top.dataset.bound) {
+      top.dataset.bound = '1';
+      top.addEventListener('click', scrollReportToTop);
+    }
+  });
+}
+
+
+function wrapSmartSection(section, moveAction = false) {
+  if (!section || section.tagName === 'DETAILS') return;
+  const heading = section.querySelector('.smart-section-heading');
+  const details = document.createElement('details');
+  details.className = 'report-collapse smart-report-section smart-collapse';
+  details.open = true;
+  const summary = document.createElement('summary');
+  summary.className = 'report-collapse-summary';
+  let action = null;
+  if (heading) {
+    if (moveAction) action = heading.querySelector('button[data-report-target]');
+    if (action) action.remove();
+    heading.remove();
+    summary.appendChild(heading);
+  }
+  const chevron = document.createElement('span');
+  chevron.className = 'collapse-chevron';
+  chevron.setAttribute('aria-hidden', 'true');
+  chevron.textContent = '⌄';
+  summary.appendChild(chevron);
+  details.appendChild(summary);
+
+  const body = document.createElement('div');
+  body.className = 'report-collapse-body';
+  if (action) {
+    const row = document.createElement('div');
+    row.className = 'smart-collapse-action';
+    row.appendChild(action);
+    body.appendChild(row);
+  }
+  while (section.firstChild) body.appendChild(section.firstChild);
+  details.appendChild(body);
+  section.replaceWith(details);
 }
 
 function elevationProfileHtml(points) {
@@ -1934,11 +2092,10 @@ function recommendationSectionHtml(r) {
   return `<section class="smart-report-section route-poi-section" id="poiRecommendations">
     <details class="report-collapse" ${state.poiOpen ? 'open' : ''}>
       <summary class="report-collapse-summary">
-        <div class="smart-section-heading"><div><span>ROUTE PICKS</span><h3>沿途推荐 · 吃住玩</h3></div><span class="poi-mode">${escapeHtml(rec.modeLabel || modeText(r.travelMode))}</span></div>
+        <div class="smart-section-heading"><div><span>ROUTE PICKS</span><h3>沿途推荐 · 吃住玩</h3></div><span class="energy-tag poi-tag">${escapeHtml(rec.modeLabel || modeText(r.travelMode))} · ${stayAll.length} 处</span></div>
         <span class="collapse-chevron" aria-hidden="true">⌄</span>
       </summary>
       <div class="report-collapse-body">
-        <p class="poi-summary">按出行方式、预计经过时段与绕行距离排序 · 推荐范围约 ${Math.round((rec.radiusM || 0) / 100) / 10} km</p>
         ${filters}
         ${visible.length ? `<div class="poi-grid">${cards}</div>` : empty}
         ${filtered.length ? `<div class="poi-pagination"><span aria-live="polite">已显示 ${visible.length} / ${filtered.length} 个地点</span>${visible.length < filtered.length ? `<button type="button" class="poi-more" data-poi-more="${Math.min(filtered.length, visible.length + pageSize)}">加载更多地点</button>` : ''}</div>` : ''}
@@ -2340,6 +2497,8 @@ function renderNavReport(r, stale) {
 
   bindReportNav();
   bindReportFavorite();
+  arrangeNavSmartReport();
+  bindReportBackTops();
   bindMountainAnalysis();
   $$('.route-option[data-route-option]').forEach(button => {
     button.addEventListener('click', () => switchNavRoute(Number(button.dataset.routeOption)));
@@ -3010,6 +3169,8 @@ function renderReport(r, stale) {
   const mapFullBtn = $('#mapFull');
   if (mapFullBtn) mapFullBtn.addEventListener('click', () => toggleReportFullscreen());
 
+  enhanceSmartReportSections();
+  bindReportBackTops();
   bindShareBar(r);
   bindShiftChips(r);
   bindRecommendationFilters(r);

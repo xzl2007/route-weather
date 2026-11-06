@@ -1,7 +1,7 @@
 /* RouteWeather 山途智行 · Service Worker
  * 只缓存本站外壳，不缓存天气/路径/POI 接口与地图瓦片。
  */
-const CACHE = 'rwc-shell-v103';
+const CACHE = 'rwc-shell-v122';
 
 const ASSETS = [
   './',
@@ -11,6 +11,7 @@ const ASSETS = [
   'css/product-ui.css',
   'css/immersive-ui.css',
   'css/readability.css',
+  'css/typography-consistency.css',
   'js/config.js',
   'js/points.js',
   'js/api.js',
@@ -32,7 +33,6 @@ const ASSETS = [
   'icons/icon-192.png',
   'icons/routeweather.svg',
   'assets/hero-alpine.webp',
-  'assets/hero-alpine-road.png',
 ];
 
 self.addEventListener('install', (e) => {

@@ -142,7 +142,7 @@ body.immersive-view #view-report { width: 100vw; margin: 0 calc(50% - 50vw); pad
   min-height: 154px; align-items: flex-end; margin: -4px -24px 17px; padding: 34px 24px 24px;
   border-radius: 0 0 42px 13px;
   background: linear-gradient(90deg,rgba(245,250,253,.97) 0%,rgba(245,250,253,.82) 47%,rgba(245,250,253,.18) 100%),
-    url('../assets/hero-alpine-road.png') center 52%/cover;
+    url('../assets/hero-alpine.webp') center 52%/cover;
   box-shadow: 0 15px 34px rgba(20,55,83,.1);
 }
 #weatherDetails .report-screen-heading { background-position: center 52%; }
@@ -151,20 +151,20 @@ body.immersive-view #view-report { width: 100vw; margin: 0 calc(50% - 50vw); pad
 #weatherDetails .weather-overview-strip > span { background: rgba(255,255,255,.8); }
 #weatherDetails .weather-timeline-card { padding: 18px; }
 #departurePlanner .departure-rec-card {
-  background: linear-gradient(105deg,rgba(8,48,82,.9),rgba(17,81,128,.4)),url('../assets/hero-alpine-road.png') center 58%/cover;
+  background: linear-gradient(105deg,rgba(8,48,82,.9),rgba(17,81,128,.4)),url('../assets/hero-alpine.webp') center 58%/cover;
 }
 #travelReport .diagnosis-list .dx-item::after {
   top: 0; right: 0; bottom: 0; width: 112px; height: auto; clip-path: none; opacity: .55;
-  background-image: linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.05)),url('../assets/hero-alpine-road.png');
+  background-image: linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.05)),url('../assets/hero-alpine.webp');
   background-size: cover; background-position: 72% center;
   mask-image: linear-gradient(90deg,transparent 0%,#000 35%);
 }
 #travelReport .diagnosis-list .dx-item:nth-child(2)::after { background-position: 90% center; }
 #travelReport .diagnosis-list .dx-item:nth-child(3)::after { background-position: 56% center; }
-#view-saved .saved-card-cover { background-image: linear-gradient(180deg,rgba(13,37,62,.04),rgba(13,37,62,.58)),url('../assets/hero-alpine-road.png'); }
+#view-saved .saved-card-cover { background-image: linear-gradient(180deg,rgba(13,37,62,.04),rgba(13,37,62,.58)),url('../assets/hero-alpine.webp'); }
 #view-home .home-hero {
   background-image: linear-gradient(90deg,rgba(245,249,252,.96) 0%,rgba(245,249,252,.82) 34%,rgba(245,249,252,.18) 67%,rgba(245,249,252,.02) 100%),
-    url('../assets/hero-alpine-road.png') !important;
+    url('../assets/hero-alpine.webp') !important;
   background-position: center, center 58% !important;
 }
 #view-home .hero-route-card { border-radius: 38px 13px 38px 13px; }
@@ -226,13 +226,13 @@ body.immersive-view #view-report { width: 100vw; margin: 0 calc(50% - 50vw); pad
   #travelReport .report-screen-heading {
     min-height: 148px; margin: 0 -11px 13px; padding: 72px 14px 18px; border-radius: 0 0 34px 12px;
     background-image: linear-gradient(90deg,rgba(246,250,253,.95),rgba(246,250,253,.68) 60%,rgba(246,250,253,.24)),
-      url('../assets/hero-alpine-road.png');
+      url('../assets/hero-alpine.webp');
   }
   #view-home .home-hero {
     min-height: min(760px,calc(100dvh - 55px)) !important; padding: 28px 22px 22px !important;
     border-radius: 0 0 42px 42px !important;
     background-image: linear-gradient(180deg,rgba(242,249,253,.8) 0%,rgba(242,249,253,.6) 34%,rgba(17,43,67,.28) 100%),
-      url('../assets/hero-alpine-road.png') !important;
+      url('../assets/hero-alpine.webp') !important;
     background-position: center, 65% center !important;
   }
   #view-home .hero-copy { padding-top: 7px; }
@@ -343,7 +343,7 @@ body.immersive-view #view-report { width: 100vw; margin: 0 calc(50% - 50vw); pad
   margin: 0 0 20px; padding: 48px max(28px,calc((100vw - 1180px)/2)) 38px;
   overflow: hidden; border-radius: 0 0 64px 18px;
   background: linear-gradient(90deg,rgba(12,37,62,.83),rgba(18,54,82,.32) 58%,rgba(14,39,59,.08)),
-    url('../assets/hero-alpine-road.png') center 59%/cover;
+    url('../assets/hero-alpine.webp') center 59%/cover;
   box-shadow: 0 22px 50px rgba(15,48,72,.16);
 }
 #view-saved .library-heading::after { content: none; }
@@ -546,7 +546,7 @@ body.immersive-view #view-report { width: 100vw; margin: 0 calc(50% - 50vw); pad
   align-items: flex-end; min-height: 286px; margin: 0 -24px; padding: 80px max(32px,calc((100vw - 1050px)/2)) 78px;
   border-radius: 0 0 74px 17px; background:
     linear-gradient(90deg,rgba(8,43,72,.77),rgba(17,69,104,.38) 52%,rgba(15,55,81,.06)),
-    url('../assets/hero-alpine-road.png') center 52%/cover;
+    url('../assets/hero-alpine.webp') center 52%/cover;
   box-shadow: 0 22px 55px rgba(18,55,82,.18);
 }
 #smartReport .report-screen-heading .screen-back,
@@ -1114,7 +1114,7 @@ body.immersive-view #view-report { width: 100vw; margin: 0 calc(50% - 50vw); pad
     min-height: 0 !important;
     padding: calc(77px + env(safe-area-inset-top)) 18px 24px !important;
     border-radius: 0 0 34px 34px !important;
-    background-image: linear-gradient(180deg,rgba(238,247,253,.46) 0%,rgba(238,247,253,.32) 32%,rgba(12,38,63,.28) 100%),url('../assets/hero-alpine-road.png') !important;
+    background-image: linear-gradient(180deg,rgba(238,247,253,.46) 0%,rgba(238,247,253,.32) 32%,rgba(12,38,63,.28) 100%),url('../assets/hero-alpine.webp') !important;
     background-position: center, 63% center !important;
     background-size: cover !important;
     box-shadow: 0 18px 48px rgba(20,58,91,.2) !important;
@@ -1313,7 +1313,7 @@ body.immersive-view #view-report { width: 100vw; margin: 0 calc(50% - 50vw); pad
   border-radius: 0 0 74px 17px;
   background:
     linear-gradient(90deg,rgba(8,43,72,.77),rgba(17,69,104,.38) 52%,rgba(15,55,81,.06)),
-    url('../assets/hero-alpine-road.png') center 52%/cover;
+    url('../assets/hero-alpine.webp') center 52%/cover;
   box-shadow: 0 22px 55px rgba(18,55,82,.18);
 }
 #weatherDetails .report-screen-heading .screen-back,

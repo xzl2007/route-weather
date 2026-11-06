@@ -16,6 +16,18 @@
  * TIANDITU_KEY 定义在 js/config.js（地图与地名搜索共用）
  */
 
+/* Leaflet 1.9.4 在“地图已销毁、缩放动画回调仍到达”时会调用
+ * getMapPanePos()，此时 _mapPane 已不存在，导致 _leaflet_pos 异常并弹出红条。
+ * 这里做一层安全兜底：没有地图容器时返回 0,0，不改变正常地图行为。 */
+if (typeof L !== 'undefined' && L.Map && !L.Map.prototype.__rwSafePanePos) {
+  const originalGetMapPanePos = L.Map.prototype.getMapPanePos;
+  L.Map.prototype.getMapPanePos = function () {
+    if (!this._mapPane) return L.point(0, 0);
+    return originalGetMapPanePos.call(this);
+  };
+  L.Map.prototype.__rwSafePanePos = true;
+}
+
 function tdtUrl(layer) {
   return `https://t{s}.tianditu.gov.cn/${layer}_w/wmts`
     + `?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${layer}&STYLE=default`
@@ -622,12 +634,12 @@ const MapCtl = {
         className: `route-weather-line route-${section.level || 'neutral'}`,
       }).addTo(map);
       lineLayer.bindPopup(segmentPopupHtml(section.point, section.index >= 0 ? `采样点 ${section.index + 1}` : '当前路段'), {
-        maxWidth: 320,
-        minWidth: 260,
+        maxWidth: 340,
+        minWidth: 280,
         closeButton: true,
         autoPan: true,
-        autoPanPaddingTopLeft: [12, 255],
-        autoPanPaddingBottomRight: [12, 220],
+        autoPanPaddingTopLeft: [12, 120],
+        autoPanPaddingBottomRight: [12, 300],
         className: 'weather-popup-shell segment-popup-shell',
       });
       lineLayer.__sampleIndex = section.index;
@@ -673,9 +685,11 @@ const MapCtl = {
         { direction: 'top', offset: [0, -14], opacity: 1, className: 'route-tip' }
       );
       mk.bindPopup(weatherPopupHtml(p, i), {
-        maxWidth: 300,
-        minWidth: 250,
+        maxWidth: 340,
+        minWidth: 280,
         closeButton: true,
+        autoPan: true,
+        autoPanPaddingBottomRight: [12, 280],
         className: 'weather-popup-shell',
       });
 
@@ -742,12 +756,12 @@ const MapCtl = {
         className: `route-weather-line route-${level}`,
       }).addTo(map);
       lineLayer.bindPopup(segmentPopupHtml(p, `${points[i - 1].name} → ${p.name}`), {
-        maxWidth: 320,
-        minWidth: 260,
+        maxWidth: 340,
+        minWidth: 280,
         closeButton: true,
         autoPan: true,
-        autoPanPaddingTopLeft: [12, 255],
-        autoPanPaddingBottomRight: [12, 220],
+        autoPanPaddingTopLeft: [12, 120],
+        autoPanPaddingBottomRight: [12, 300],
         className: 'weather-popup-shell segment-popup-shell',
       });
       lineLayer.__sampleIndex = i;

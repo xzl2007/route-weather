@@ -1,0 +1,834 @@
+/* ============================================================
+ * RouteWeather · 统一字号层级
+ * 目标：手机与桌面共用一套比例，重点信息比小字大约 1.4–1.8 倍，
+ * 不使用过小字号，也不让单块内容大到溢出。
+ * 基础层级：
+ *   11.5 / 12.5 / 13.5 / 15 / 17 / 20 / 22
+ * ============================================================ */
+
+/* ---------------- 手机端 ---------------- */
+@media (max-width: 760px) {
+  html, body { font-size: 16px !important; }
+
+  /* 首页三栏与说明小字 */
+  #view-home .hero-route-metrics b { font-size: 14px !important; line-height: 1.3 !important; }
+  #view-home .hero-route-metrics small { font-size: 12px !important; line-height: 1.45 !important; }
+  #view-home .home-profile-preview span { font-size: 13.5px !important; }
+  #view-home .home-profile-preview small { font-size: 12px !important; }
+  #view-home .hero-route-link { font-size: 13.5px !important; }
+  #view-home .hero-route-title strong { font-size: 15px !important; }
+
+  /* 地图弹窗：小方框变大、格子里的字放大；三列压缩高度，避免遮住底栏 */
+  .weather-popup-shell .leaflet-popup-content {
+    width: min(340px, calc(100vw - 28px)) !important;
+  }
+  .weather-popup { padding: 14px !important; }
+  .segment-popup-shell .leaflet-popup-content {
+    max-height: calc(100dvh - 240px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .popup-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    padding: 9px 0 !important;
+  }
+  .popup-grid > span {
+    gap: 3px !important;
+    padding: 5px 6px !important;
+    border-radius: 8px;
+    background: #f5fafd;
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+  }
+  .popup-grid b { font-size: 12.5px !important; line-height: 1.35 !important; }
+  .popup-heading strong { font-size: 17px !important; }
+  .popup-eyebrow { font-size: 11px !important; }
+  .segment-popup .segment-score-big { font-size: 44px !important; }
+  .segment-popup .segment-score-big small { font-size: 14px !important; }
+
+  /* 智能报告：标签、行程注意事项、沿途重点路段统一放大 */
+  #smartReport .report-local-nav button { font-size: 13.5px !important; }
+  #smartReport .smart-section-heading > div > span { font-size: 11.5px !important; letter-spacing: .12em !important; }
+  #smartReport .smart-section-heading h3 { font-size: 20px !important; line-height: 1.3 !important; }
+  #smartReport .smart-section-heading > button { font-size: 13px !important; }
+  #smartReport .diagnosis-board-head strong { font-size: 18px !important; }
+  #smartReport .diagnosis-board-head p { font-size: 13px !important; line-height: 1.6 !important; }
+  #smartReport .diagnosis-list .dx-t,
+  #smartReport .smart-diagnosis-board .dx-t { font-size: 14.5px !important; line-height: 1.5 !important; }
+  #smartReport .diagnosis-list .dx-l,
+  #smartReport .smart-diagnosis-board .dx-l { font-size: 13.5px !important; line-height: 1.7 !important; }
+  #smartReport .diagnosis-list .dx-hint,
+  #smartReport .smart-diagnosis-board .dx-hint { font-size: 13px !important; }
+  #smartReport .segment-copy strong { font-size: 15px !important; line-height: 1.45 !important; }
+  #smartReport .segment-copy small { font-size: 13px !important; line-height: 1.5 !important; }
+  #smartReport .segment-score { font-size: 21px !important; }
+  #smartReport .segment-score small { font-size: 12px !important; }
+  #smartReport .segment-rank { font-size: 10.5px !important; }
+  #smartReport .smart-empty-note,
+  #smartReport .smart-data-note { font-size: 13px !important; line-height: 1.65 !important; }
+  #smartReport .smart-note-copy strong { font-size: 15.5px !important; }
+  #smartReport .smart-note-copy small { font-size: 13.5px !important; line-height: 1.65 !important; }
+
+  /* 沿途天气卡片 */
+  #weatherDetails .pt-card .pc-name { font-size: 19px !important; }
+  #weatherDetails .pt-card .pc-meta { font-size: 14.5px !important; line-height: 1.55 !important; }
+  #weatherDetails .pt-card .pc-score { font-size: 18px !important; }
+  #weatherDetails .pt-card .pc-lv { font-size: 13.5px !important; }
+  #weatherDetails .arr-time,
+  #weatherDetails .arr-km { font-size: 15px !important; }
+  #weatherDetails .ded { font-size: 13px !important; }
+  #weatherDetails .weather-points-stack .ded { font-size: 13.5px !important; }
+  #weatherDetails .hs-hour { font-size: 13.5px !important; }
+  #weatherDetails .hs-temp { font-size: 17px !important; }
+  #weatherDetails .hs-pp { font-size: 13.5px !important; }
+  #weatherDetails .weather-points-stack .hs-hour,
+  #weatherDetails .weather-points-stack .hs-pp { font-size: 13.5px !important; }
+  #weatherDetails .weather-points-stack .hs-temp { font-size: 17px !important; }
+  #weatherDetails .ht-legend { font-size: 13px !important; line-height: 1.65 !important; }
+  #weatherDetails .weather-points-stack .ht-legend { font-size: 13.5px !important; line-height: 1.65 !important; }
+
+  /* 底部路线信息卡 */
+  .route-map-console .map-console-kicker { font-size: 11.5px !important; }
+  .route-map-console .map-console-route strong { font-size: 16px !important; }
+  .route-map-console .map-console-date { font-size: 12.5px !important; }
+  .route-map-console .route-nav-links { font-size: 12.5px !important; }
+  .route-map-console .route-nav-links a,
+  .route-map-console .route-nav-links select { font-size: 13px !important; min-height: 38px !important; }
+  .route-map-console .map-console-metrics small { font-size: 12.5px !important; }
+  .route-map-console .map-console-metrics strong { font-size: 21px !important; }
+  .route-map-console .map-console-metrics strong i { font-size: 12.5px !important; }
+  .route-map-console .map-impact-legend { font-size: 12.5px !important; }
+  .route-map-console .map-impact-legend i { width: 9px !important; height: 9px !important; }
+  .route-map-console .map-console-note { font-size: 12.5px !important; line-height: 1.6 !important; }
+}
+
+/* ---------------- 桌面端 ---------------- */
+@media (min-width: 761px) {
+  /* 报告顶部导航与“查看天气点位” */
+  #view-report .report-local-nav button { font-size: 19px !important; min-height: 44px !important; padding: 0 18px !important; }
+  #view-report .report-local-nav .tab-count { font-size: 14px !important; }
+  .weather-impact-cta { font-size: 19px !important; min-height: 46px !important; padding: 0 20px !important; }
+
+  /* 首页三栏：桌面也不能只有 8–9px */
+  #view-home .hero-route-metrics b { font-size: 14px !important; }
+  #view-home .hero-route-metrics small { font-size: 12.5px !important; }
+  #view-home .home-profile-preview span { font-size: 13.5px !important; }
+  #view-home .home-profile-preview small { font-size: 12px !important; }
+  #view-home .hero-route-link { font-size: 13px !important; }
+
+  /* 地图弹窗与格子 */
+  .weather-popup-shell .leaflet-popup-content { width: 360px !important; }
+  .weather-popup { padding: 16px !important; }
+  .popup-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+    padding: 11px 0 !important;
+  }
+  .popup-grid > span {
+    gap: 3px !important;
+    padding: 6px 8px !important;
+    border-radius: 9px;
+    background: #f5fafd;
+    font-size: 11.5px !important;
+    line-height: 1.4 !important;
+  }
+  .popup-grid b { font-size: 13px !important; line-height: 1.4 !important; }
+  .popup-heading strong { font-size: 18px !important; }
+
+  /* 智能报告 */
+  #smartReport .smart-section-heading > div > span { font-size: 12px !important; }
+  #smartReport .smart-section-heading h3 { font-size: 21px !important; }
+  #smartReport .smart-section-heading > button { font-size: 13.5px !important; }
+  #smartReport .diagnosis-list .dx-t,
+  #smartReport .smart-diagnosis-board .dx-t { font-size: 15px !important; line-height: 1.5 !important; }
+  #smartReport .diagnosis-list .dx-l,
+  #smartReport .smart-diagnosis-board .dx-l { font-size: 14px !important; line-height: 1.75 !important; }
+  #smartReport .diagnosis-list .dx-hint,
+  #smartReport .smart-diagnosis-board .dx-hint { font-size: 13.5px !important; }
+  #smartReport .segment-copy strong { font-size: 16px !important; }
+  #smartReport .segment-copy small { font-size: 14px !important; }
+  #smartReport .segment-score { font-size: 22px !important; }
+  #smartReport .segment-rank { font-size: 11px !important; }
+  #smartReport .smart-empty-note,
+  #smartReport .smart-data-note { font-size: 13px !important; line-height: 1.7 !important; }
+
+  /* 沿途天气卡片 */
+  #weatherDetails .pt-card .pc-name { font-size: 19px !important; }
+  #weatherDetails .pt-card .pc-meta { font-size: 14.5px !important; }
+  #weatherDetails .pt-card .pc-score { font-size: 18px !important; }
+  #weatherDetails .pt-card .pc-lv { font-size: 13.5px !important; }
+  #weatherDetails .arr-time,
+  #weatherDetails .arr-km { font-size: 15px !important; }
+  #weatherDetails .ded { font-size: 13px !important; }
+  #weatherDetails .weather-points-stack .ded { font-size: 13.5px !important; }
+  #weatherDetails .hs-hour { font-size: 13.5px !important; }
+  #weatherDetails .hs-temp { font-size: 17px !important; }
+  #weatherDetails .hs-pp { font-size: 13.5px !important; }
+  #weatherDetails .weather-points-stack .hs-hour,
+  #weatherDetails .weather-points-stack .hs-pp { font-size: 13.5px !important; }
+  #weatherDetails .weather-points-stack .hs-temp { font-size: 17px !important; }
+  #weatherDetails .ht-legend { font-size: 13px !important; }
+  #weatherDetails .weather-points-stack .ht-legend { font-size: 13.5px !important; }
+
+  /* 路线信息卡 */
+  .route-map-console .map-console-kicker { font-size: 11.5px !important; letter-spacing: .12em !important; }
+  .route-map-console .map-console-route strong { font-size: 17px !important; }
+  .route-map-console .map-console-route svg { width: 108px !important; height: 19px !important; }
+  .route-map-console .map-console-date { font-size: 13px !important; }
+  .route-map-console .route-nav-links { font-size: 13.5px !important; gap: 9px !important; }
+  .route-map-console .route-nav-links a,
+  .route-map-console .route-nav-links select { min-height: 42px !important; padding: 6px 15px !important; font-size: 14.5px !important; }
+  .route-map-console .map-console-metrics small { font-size: 12px !important; }
+  .route-map-console .map-console-metrics strong { font-size: 23px !important; }
+  .route-map-console .map-console-metrics strong i { font-size: 13px !important; }
+  .route-map-console .map-impact-legend { font-size: 12px !important; gap: 9px !important; }
+  .route-map-console .map-impact-legend i { width: 10px !important; height: 10px !important; }
+  .route-map-console .map-console-note { font-size: 12.5px !important; line-height: 1.65 !important; }
+}
+
+/* ============================================================
+ * 地图页：禁止页面回弹露出灰底，地图始终铺满整个视口
+ * ============================================================ */
+html { overscroll-behavior-y: none; }
+body.route-map-active {
+  height: 100dvh !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  background: #d8e4e4 !important;
+}
+body.route-map-active #view-report,
+body.route-map-active #reportBody {
+  height: 100dvh !important;
+  overflow: hidden !important;
+}
+body.route-map-active #routeAnalysis .map-card {
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  height: 100dvh !important;
+}
+body.route-map-active #routeAnalysis .map-card .map-wrap,
+body.route-map-active #routeAnalysis #reportMap {
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+}
+
+/* 长地名不再被挤成竖排：行必须占满宽度，名称允许正常换行 */
+#weatherDetails .leg-list:not(.nav-leg-list) .leg-row {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  grid-template-columns: minmax(150px, 1fr) auto !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-name,
+#weatherDetails .nav-leg-list .route-sample-row .lr-name {
+  min-width: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  text-overflow: clip !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-time {
+  max-width: 45% !important;
+  white-space: normal !important;
+}
+
+@media (max-width: 760px) {
+  #weatherDetails .leg-list:not(.nav-leg-list) .leg-row { font-size: 14.5px !important; }
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-name { font-size: 15.5px !important; }
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-time { font-size: 13.5px !important; }
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-wx { font-size: 14.5px !important; }
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-score { font-size: 14.5px !important; }
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-why,
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-impact { font-size: 13px !important; }
+  .segment-popup .impact-chip { font-size: 12.5px !important; min-height: 27px !important; padding: 4px 9px !important; }
+}
+
+/* ============================================================
+ * 桌面端：沿途天气表、收藏按钮、弹窗“适宜”标签
+ * ============================================================ */
+@media (min-width: 761px) {
+  #weatherDetails .leg-head { font-size: 14px !important; }
+  #weatherDetails .leg-list:not(.nav-leg-list) .leg-row { font-size: 14.5px !important; }
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-name { font-size: 15.5px !important; }
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-time,
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-wx { font-size: 14px !important; }
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-score { font-size: 15px !important; }
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-why,
+  #weatherDetails .leg-list:not(.nav-leg-list) .lr-impact { font-size: 13.5px !important; }
+
+  #weatherDetails .nav-leg-list .route-sample-row { font-size: 14.5px !important; }
+  #weatherDetails .nav-leg-list .route-sample-row .lr-name { font-size: 15.5px !important; }
+  #weatherDetails .nav-leg-list .route-sample-row .lr-time,
+  #weatherDetails .nav-leg-list .route-sample-row .lr-wx,
+  #weatherDetails .nav-leg-list .route-sample-row .lr-temp,
+  #weatherDetails .nav-leg-list .route-sample-row .lr-precip { font-size: 14px !important; }
+  #weatherDetails .nav-leg-list .route-sample-row .lr-score { font-size: 15px !important; }
+  #weatherDetails .nav-leg-list .route-sample-row .lr-impact,
+  #weatherDetails .nav-leg-list .route-sample-row .lr-why { font-size: 13.5px !important; }
+
+  #view-report .report-favorite {
+    min-height: 42px !important;
+    padding: 0 15px !important;
+    font-size: 14px !important;
+    gap: 8px !important;
+  }
+  #view-report .report-favorite span { font-size: 14px !important; }
+  #smartReport .smart-section-heading > button { font-size: 14px !important; }
+
+  .segment-popup .impact-chip {
+    min-height: 30px !important;
+    padding: 5px 11px !important;
+    font-size: 14px !important;
+    line-height: 1.2 !important;
+  }
+}
+
+/* ============================================================
+ * 路线天气时间轴 / 沿途采样表
+ * 680px 以上按真正的表格列对齐；680px 以下保留卡片式
+ * ============================================================ */
+#smartReport .weather-timeline-head strong { font-size: 19px !important; line-height: 1.35 !important; }
+#smartReport .weather-timeline-head span { font-size: 12px !important; }
+#weatherDetails .weather-timeline-head strong { font-size: 19px !important; }
+#weatherDetails .weather-timeline-head span { font-size: 13px !important; }
+#view-report .weather-overview-strip > span { font-size: 13px !important; }
+#view-report .weather-overview-strip b { font-size: 14px !important; }
+
+@media (min-width: 600px) {
+  #smartReport .leg-list .leg-head,
+  #smartReport .leg-list .leg-row,
+  #weatherDetails .leg-list .leg-head,
+  #weatherDetails .leg-list .leg-row {
+    display: grid !important;
+    grid-template-columns: minmax(120px, 1.4fr) 54px 78px 48px minmax(100px, 1.2fr) minmax(86px, 1fr) !important;
+    gap: 10px 12px !important;
+    align-items: center !important;
+    width: 100% !important;
+    min-width: 560px !important;
+    box-sizing: border-box !important;
+    padding: 9px 4px !important;
+    border: 0 !important;
+    border-bottom: 1px solid #e7eef3 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font-size: 14.5px !important;
+    line-height: 1.5 !important;
+  }
+  #smartReport .leg-list .leg-head,
+  #weatherDetails .leg-list .leg-head {
+    padding: 0 4px 8px !important;
+    border-bottom: 1px solid #e2eaf0 !important;
+    color: #6f8799 !important;
+    font-size: 13.5px !important;
+    font-weight: 650 !important;
+  }
+  #smartReport .leg-list .leg-row > span,
+  #weatherDetails .leg-list .leg-row > span {
+    grid-column: auto !important;
+    grid-row: auto !important;
+    min-width: 0 !important;
+    text-align: left !important;
+  }
+  #smartReport .leg-list .lr-name,
+  #weatherDetails .leg-list .lr-name { font-size: 15.5px !important; font-weight: 700 !important; }
+  #smartReport .leg-list .lr-time,
+  #weatherDetails .leg-list .lr-time,
+  #smartReport .leg-list .lr-wx,
+  #weatherDetails .leg-list .lr-wx { font-size: 14px !important; white-space: nowrap !important; }
+  #weatherDetails .leg-list .lr-time::before,
+  #weatherDetails .leg-list .lr-wx::before,
+  #weatherDetails .leg-list .lr-why::before,
+  #weatherDetails .leg-list .lr-impact::before,
+  #smartReport .leg-list .lr-time::before,
+  #smartReport .leg-list .lr-wx::before,
+  #smartReport .leg-list .lr-why::before,
+  #smartReport .leg-list .lr-impact::before { content: none !important; }
+  #weatherDetails .leg-list .leg-row,
+  #smartReport .leg-list .leg-row { border-left: 0 !important; }
+  #weatherDetails .leg-list .leg-row::before,
+  #smartReport .leg-list .leg-row::before { display: none !important; }
+  #smartReport .leg-list .lr-score,
+  #weatherDetails .leg-list .lr-score { font-size: 15px !important; text-align: center !important; }
+  #smartReport .leg-list .lr-why,
+  #weatherDetails .leg-list .lr-why { font-size: 13.5px !important; }
+  #smartReport .leg-list .lr-impact,
+  #weatherDetails .leg-list .lr-impact { font-size: 13.5px !important; }
+  #smartReport .leg-list .lr-temp,
+  #weatherDetails .leg-list .lr-temp,
+  #smartReport .leg-list .lr-precip,
+  #weatherDetails .leg-list .lr-precip { font-size: 13.5px !important; }
+}
+
+/* 返回箭头：固定圆形按钮内居中，避免箭头偏大偏出 */
+#view-report .report-local-nav .report-nav-back {
+  width: 40px !important;
+  min-width: 40px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  flex: 0 0 40px !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: 0 !important;
+  border: 1px solid #cfe2ef !important;
+  border-radius: 50% !important;
+  background: #ffffff !important;
+  color: #174d79 !important;
+  font-size: 16px !important;
+  line-height: 1 !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+}
+/* 让返回箭头所在的圆在白色导航条上也有清晰边界 */
+#view-report .report-local-nav .report-nav-back {
+  border: 1.5px solid #a9cde4 !important;
+  background: #eaf5fc !important;
+  box-shadow: 0 2px 7px rgba(20, 78, 120, .12) !important;
+  margin: 0 4px 0 2px !important;
+}
+@media (max-width: 680px) {
+  #view-report .report-local-nav .report-nav-back {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    flex-basis: 34px !important;
+    font-size: 14px !important;
+  }
+}
+
+/* ============================================================
+ * 600px 以上（含 200% 缩放的桌面浏览器）统一按桌面字号
+ * ============================================================ */
+@media (min-width: 600px) {
+  #smartReport .decision-kicker { font-size: 12px !important; }
+  #smartReport .decision-orbit-label { font-size: 12px !important; line-height: 1.25 !important; }
+  #smartReport .decision-copy { font-size: 15px !important; line-height: 1.75 !important; }
+  #smartReport .decision-risk { font-size: 13.5px !important; line-height: 1.6 !important; }
+  #smartReport .decision-risk span { font-size: 12.5px !important; }
+  #smartReport .decision-fresh { font-size: 12px !important; color: #7a8e9d !important; display: block !important; }
+
+  #smartReport .elevation-head h3 { font-size: 19px !important; }
+  #smartReport .elevation-head p { font-size: 12px !important; line-height: 1.6 !important; }
+  #smartReport .elevation-range { font-size: 12px !important; }
+  #smartReport .elevation-range b { font-size: 14px !important; }
+  #smartReport .elevation-axis { font-size: 12px !important; }
+  #smartReport .elevation-note { font-size: 12px !important; line-height: 1.6 !important; }
+  #smartReport .departure-rec-card small { font-size: 12px !important; }
+  #smartReport .departure-rec-card p { font-size: 12px !important; line-height: 1.55 !important; }
+  #smartReport .departure-current-card small,
+  #smartReport .departure-current-card span { font-size: 12px !important; line-height: 1.55 !important; }
+  #smartReport .departure-grid-card .weather-timeline-head span { font-size: 12px !important; }
+  #smartReport .elevation-note {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 4px 18px !important;
+    align-items: start !important;
+  }
+  #smartReport .elevation-note > * { min-width: 0 !important; }
+  #smartReport .elevation-note > *:last-child { text-align: right !important; }
+
+  #view-report .report-favorite {
+    min-height: 42px !important;
+    padding: 0 15px !important;
+    font-size: 14px !important;
+    gap: 8px !important;
+  }
+  #view-report .report-favorite span { font-size: 14px !important; }
+  .segment-popup .impact-chip {
+    min-height: 30px !important;
+    padding: 5px 11px !important;
+    font-size: 14px !important;
+    line-height: 1.2 !important;
+  }
+  #smartReport .smart-section-heading > button { font-size: 14px !important; }
+  #view-report .report-screen-heading p { font-size: 13px !important; }
+  #view-report .report-screen-heading .eyebrow { font-size: 11px !important; }
+  #view-report .sample-summary .detail-hint { font-size: 12px !important; }
+  #view-report .leg-note { font-size: 12px !important; line-height: 1.65 !important; }
+  #view-report .map-hint { font-size: 12px !important; }
+  #smartReport .smart-section-heading > div > span { font-size: 12px !important; }
+  #smartReport .smart-empty-note,
+  #smartReport .smart-data-note { font-size: 13px !important; }
+}
+
+/* ============================================================
+ * 最终表格方案：跟手机版图二一致，全部改成卡片行
+ * 位置/时刻 → 天气/评分 → 原因/影响
+ * ============================================================ */
+#weatherDetails .leg-list:not(.nav-leg-list) {
+  display: grid !important;
+  gap: 11px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  overflow: visible !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .leg-head { display: none !important; }
+#weatherDetails .leg-list:not(.nav-leg-list) .leg-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-rows: auto auto auto !important;
+  gap: 8px 14px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 14px 16px !important;
+  border: 1px solid #dce8f0 !important;
+  border-left: 3px solid #6eb6dc !important;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(27, 68, 96, .055) !important;
+  font-size: 15px !important;
+  line-height: 1.5 !important;
+  box-sizing: border-box !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-name {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  color: #173f5d !important;
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  line-height: 1.38 !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  text-overflow: clip !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-time {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  align-self: start !important;
+  color: #315e7a !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+  text-align: right !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-time::before {
+  content: '时刻' !important;
+  display: block !important;
+  margin-bottom: 2px !important;
+  color: #8aa0b2 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-wx {
+  grid-column: 1 !important;
+  grid-row: 2 !important;
+  color: #47677e !important;
+  font-size: 15px !important;
+  line-height: 1.5 !important;
+  white-space: normal !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-wx::before {
+  content: '天气 ' !important;
+  color: #8aa0b2 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-score {
+  grid-column: 2 !important;
+  grid-row: 2 !important;
+  justify-self: end !important;
+  align-self: center !important;
+  min-width: 64px !important;
+  padding: 7px 15px !important;
+  border-radius: 9px !important;
+  background: #e8f7ef !important;
+  color: #15824b !important;
+  font-size: 17px !important;
+  font-weight: 800 !important;
+  line-height: 1.2 !important;
+  text-align: center !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-score.good {
+  background: #e8f7ef !important;
+  color: #15824b !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-score.fair {
+  background: #fff7e6 !important;
+  color: #a97a00 !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-score.caution {
+  background: #fff1e6 !important;
+  color: #c05a12 !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-score.bad {
+  background: #fdecec !important;
+  color: #b42318 !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-why {
+  grid-column: 1 !important;
+  grid-row: 3 !important;
+  min-width: 0 !important;
+  color: #7c90a0 !important;
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-why::before {
+  content: '原因 ' !important;
+  color: #8aa0b2 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-impact {
+  grid-column: 2 !important;
+  grid-row: 3 !important;
+  max-width: 190px !important;
+  color: #47677e !important;
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+  text-align: right !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-impact::before {
+  content: '影响 ' !important;
+  color: #8aa0b2 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-temp,
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-precip { display: none !important; }
+#weatherDetails .leg-list:not(.nav-leg-list) .lr-impact {
+  border-left: 0 !important;
+}
+#weatherDetails .leg-list:not(.nav-leg-list) .leg-row::before { display: none !important; }
+
+/* 沿途补能：标题、油电摘要、筛选按钮放大 */
+#energyPlan .smart-section-heading > div > span { font-size: 12px !important; }
+#energyPlan .smart-section-heading h3 { font-size: 22px !important; line-height: 1.3 !important; }
+#energyPlan .energy-tag {
+  font-size: 13.5px !important;
+  line-height: 1.35 !important;
+  padding: 4px 10px !important;
+  white-space: nowrap !important;
+}
+#energyPlan .poi-filter {
+  min-height: 40px !important;
+  padding: 0 15px !important;
+  font-size: 14px !important;
+}
+#energyPlan .poi-filter span { font-size: 12.5px !important; }
+#energyPlan .collapse-chevron { font-size: 18px !important; }
+
+@media (min-width: 600px) {
+  #energyPlan .smart-section-heading h3 { font-size: 24px !important; }
+  #energyPlan .smart-section-heading > div > span { font-size: 12.5px !important; }
+  #energyPlan .energy-tag { font-size: 14px !important; padding: 5px 12px !important; }
+  #energyPlan .poi-filter { font-size: 15px !important; min-height: 42px !important; padding: 0 17px !important; }
+  #energyPlan .poi-filter span { font-size: 13px !important; }
+}
+
+/* 沿途推荐沿用补能区的绿色摘要标签格式 */
+#poiRecommendations .smart-section-heading h3 { font-size: 22px !important; line-height: 1.3 !important; }
+#poiRecommendations .smart-section-heading > div > span { font-size: 12px !important; }
+#poiRecommendations .poi-tag {
+  font-size: 13.5px !important;
+  line-height: 1.35 !important;
+  padding: 4px 10px !important;
+  white-space: nowrap !important;
+}
+#poiRecommendations .poi-filter {
+  min-height: 40px !important;
+  padding: 0 15px !important;
+  font-size: 14px !important;
+}
+#poiRecommendations .poi-filter span { font-size: 12.5px !important; }
+@media (min-width: 600px) {
+  #poiRecommendations .smart-section-heading h3 { font-size: 24px !important; }
+  #poiRecommendations .smart-section-heading > div > span { font-size: 12.5px !important; }
+  #poiRecommendations .poi-tag { font-size: 14px !important; padding: 5px 12px !important; }
+  #poiRecommendations .poi-filter { font-size: 15px !important; min-height: 42px !important; padding: 0 17px !important; }
+  #poiRecommendations .poi-filter span { font-size: 13px !important; }
+}
+
+/* ============================================================
+ * 智能报告：可收起章节 + 回到顶部
+ * ============================================================ */
+#smartReport .smart-collapse > summary { padding: 0 !important; }
+#smartReport .smart-collapse .smart-section-heading { margin: 0 !important; }
+#smartReport .smart-collapse .collapse-chevron {
+  width: 38px !important;
+  height: 38px !important;
+  flex: 0 0 38px !important;
+  font-size: 19px !important;
+}
+#smartReport .smart-collapse .report-collapse-body { padding-top: 12px !important; }
+.smart-collapse-action {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 4px 10px;
+}
+.smart-collapse-action button {
+  border: 0;
+  background: transparent;
+  color: #5f7f96;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.smart-collapse-action button b { margin-left: 4px; }
+
+.smart-back-top {
+  position: relative !important;
+  inset: auto !important;
+  z-index: 1;
+  display: flex !important;
+  width: max-content !important;
+  min-width: 132px;
+  height: 46px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin: 26px auto 58px !important;
+  padding: 0 20px !important;
+  border: 1px solid #b9d8eb;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .94);
+  color: #1b5d88;
+  box-shadow: 0 8px 22px rgba(18, 62, 94, .12);
+  cursor: pointer;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  transform: none !important;
+}
+.smart-back-top span { font-size: 19px; line-height: 1; }
+.smart-back-top small { font-size: 12px; line-height: 1; color: #4f7289; }
+@media (max-width: 600px) {
+  .smart-back-top { margin: 22px auto 46px !important; height: 44px; min-width: 122px; }
+}
+
+/* 选中文字时不再出现大面积蓝色；可收起标题不参与文字选择 */
+::selection {
+  background: rgba(108, 132, 149, .18) !important;
+  color: inherit !important;
+}
+#smartReport .report-collapse-summary,
+#smartReport .smart-section-heading {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+/* 首页左上角标签与右下角天气浮卡 */
+#view-home .home-badge {
+  padding: 9px 16px !important;
+  font-size: 14px !important;
+  line-height: 1.25 !important;
+}
+#view-home .home-badge .badge-spark {
+  width: 8px !important;
+  height: 8px !important;
+  flex: 0 0 8px !important;
+}
+#view-home .hero-weather-float {
+  width: min(100%, 340px) !important;
+  padding: 12px 16px !important;
+  gap: 12px !important;
+}
+#view-home .hero-weather-float .weather-float-icon {
+  width: 36px !important;
+  height: 36px !important;
+  flex: 0 0 36px !important;
+  font-size: 20px !important;
+}
+#view-home .hero-weather-float small { font-size: 12px !important; line-height: 1.3 !important; }
+#view-home .hero-weather-float b { font-size: 15px !important; line-height: 1.35 !important; }
+@media (max-width: 600px) {
+  #view-home .home-badge { font-size: 12px !important; padding: 8px 13px !important; }
+  #view-home .hero-weather-float small { font-size: 11px !important; }
+  #view-home .hero-weather-float b { font-size: 14px !important; }
+}
+
+/* 手机智能报告：整体再放大一档，保证标题、剖面和筛选清楚可见 */
+@media (max-width: 600px) {
+  #smartReport .smart-section-heading h3,
+  #poiRecommendations .smart-section-heading h3 { font-size: 24px !important; line-height: 1.3 !important; }
+  #smartReport .smart-section-heading > div > span { font-size: 12.5px !important; letter-spacing: .12em !important; }
+  #smartReport .smart-collapse .collapse-chevron {
+    width: 40px !important;
+    height: 40px !important;
+    flex-basis: 40px !important;
+    font-size: 20px !important;
+  }
+  #smartReport .elevation-head h3 { font-size: 21px !important; }
+  #smartReport .elevation-head p { font-size: 13px !important; line-height: 1.6 !important; }
+  #smartReport .elevation-range { font-size: 13px !important; }
+  #smartReport .elevation-range b { font-size: 15px !important; }
+  #smartReport .elevation-axis { font-size: 12px !important; }
+  #smartReport .elevation-note { font-size: 12.5px !important; line-height: 1.65 !important; }
+  #poiRecommendations .poi-tag { font-size: 14px !important; padding: 5px 11px !important; }
+  #poiRecommendations .poi-filter {
+    min-height: 42px !important;
+    padding: 0 16px !important;
+    font-size: 15px !important;
+  }
+  #poiRecommendations .poi-filter span { font-size: 13px !important; }
+}
+
+/* 出行建议 1/2/3/4：标题和说明再放大 */
+#smartReport .smart-note-copy strong {
+  font-size: 18px !important;
+  line-height: 1.45 !important;
+}
+#smartReport .smart-note-copy small {
+  font-size: 14.5px !important;
+  line-height: 1.65 !important;
+}
+#smartReport .smart-note-index { font-size: 12.5px !important; }
+#smartReport .smart-note-icon { font-size: 21px !important; }
+#smartReport .smart-note-row { padding-top: 14px !important; padding-bottom: 14px !important; }
+
+@media (max-width: 600px) {
+  #smartReport .smart-note-copy strong { font-size: 17px !important; }
+  #smartReport .smart-note-copy small { font-size: 14px !important; }
+  #smartReport .smart-note-index { font-size: 12px !important; }
+  #smartReport .smart-note-icon { font-size: 20px !important; }
+}
+
+/* 推荐卡片与补能卡片统一字号层级 */
+#poiRecommendations .poi-card h4,
+#energyPlan .energy-copy strong {
+  font-size: 18px !important;
+  line-height: 1.45 !important;
+}
+#poiRecommendations .poi-meta,
+#energyPlan .energy-copy small {
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+}
+#poiRecommendations .poi-address,
+#energyPlan .energy-addr {
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+}
+#poiRecommendations .poi-links a,
+#energyPlan .poi-links a {
+  font-size: 13px !important;
+}
+#energyPlan .energy-src { font-size: 11.5px !important; }
+#energyPlan .energy-row { padding: 15px 16px !important; }
+
+
+
+
+
+
+
+
+
+
