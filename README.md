@@ -8,6 +8,10 @@ RouteWeather 把天气预报、路线、海拔和出发时间放进同一份行�
 
 打开体验页后，可从探索首页载入示例路线 **雅安 → 天全 → 泸定**。
 
+## 最新上传包（2026-11-06）
+
+[下载 RouteWeather-GitHub-Upload.zip](./RouteWeather-GitHub-Upload.zip)。此版本保持同一路线重复分析时的推荐出发时刻稳定；修改路线或日期后再重新计算。地图信息弹窗的尺寸与避让也有调整，并更新了文字样式资源和浏览器缓存标识。
+
 ## 界面预览
 
 <table>
@@ -93,6 +97,7 @@ node test/plan-test.js
 node test/poi-test.js
 node test/edge-test.js
 node test/product-flow-test.js
+node test/mountain-test.js
 ```
 
 `node test/algo-test.js` 会请求 Open-Meteo 天气和海拔数据。
@@ -109,11 +114,13 @@ node test/product-flow-test.js
 | `css/` | 首页、规划页、地图和报告的界面样式 |
 | `js/app.js` | 页面状态、交互和行程流程 |
 | `js/map.js`、`js/route-segments.js` | Leaflet 地图、路线分段与天气点位联动 |
+| `js/mountain.js` | 高程剖面与山地天气关注提示 |
 | `js/routing.js`、`js/scoring.js`、`js/poi.js` | 出行路网、天气评分与沿途地点推荐 |
 | `js/api.js`、`js/geocode.js`、`js/points.js` | 天气/海拔请求、地点搜索与内置点位 |
 | `js/storage.js`、`js/config.js` | 本机行程记录与地图服务配置 |
 | `assets/`、`icons/`、`shots/` | 品牌图片、应用图标与界面预览 |
 | `test/`、`vendor/leaflet/` | 验证脚本与 Leaflet 静态资源 |
+| `RouteWeather-GitHub-Upload.zip` | 2026 年 11 月 6 日更新的上传资源包 |
 
 
 ### 山地地形与天气关注
